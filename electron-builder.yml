@@ -1,0 +1,17 @@
+appId: com.sistema.estudio-tareas
+productName: Sistema Estudio y Tareas
+directories:
+  output: release
+win:
+  target:
+    - portable
+  icon: null
+portable:
+  artifactName: "${productName}-${version}-portable.${ext}"
+files:
+  - dist-electron/**/*
+  - dist/**/*
+  - package.json
+  - node_modules/better-sqlite3/**/*
+asarUnpack:
+  - node_modules/better-sqlite3/**/*.node
