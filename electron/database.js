@@ -214,8 +214,8 @@ function initDatabase() {
   // Handle old column name in daily_logs (migrate tomorrowPlan -> tomorrow_plan)
   try {
     const cols = db.prepare("PRAGMA table_info('daily_logs')").all()
-    const hasNew = cols.some((c: any) => c.name === 'tomorrow_plan')
-    const hasOld = cols.some((c: any) => c.name === 'tomorrowPlan')
+    const hasNew = cols.some((c) => c.name === 'tomorrow_plan')
+    const hasOld = cols.some((c) => c.name === 'tomorrowPlan')
     if (!hasNew && hasOld) {
       db.exec(`ALTER TABLE daily_logs RENAME COLUMN tomorrowPlan TO tomorrow_plan`)
       migrationLog.push('OK: Renamed tomorrowPlan -> tomorrow_plan in daily_logs')

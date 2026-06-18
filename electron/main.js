@@ -26,19 +26,8 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
 
-  // Capture renderer console errors
-  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    const levels = ['verbose', 'info', 'warning', 'error']
-    console.log(`[RENDERER ${levels[level] || 'log'}] ${message} (${sourceId}:${line})`)
-  })
-
-  // Capture unhandled renderer errors
   mainWindow.webContents.on('unhandled-rejection', (event, promise, reason) => {
     console.error('[RENDERER UNHANDLED REJECTION]', reason)
-  })
-
-  mainWindow.webContents.on('render-process-gone', (event, details) => {
-    console.error('[RENDERER CRASH]', details.reason)
   })
 }
 
@@ -73,6 +62,7 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM tasks ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createTask', (_, task) => {
+    task.project_id = task.project_id ?? null
     const stmt = getDb().prepare('INSERT INTO tasks (title, description, priority, due_date, reminder, project_id) VALUES (@title, @description, @priority, @due_date, @reminder, @project_id)')
     const result = stmt.run(task)
     return getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid)
@@ -99,6 +89,7 @@ function registerIpcHandlers() {
   ipcMain.handle('db:createKanbanCard', (_, card) => {
     const maxPos = getDb().prepare('SELECT COALESCE(MAX(position), -1) + 1 as pos FROM kanban_cards WHERE column_type = ?').get(card.column_type)
     card.position = maxPos.pos
+    card.project_id = card.project_id ?? null
     const stmt = getDb().prepare('INSERT INTO kanban_cards (title, description, column_type, position, priority, tags, due_date, project_id) VALUES (@title, @description, @column_type, @position, @priority, @tags, @due_date, @project_id)')
     const result = stmt.run(card)
     return getDb().prepare('SELECT * FROM kanban_cards WHERE id = ?').get(result.lastInsertRowid)
@@ -126,6 +117,7 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM pomodoro_sessions ORDER BY started_at DESC').all()
   })
   ipcMain.handle('db:createPomodoroSession', (_, session) => {
+    session.project_id = session.project_id ?? null
     const stmt = getDb().prepare('INSERT INTO pomodoro_sessions (task_id, project_id, duration, started_at, ended_at) VALUES (@task_id, @project_id, @duration, @started_at, @ended_at)')
     const result = stmt.run(session)
     return getDb().prepare('SELECT * FROM pomodoro_sessions WHERE id = ?').get(result.lastInsertRowid)
@@ -166,6 +158,7 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM notes ORDER BY updated_at DESC').all()
   })
   ipcMain.handle('db:createNote', (_, note) => {
+    note.project_id = note.project_id ?? null
     const stmt = getDb().prepare('INSERT INTO notes (title, content, project_id) VALUES (@title, @content, @project_id)')
     const result = stmt.run(note)
     return getDb().prepare('SELECT * FROM notes WHERE id = ?').get(result.lastInsertRowid)
@@ -317,6 +310,7 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM snippets ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createSnippet', (_, snippet) => {
+    snippet.project_id = snippet.project_id ?? null
     const stmt = getDb().prepare('INSERT INTO snippets (title, code, language, description, tags, project_id) VALUES (@title, @code, @language, @description, @tags, @project_id)')
     const result = stmt.run(snippet)
     return getDb().prepare('SELECT * FROM snippets WHERE id = ?').get(result.lastInsertRowid)

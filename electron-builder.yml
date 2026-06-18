@@ -8,10 +8,5 @@ win:
   icon: null
 portable:
   artifactName: "${productName}-${version}-portable.${ext}"
-files:
-  - electron/**/*
-  - dist/**/*
-  - package.json
-  - node_modules/better-sqlite3/**/*
 asarUnpack:
-  - node_modules/better-sqlite3/**/*.node
+  - "**/*.node"
