@@ -1,9 +1,13 @@
 @echo off
+cd /d "%~dp0"
 echo Starting Vite dev server...
-start /b npx vite > nul 2>&1
+start "Vite" /b node_modules\.bin\vite.cmd
 echo Waiting for Vite...
-npx wait-on http://localhost:5173 > nul 2>&1
+:waitloop
+timeout /t 1 /nobreak >nul 2>&1
+powershell -Command "try { $r = Invoke-WebRequest -Uri http://localhost:5173 -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } } catch { exit 1 }" >nul 2>&1
+if errorlevel 1 goto waitloop
 echo Starting Electron...
-npx electron . --dev
+node_modules\.bin\electron.cmd . --dev
 echo Cleaning up...
-taskkill /f /im node.exe > nul 2>&1
+taskkill /f /im node.exe >nul 2>&1

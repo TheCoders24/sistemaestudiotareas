@@ -20,7 +20,10 @@ yarn-error.log*
 
 # Electron specific build outputs
 releases/
+release/
+build-release/
 dist/
+dist-electron/
 out/
 *.app
 *.exe
@@ -32,3 +35,7 @@ out/
 *.pkg
 *.zip
 *.tar.gz
+
+# Empty dirs (embedded git repos)
+sistemadeestudio/
+sistemaestudiotareas/

@@ -65,22 +65,19 @@ export default function KanbanBoard() {
     setActiveId(null)
     if (!over) return
 
-    const activeCard = cards.find((c: any) => c.id === active.id)
+    const activeCard = cards.find((c: any) => c.id === Number(active.id))
     if (!activeCard) return
 
-    let targetColumn = over.id
+    let targetColumn = String(over.id)
     let targetPosition = 0
 
-    const overCard = cards.find((c: any) => c.id === over.id)
+    const overCard = cards.find((c: any) => c.id === Number(over.id))
     if (overCard) {
       targetColumn = overCard.column_type
-      const columnCards = getColumnCards(targetColumn)
-      const overIndex = columnCards.findIndex((c: any) => c.id === over.id)
-      targetPosition = overIndex
     }
 
     if (window.electronAPI) {
-      await window.electronAPI.moveKanbanCard(active.id, targetColumn, targetPosition)
+      await window.electronAPI.moveKanbanCard(Number(active.id), targetColumn, targetPosition)
     }
     loadCards()
   }

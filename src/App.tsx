@@ -68,6 +68,8 @@ export default function App() {
       window.electronAPI.getStreak('daily_study').then(s => {
         if (s) setStreak(s)
       })
+    } else {
+      console.warn('⚠️ electronAPI no disponible - asegúrate de ejecutar la app en Electron')
     }
   }, [])
 

@@ -48,9 +48,9 @@ export default function DailyLogPage() {
     if (!window.electronAPI) return
     setSaving(true)
     if (currentLog) {
-      await window.electronAPI.updateDailyLog(currentLog.id, { content, focus, blockers, tomorrow_plan } as any)
+      await window.electronAPI.updateDailyLog(currentLog.id, { content, focus, blockers, tomorrow_plan: tomorrowPlan } as any)
     } else {
-      await window.electronAPI.createDailyLog({ date: selectedDate, content, focus, blockers, tomorrow_plan } as any)
+      await window.electronAPI.createDailyLog({ date: selectedDate, content, focus, blockers, tomorrow_plan: tomorrowPlan } as any)
     }
     loadLogs()
     loadLogForDate(selectedDate)

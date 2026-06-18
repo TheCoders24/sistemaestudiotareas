@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Play, Pause, RotateCcw, Coffee, Timer, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -30,12 +30,23 @@ export function PomodoroTimer({ onComplete }: Props) {
   const [linkTaskId, setLinkTaskId] = useState<number | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const startTimeRef = useRef<number | null>(null)
+  const modeRef = useRef(mode)
+  const sessionsRef = useRef(sessions)
 
   const MODES = {
     pomodoro: { label: 'Pomodoro', duration: POMODORO, color: 'text-red-500', icon: Timer },
     short: { label: 'Descanso Corto', duration: SHORT_BREAK, color: 'text-green-500', icon: Coffee },
     long: { label: 'Descanso Largo', duration: LONG_BREAK, color: 'text-blue-500', icon: Coffee },
   }
+
+  useEffect(() => {
+    modeRef.current = mode
+  }, [mode])
+
+  useEffect(() => {
+    sessionsRef.current = sessions
+  }, [sessions])
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -47,6 +58,7 @@ export function PomodoroTimer({ onComplete }: Props) {
 
   useEffect(() => {
     if (running) {
+      startTimeRef.current = Date.now()
       intervalRef.current = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
@@ -61,13 +73,16 @@ export function PomodoroTimer({ onComplete }: Props) {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [running])
 
-  const handleComplete = useCallback(async () => {
+  function handleComplete() {
     setRunning(false)
     const endedAt = new Date().toISOString()
-    const startedAt = new Date(Date.now() - (MODES[mode].duration - timeLeft) * 1000).toISOString()
+    const elapsed = startTimeRef.current ? Math.round((Date.now() - startTimeRef.current) / 1000) : MODES[modeRef.current].duration
+    const startedAt = new Date(Date.now() - elapsed * 1000).toISOString()
+    const currentMode = modeRef.current
+    const currentSessions = sessionsRef.current
 
-    if (mode === 'pomodoro' && window.electronAPI) {
-      await window.electronAPI.createPomodoroSession({
+    if (currentMode === 'pomodoro' && window.electronAPI) {
+      window.electronAPI.createPomodoroSession({
         task_id: linkTaskId,
         project_id: null,
         duration: MODES.pomodoro.duration,
@@ -80,13 +95,13 @@ export function PomodoroTimer({ onComplete }: Props) {
       setTodayCount(c => c + 1)
       if (onComplete) onComplete()
 
-      if ((sessions + 1) % 4 === 0) switchMode('long')
+      if ((currentSessions + 1) % 4 === 0) switchMode('long')
       else switchMode('short')
     } else {
       if (window.electronAPI) window.electronAPI.showNotification('⏰ Descanso terminado', '¡De vuelta al trabajo!')
       switchMode('pomodoro')
     }
-  }, [mode, timeLeft, linkTaskId, sessions, onComplete])
+  }
 
   function switchMode(newMode: 'pomodoro' | 'short' | 'long') {
     setMode(newMode)

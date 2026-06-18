@@ -68,6 +68,21 @@ export default function StudyMap({ darkMode }: { darkMode: boolean }) {
     toast({ title: 'Tema creado', description: `"${formName}" agregado.` })
   }
 
+  async function handleCreateClick() {
+    if (!formName.trim()) return
+    if (window.electronAPI) {
+      await window.electronAPI.createStudyTopic({
+        name: formName, description: formDesc,
+        parent_id: formParent ? Number(formParent) : null,
+        order_position: topics.length,
+      } as any)
+    }
+    setFormName(''); setFormDesc(''); setFormParent('')
+    setShowAddForm(false)
+    loadTopics()
+    toast({ title: 'Tema creado', description: `"${formName}" agregado.` })
+  }
+
   async function handleDelete(id: number) {
     if (window.electronAPI) await window.electronAPI.deleteStudyTopic(id)
     loadTopics()
@@ -135,18 +150,20 @@ export default function StudyMap({ darkMode }: { darkMode: boolean }) {
 
       {showAddForm && (
         <Card className="mb-6">
-          <CardContent className="pt-4 space-y-3">
-            <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Nombre del tema" autoFocus required />
-            <Input value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Descripción" />
-            <Select value={formParent} onValueChange={setFormParent}>
-              <SelectTrigger><SelectValue placeholder="Tema raíz (sin padre)" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Tema raíz (sin padre)</SelectItem>
-                {topics.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button onClick={handleCreate} className="w-full">✓ Crear Tema</Button>
-          </CardContent>
+          <form onSubmit={handleCreate}>
+            <CardContent className="pt-4 space-y-3">
+              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Nombre del tema" autoFocus required />
+              <Input value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Descripción" />
+              <Select value={formParent} onValueChange={setFormParent}>
+                <SelectTrigger><SelectValue placeholder="Tema raíz (sin padre)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Tema raíz (sin padre)</SelectItem>
+                  {topics.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button type="submit" className="w-full">✓ Crear Tema</Button>
+            </CardContent>
+          </form>
         </Card>
       )}
 

@@ -67,28 +67,30 @@ export default function Goals() {
 
       {showForm && (
         <Card className="mb-6">
-          <CardContent className="pt-4 space-y-3">
-            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Completar 4 pomodoros" autoFocus required />
-            <div className="flex gap-3">
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">📅 Diaria</SelectItem>
-                  <SelectItem value="weekly">📅 Semanal</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={metric} onValueChange={setMetric}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pomodoros">🍅 Pomodoros</SelectItem>
-                  <SelectItem value="tareas">✅ Tareas</SelectItem>
-                  <SelectItem value="estudio">📚 Estudio</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input type="number" value={target} onChange={e => setTarget(Number(e.target.value))} className="w-20" min={1} />
-            </div>
-            <Button onClick={handleCreate} className="w-full">✓ Crear Meta</Button>
-          </CardContent>
+          <form onSubmit={handleCreate}>
+            <CardContent className="pt-4 space-y-3">
+              <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Completar 4 pomodoros" autoFocus required />
+              <div className="flex gap-3">
+                <Select value={type} onValueChange={setType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">📅 Diaria</SelectItem>
+                    <SelectItem value="weekly">📅 Semanal</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={metric} onValueChange={setMetric}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pomodoros">🍅 Pomodoros</SelectItem>
+                    <SelectItem value="tareas">✅ Tareas</SelectItem>
+                    <SelectItem value="estudio">📚 Estudio</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input type="number" value={target} onChange={e => setTarget(Number(e.target.value))} className="w-20" min={1} />
+              </div>
+              <Button type="submit" className="w-full">✓ Crear Meta</Button>
+            </CardContent>
+          </form>
         </Card>
       )}
 
