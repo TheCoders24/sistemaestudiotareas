@@ -172,6 +172,18 @@ function initDatabase() {
     );
   `)
 
+  // Migrations for existing databases (add columns that were added later)
+  const migrations = [
+    `ALTER TABLE tasks ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`,
+    `ALTER TABLE kanban_cards ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`,
+    `ALTER TABLE pomodoro_sessions ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`,
+    `ALTER TABLE notes ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`,
+    `ALTER TABLE snippets ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`,
+  ]
+  for (const sql of migrations) {
+    try { db.exec(sql) } catch {}
+  }
+
   return db
 }
 
