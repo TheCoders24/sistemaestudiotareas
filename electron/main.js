@@ -25,6 +25,21 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
+
+  // Capture renderer console errors
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const levels = ['verbose', 'info', 'warning', 'error']
+    console.log(`[RENDERER ${levels[level] || 'log'}] ${message} (${sourceId}:${line})`)
+  })
+
+  // Capture unhandled renderer errors
+  mainWindow.webContents.on('unhandled-rejection', (event, promise, reason) => {
+    console.error('[RENDERER UNHANDLED REJECTION]', reason)
+  })
+
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[RENDERER CRASH]', details.reason)
+  })
 }
 
 app.whenReady().then(() => {
@@ -349,7 +364,11 @@ function registerIpcHandlers() {
     const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags']
     const data = {}
     for (const table of tables) {
-      data[table] = getDb().prepare(`SELECT * FROM ${table}`).all()
+      try {
+        data[table] = getDb().prepare(`SELECT * FROM ${table}`).all()
+      } catch (e) {
+        data[table] = []
+      }
     }
     return data
   })
@@ -357,14 +376,18 @@ function registerIpcHandlers() {
     const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags']
     const tx = getDb().transaction(() => {
       for (const table of tables) {
-        getDb().prepare(`DELETE FROM ${table}`).run()
-        if (data[table] && data[table].length > 0) {
-          const columns = Object.keys(data[table][0]).join(', ')
-          const placeholders = Object.keys(data[table][0]).map(k => `@${k}`).join(', ')
-          const stmt = getDb().prepare(`INSERT INTO ${table} (${columns}) VALUES (${placeholders})`)
-          for (const row of data[table]) {
-            stmt.run(row)
+        try {
+          getDb().prepare(`DELETE FROM ${table}`).run()
+          if (data[table] && data[table].length > 0) {
+            const columns = Object.keys(data[table][0]).join(', ')
+            const placeholders = Object.keys(data[table][0]).map(k => `@${k}`).join(', ')
+            const stmt = getDb().prepare(`INSERT INTO ${table} (${columns}) VALUES (${placeholders})`)
+            for (const row of data[table]) {
+              stmt.run(row)
+            }
           }
+        } catch (e) {
+          console.error(`Error importing ${table}:`, e)
         }
       }
     })

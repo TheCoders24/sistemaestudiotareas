@@ -172,16 +172,57 @@ function initDatabase() {
     );
   `)
 
-  // Migrations for existing databases (add columns that were added later)
+  // Migrations for existing databases (add columns that may be missing)
+  const migrationLog = []
   const migrations = [
-    `ALTER TABLE tasks ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`,
-    `ALTER TABLE kanban_cards ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`,
-    `ALTER TABLE pomodoro_sessions ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`,
-    `ALTER TABLE notes ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`,
-    `ALTER TABLE snippets ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`,
+    `ALTER TABLE tasks ADD COLUMN project_id INTEGER`,
+    `ALTER TABLE tasks ADD COLUMN reminder TEXT`,
+    `ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'media'`,
+    `ALTER TABLE tasks ADD COLUMN description TEXT DEFAULT ''`,
+    `ALTER TABLE kanban_cards ADD COLUMN project_id INTEGER`,
+    `ALTER TABLE kanban_cards ADD COLUMN tags TEXT DEFAULT ''`,
+    `ALTER TABLE kanban_cards ADD COLUMN priority TEXT DEFAULT 'media'`,
+    `ALTER TABLE kanban_cards ADD COLUMN description TEXT DEFAULT ''`,
+    `ALTER TABLE pomodoro_sessions ADD COLUMN project_id INTEGER`,
+    `ALTER TABLE pomodoro_sessions ADD COLUMN task_id INTEGER`,
+    `ALTER TABLE notes ADD COLUMN project_id INTEGER`,
+    `ALTER TABLE notes ADD COLUMN content TEXT DEFAULT ''`,
+    `ALTER TABLE snippets ADD COLUMN project_id INTEGER`,
+    `ALTER TABLE snippets ADD COLUMN tags TEXT DEFAULT ''`,
+    `ALTER TABLE snippets ADD COLUMN description TEXT DEFAULT ''`,
+    `ALTER TABLE snippets ADD COLUMN language TEXT DEFAULT 'text'`,
+    `ALTER TABLE daily_logs ADD COLUMN tomorrow_plan TEXT DEFAULT ''`,
+    `ALTER TABLE daily_logs ADD COLUMN focus TEXT DEFAULT ''`,
+    `ALTER TABLE daily_logs ADD COLUMN blockers TEXT DEFAULT ''`,
+    `ALTER TABLE study_progress ADD COLUMN completed INTEGER DEFAULT 0`,
+    `ALTER TABLE study_progress ADD COLUMN date TEXT DEFAULT (date('now'))`,
+    `ALTER TABLE habits ADD COLUMN icon TEXT DEFAULT 'check'`,
+    `ALTER TABLE habits ADD COLUMN color TEXT DEFAULT '#6366f1'`,
+    `ALTER TABLE habits ADD COLUMN frequency TEXT DEFAULT 'daily'`,
+    `ALTER TABLE projects ADD COLUMN color TEXT DEFAULT '#6366f1'`,
+    `ALTER TABLE projects ADD COLUMN tech_stack TEXT DEFAULT ''`,
+    `ALTER TABLE projects ADD COLUMN repo_url TEXT DEFAULT ''`,
   ]
   for (const sql of migrations) {
-    try { db.exec(sql) } catch {}
+    try {
+      db.exec(sql)
+      migrationLog.push(`OK: ${sql}`)
+    } catch (e) {
+      // Column likely already exists - ignore
+    }
+  }
+  // Handle old column name in daily_logs (migrate tomorrowPlan -> tomorrow_plan)
+  try {
+    const cols = db.prepare("PRAGMA table_info('daily_logs')").all()
+    const hasNew = cols.some((c: any) => c.name === 'tomorrow_plan')
+    const hasOld = cols.some((c: any) => c.name === 'tomorrowPlan')
+    if (!hasNew && hasOld) {
+      db.exec(`ALTER TABLE daily_logs RENAME COLUMN tomorrowPlan TO tomorrow_plan`)
+      migrationLog.push('OK: Renamed tomorrowPlan -> tomorrow_plan in daily_logs')
+    }
+  } catch {}
+  if (migrationLog.length > 0) {
+    console.log('[DB Migration] Applied:', migrationLog.join('; '))
   }
 
   return db
