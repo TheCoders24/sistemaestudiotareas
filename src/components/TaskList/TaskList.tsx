@@ -10,6 +10,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from '@/components/ui/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Task {
   id: number
@@ -31,6 +33,7 @@ export default function TaskList() {
   const [newReminder, setNewReminder] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState('all')
+  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   useEffect(() => { loadTasks() }, [])
 
@@ -73,6 +76,7 @@ export default function TaskList() {
     if (!window.electronAPI) return
     await window.electronAPI.deleteTask(id)
     loadTasks()
+    toast({ title: 'Tarea eliminada', description: 'La tarea fue eliminada.' })
   }
 
   const filtered = tasks.filter(task => {
@@ -151,10 +155,13 @@ export default function TaskList() {
 
       <div className="space-y-2">
         {filtered.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
-            <CheckSquare className="h-10 w-10 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">No hay tareas {filter !== 'all' ? (filter === 'pending' ? 'pendientes' : 'completadas') : ''}</p>
-          </div>
+          <EmptyState
+            icon={CheckSquare}
+            title={filter === 'done' ? 'Sin tareas completadas' : filter === 'pending' ? 'Sin tareas pendientes' : 'No hay tareas'}
+            description="Crea tu primera tarea para empezar a organizarte."
+            actionLabel={filter === 'all' ? 'Crear tarea' : undefined}
+            onAction={filter === 'all' ? () => setShowForm(true) : undefined}
+          />
         )}
         <AnimatePresence>
           {filtered.map(task => (
@@ -189,7 +196,7 @@ export default function TaskList() {
                       {task.reminder && <span>⏰ {new Date(task.reminder).toLocaleString()}</span>}
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleDelete(task.id)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => setDeleteId(task.id)}>
                     <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                   </Button>
                 </CardContent>
@@ -198,6 +205,15 @@ export default function TaskList() {
           ))}
         </AnimatePresence>
       </div>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null) }}
+        title="Eliminar tarea"
+        description="¿Estás seguro? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        onConfirm={() => deleteId !== null && handleDelete(deleteId)}
+      />
     </div>
   )
 }

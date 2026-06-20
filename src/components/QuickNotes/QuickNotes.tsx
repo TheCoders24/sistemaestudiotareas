@@ -6,6 +6,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Note {
   id: number
@@ -22,6 +24,7 @@ export default function QuickNotes() {
   const [showCreate, setShowCreate] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
+  const [deleteId, setDeleteId] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -66,6 +69,7 @@ export default function QuickNotes() {
     if (!window.electronAPI) return
     await window.electronAPI.deleteNote(id)
     loadNotes()
+    toast({ title: 'Nota eliminada' })
   }
 
   return (
@@ -106,9 +110,14 @@ export default function QuickNotes() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {notes.length === 0 && (
-          <div className="col-span-full text-center py-16 text-muted-foreground">
-            <StickyNote className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No hay notas. ¡Crea tu primera nota!</p>
+          <div className="col-span-full">
+            <EmptyState
+              icon={StickyNote}
+              title="No hay notas"
+              description="Crea tu primera nota con Ctrl+N o el botón de arriba."
+              actionLabel="Crear nota"
+              onAction={() => setShowCreate(true)}
+            />
           </div>
         )}
         {notes.map(note => (
@@ -132,7 +141,7 @@ export default function QuickNotes() {
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingId(note.id); setEditTitle(note.title); setEditContent(note.content) }}>
                           <Edit3 className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDelete(note.id)}>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDeleteId(note.id)}>
                           <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                         </Button>
                       </div>
@@ -146,6 +155,15 @@ export default function QuickNotes() {
           </motion.div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null) }}
+        title="Eliminar nota"
+        description="¿Estás seguro? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        onConfirm={() => deleteId !== null && handleDelete(deleteId)}
+      />
     </div>
   )
 }

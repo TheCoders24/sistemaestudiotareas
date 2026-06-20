@@ -3,7 +3,7 @@ import { StickyNote, Target, Zap } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 
-export default function Sidebar({ darkMode }: { darkMode: boolean }) {
+export default function Sidebar() {
   const [notes, setNotes] = useState<any[]>([])
   const [goals, setGoals] = useState<any[]>([])
 

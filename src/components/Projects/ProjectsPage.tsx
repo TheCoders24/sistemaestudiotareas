@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/components/ui/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 
 const STATUS_OPTIONS = ['activo', 'en pausa', 'completado', 'archivado']
 const STATUS_COLORS: Record<string, string> = {
@@ -31,6 +33,7 @@ export default function ProjectsPage() {
   const [techStack, setTechStack] = useState('')
   const [repoUrl, setRepoUrl] = useState('')
   const [color, setColor] = useState('#6366f1')
+  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   useEffect(() => { loadProjects() }, [])
 
@@ -54,7 +57,7 @@ export default function ProjectsPage() {
     if (!window.electronAPI) return
     await window.electronAPI.deleteProject(id)
     loadProjects()
-    toast({ title: 'Proyecto eliminado' })
+    toast({ title: 'Proyecto eliminado', description: 'El proyecto fue eliminado.' })
   }
 
   async function handleStatusChange(id: number, newStatus: string) {
@@ -120,9 +123,14 @@ export default function ProjectsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {projects.length === 0 && (
-          <div className="col-span-full text-center py-16 text-muted-foreground">
-            <FolderKanban className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No hay proyectos aún. ¡Crea tu primer proyecto!</p>
+          <div className="col-span-full">
+            <EmptyState
+              icon={FolderKanban}
+              title="No hay proyectos"
+              description="Crea tu primer proyecto para organizar tu trabajo."
+              actionLabel="Crear proyecto"
+              onAction={() => setOpen(true)}
+            />
           </div>
         )}
         {projects.map((project, i) => (
@@ -141,7 +149,7 @@ export default function ProjectsPage() {
                   </div>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => handleDelete(project.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => setDeleteId(project.id)}>
                         <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                       </Button>
                     </TooltipTrigger>
@@ -179,6 +187,15 @@ export default function ProjectsPage() {
           </motion.div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null) }}
+        title="Eliminar proyecto"
+        description="¿Estás seguro? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        onConfirm={() => deleteId !== null && handleDelete(deleteId)}
+      />
     </div>
   )
 }

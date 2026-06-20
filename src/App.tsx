@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Toaster } from '@/components/ui/toaster'
+import { useAppStore } from '@/stores/appStore'
+import { CommandPalette } from '@/components/ui/command-palette'
+import { GlobalSearch } from '@/components/ui/global-search'
+import Dashboard from './components/Dashboard/Dashboard'
 import { PomodoroTimer } from './components/Pomodoro/PomodoroTimer'
 import KanbanBoard from './components/Kanban/KanbanBoard'
 import TaskList from './components/TaskList/TaskList'
@@ -17,12 +21,13 @@ import HabitsPage from './components/Habits/HabitsPage'
 import {
   Clock, LayoutDashboard, CheckSquare, BookOpen, BarChart3,
   StickyNote, Target, FolderKanban, NotebookPen, Code2, Activity,
-  Menu, Sun, Moon, Zap
+  Menu, Sun, Moon, Zap, Home,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 const TABS = [
+  { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'pomodoro', label: 'Pomodoro', icon: Clock },
   { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
   { id: 'tareas', label: 'Tareas', icon: CheckSquare },
@@ -37,6 +42,7 @@ const TABS = [
 ]
 
 const KEYBOARD_SHORTCUTS: Record<string, string> = {
+  dashboard: 'Ctrl+Shift+H',
   pomodoro: 'Ctrl+P',
   kanban: 'Ctrl+K',
   tareas: 'Ctrl+T',
@@ -50,41 +56,45 @@ const KEYBOARD_SHORTCUTS: Record<string, string> = {
   metas: 'Ctrl+G',
 }
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('pomodoro')
-  const [darkMode, setDarkMode] = useState(true)
-  const [streak, setStreak] = useState({ current: 0, max: 0 })
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode)
-  }, [darkMode])
+function useAppInitializer() {
+  const setDarkMode = useAppStore((s) => s.setDarkMode)
+  const setStreak = useAppStore((s) => s.setStreak)
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getSetting('theme').then(val => {
+      window.electronAPI.getSetting('theme').then((val) => {
         if (val !== null) setDarkMode(val === 'dark')
       })
-      window.electronAPI.getStreak('daily_study').then(s => {
+      window.electronAPI.getStreak('daily_study').then((s) => {
         if (s) setStreak(s)
       })
     } else {
       console.warn('⚠️ electronAPI no disponible - asegúrate de ejecutar la app en Electron')
     }
   }, [])
+}
+
+function useThemePersistence() {
+  const darkMode = useAppStore((s) => s.darkMode)
 
   useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
     if (window.electronAPI) {
       window.electronAPI.setSetting('theme', darkMode ? 'dark' : 'light')
     }
   }, [darkMode])
+}
+
+function useKeyboardShortcuts() {
+  const setActiveTab = useAppStore((s) => s.setActiveTab)
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
       const key = e.key.toLowerCase()
-      if (key === 'p' && !e.shiftKey) { e.preventDefault(); setActiveTab('pomodoro') }
+      if (key === 'h' && e.shiftKey) { e.preventDefault(); setActiveTab('dashboard') }
+      else if (key === 'p' && !e.shiftKey) { e.preventDefault(); setActiveTab('pomodoro') }
       else if (key === 'k' && !e.shiftKey) { e.preventDefault(); setActiveTab('kanban') }
       else if (key === 't' && !e.shiftKey) { e.preventDefault(); setActiveTab('tareas') }
       else if (key === 'p' && e.shiftKey) { e.preventDefault(); setActiveTab('proyectos') }
@@ -99,21 +109,39 @@ export default function App() {
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+}
 
-  const handleStreakUpdate = useCallback(() => {
+export default function App() {
+  const activeTab = useAppStore((s) => s.activeTab)
+  const sidebarOpen = useAppStore((s) => s.sidebarOpen)
+  const darkMode = useAppStore((s) => s.darkMode)
+  const streak = useAppStore((s) => s.streak)
+  const setActiveTab = useAppStore((s) => s.setActiveTab)
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const setDarkMode = useAppStore((s) => s.setDarkMode)
+  const setPrivateStreak = useAppStore((s) => s.setStreak)
+
+  useAppInitializer()
+  useThemePersistence()
+  useKeyboardShortcuts()
+
+  const handleStreakUpdate = () => {
     if (window.electronAPI) {
-      window.electronAPI.updateStreak('daily_study').then(s => {
-        if (s) setStreak(s)
+      window.electronAPI.updateStreak('daily_study').then((s) => {
+        if (s) setPrivateStreak(s)
       })
     }
-  }, [])
+  }
 
   return (
-    <TooltipProvider>
+    <>
+      <CommandPalette />
+      <GlobalSearch />
+      <TooltipProvider>
       <div className="h-screen flex flex-col bg-background text-foreground">
         {/* Top Navbar */}
         <header className="flex items-center h-14 px-4 border-b bg-card shrink-0 gap-2">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="shrink-0">
+          <Button variant="ghost" size="icon" onClick={toggleSidebar} className="shrink-0">
             <Menu className="h-5 w-5" />
           </Button>
 
@@ -123,7 +151,7 @@ export default function App() {
           </div>
 
           <div className="flex-1 flex gap-1 overflow-x-auto">
-            {TABS.map(tab => {
+            {TABS.map((tab) => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
               return (
@@ -140,7 +168,9 @@ export default function App() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
-                    <span>{tab.label} ({KEYBOARD_SHORTCUTS[tab.id]})</span>
+                    <span>
+                      {tab.label} ({KEYBOARD_SHORTCUTS[tab.id]})
+                    </span>
                   </TooltipContent>
                 </Tooltip>
               )
@@ -156,7 +186,9 @@ export default function App() {
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <span>Racha actual: {streak.current} días (máx: {streak.max})</span>
+                  <span>
+                    Racha actual: {streak.current} días (máx: {streak.max})
+                  </span>
                 </TooltipContent>
               </Tooltip>
             )}
@@ -172,7 +204,7 @@ export default function App() {
           {/* Sidebar */}
           {sidebarOpen && (
             <aside className="w-60 shrink-0 border-r bg-card overflow-y-auto p-4 hidden md:block">
-              <Sidebar darkMode={darkMode} />
+              <Sidebar />
             </aside>
           )}
 
@@ -186,6 +218,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.15 }}
               >
+                {activeTab === 'dashboard' && <Dashboard />}
                 {activeTab === 'pomodoro' && <PomodoroTimer onComplete={handleStreakUpdate} />}
                 {activeTab === 'kanban' && <KanbanBoard />}
                 {activeTab === 'tareas' && <TaskList />}
@@ -193,7 +226,7 @@ export default function App() {
                 {activeTab === 'diario' && <DailyLogPage />}
                 {activeTab === 'snippets' && <SnippetsPage />}
                 {activeTab === 'habitos' && <HabitsPage />}
-                {activeTab === 'mapa' && <StudyMap darkMode={darkMode} />}
+                {activeTab === 'mapa' && <StudyMap />}
                 {activeTab === 'stats' && <Statistics />}
                 {activeTab === 'notas' && <QuickNotes />}
                 {activeTab === 'metas' && <Goals />}
@@ -205,5 +238,6 @@ export default function App() {
         <Toaster />
       </div>
     </TooltipProvider>
+    </>
   )
 }

@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/components/ui/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export default function HabitsPage() {
   const [habits, setHabits] = useState<any[]>([])
@@ -17,6 +19,7 @@ export default function HabitsPage() {
   const [icon, setIcon] = useState('check')
   const [color, setColor] = useState('#6366f1')
   const [frequency, setFrequency] = useState('daily')
+  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   useEffect(() => { loadHabits() }, [])
 
@@ -136,10 +139,7 @@ export default function HabitsPage() {
 
       <div className="space-y-4">
         {habits.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground">
-            <Activity className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No hay hábitos. ¡Crea tu primer hábito!</p>
-          </div>
+          <EmptyState icon={Activity} title="No hay hábitos" description="Crea tu primer hábito para empezar a trackear." />
         )}
         {habits.map((habit, i) => (
           <motion.div
@@ -162,7 +162,7 @@ export default function HabitsPage() {
                       </div>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(habit.id)}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteId(habit.id)}>
                     <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                   </Button>
                 </div>
@@ -199,6 +199,15 @@ export default function HabitsPage() {
           </motion.div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null) }}
+        title="Eliminar hábito"
+        description="¿Estás seguro? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        onConfirm={() => deleteId !== null && handleDelete(deleteId)}
+      />
     </div>
   )
 }

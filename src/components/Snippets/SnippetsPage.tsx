@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from '@/components/ui/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
@@ -26,6 +28,7 @@ export default function SnippetsPage() {
   const [description, setDescription] = useState('')
   const [tags, setTags] = useState('')
   const [copiedId, setCopiedId] = useState<number | null>(null)
+  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   useEffect(() => { loadSnippets() }, [])
 
@@ -123,10 +126,7 @@ export default function SnippetsPage() {
 
       <div className="space-y-4">
         {filtered.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground">
-            <Code2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No hay snippets. ¡Guarda tu primer fragmento de código!</p>
-          </div>
+          <EmptyState icon={Code2} title="No hay snippets" description="Guarda tu primer fragmento de código." />
         )}
         {filtered.map((snippet, i) => (
           <motion.div
@@ -151,7 +151,7 @@ export default function SnippetsPage() {
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopy(snippet.code, snippet.id)}>
                       {copiedId === snippet.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(snippet.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteId(snippet.id)}>
                       <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                     </Button>
                   </div>
@@ -180,6 +180,15 @@ export default function SnippetsPage() {
           </motion.div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null) }}
+        title="Eliminar snippet"
+        description="¿Estás seguro? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        onConfirm={() => deleteId !== null && handleDelete(deleteId)}
+      />
     </div>
   )
 }

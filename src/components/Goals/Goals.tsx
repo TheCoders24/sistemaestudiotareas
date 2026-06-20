@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Goal {
   id: number
@@ -24,6 +26,7 @@ export default function Goals() {
   const [type, setType] = useState('daily')
   const [target, setTarget] = useState(4)
   const [metric, setMetric] = useState('pomodoros')
+  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   useEffect(() => { loadGoals() }, [])
 
@@ -47,6 +50,7 @@ export default function Goals() {
     if (!window.electronAPI) return
     await window.electronAPI.deleteGoal(id)
     loadGoals()
+    toast({ title: 'Meta eliminada' })
   }
 
   const metricIcons: Record<string, string> = { pomodoros: '🍅', tareas: '✅', estudio: '📚' }
@@ -96,10 +100,7 @@ export default function Goals() {
 
       <div className="space-y-3">
         {goals.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground">
-            <Target className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No hay metas. ¡Define tu primera meta!</p>
-          </div>
+          <EmptyState icon={Target} title="No hay metas" description="Define tu primera meta para empezar." actionLabel="Crear meta" onAction={() => setShowForm(true)} />
         )}
         {goals.map((goal, i) => (
           <motion.div key={goal.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
@@ -113,7 +114,7 @@ export default function Goals() {
                       {goal.type === 'daily' ? 'Diaria' : 'Semanal'} · Meta: {goal.target} {goal.metric}
                     </p>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(goal.id)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteId(goal.id)}>
                     <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                   </Button>
                 </div>
@@ -124,6 +125,15 @@ export default function Goals() {
           </motion.div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null) }}
+        title="Eliminar meta"
+        description="¿Estás seguro? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        onConfirm={() => deleteId !== null && handleDelete(deleteId)}
+      />
     </div>
   )
 }

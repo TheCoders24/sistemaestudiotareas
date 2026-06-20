@@ -24,7 +24,7 @@ interface Topic {
   order_position: number
 }
 
-export default function StudyMap({ darkMode }: { darkMode: boolean }) {
+export default function StudyMap() {
   const [topics, setTopics] = useState<Topic[]>([])
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
   const [showAddForm, setShowAddForm] = useState(false)
