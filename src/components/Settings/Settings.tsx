@@ -1,15 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings2, Download, Upload, Eye } from 'lucide-react'
+import { Settings2, Download, Upload, Eye, Palette, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { Separator } from '@/components/ui/separator'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
+import { THEMES, useThemeStore } from '@/stores/themeStore'
+import { useAutoBackup } from '@/lib/useAutoBackup'
+import { cn } from '@/lib/utils'
 
 export default function Settings() {
   const [eyeRestEnabled, setEyeRestEnabled] = useState(true)
   const [eyeRestInterval, setEyeRestInterval] = useState(20)
+  const themeId = useThemeStore((s) => s.themeId)
+  const setThemeId = useThemeStore((s) => s.setThemeId)
+  const { config: backupConfig, setConfig: setBackupConfig, doBackup } = useAutoBackup()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const eyeRestTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -94,6 +101,69 @@ export default function Settings() {
                 step={5}
               />
             </div>
+          </div>
+
+          {/* Theme selector */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium flex items-center gap-2">
+              <Palette className="h-4 w-4 text-indigo-500" /> Tema de color
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {THEMES.map((theme) => (
+                <button
+                  key={theme.id}
+                  onClick={() => setThemeId(theme.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs border transition-all',
+                    themeId === theme.id
+                      ? 'border-foreground bg-accent font-medium'
+                      : 'border-transparent hover:bg-accent/50',
+                  )}
+                  title={theme.label}
+                >
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: theme.primary }} />
+                  {theme.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Auto backup */}
+          <div className="bg-accent/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-green-500" />
+                <span className="text-sm font-medium">Backup automático</span>
+              </div>
+              <Switch checked={backupConfig.enabled} onCheckedChange={(v) => setBackupConfig({ ...backupConfig, enabled: v })} />
+            </div>
+            {backupConfig.enabled && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={backupConfig.interval}
+                    onValueChange={(v: any) => setBackupConfig({ ...backupConfig, interval: v })}
+                  >
+                    <SelectTrigger className="flex-1 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hourly">Cada hora</SelectItem>
+                      <SelectItem value="daily">Cada día</SelectItem>
+                      <SelectItem value="weekly">Cada semana</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={doBackup}>
+                    Backup ahora
+                  </Button>
+                </div>
+                {backupConfig.lastBackup && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Último backup: {new Date(backupConfig.lastBackup).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <Separator />

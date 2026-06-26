@@ -78,6 +78,88 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getHabitLogs: (habitId) => ipcRenderer.invoke('db:getHabitLogs', habitId),
   toggleHabitLog: (habitId, date) => ipcRenderer.invoke('db:toggleHabitLog', habitId, date),
 
+  // Tags
+  getTags: () => ipcRenderer.invoke('db:getTags'),
+  createTag: (tag) => ipcRenderer.invoke('db:createTag', tag),
+  deleteTag: (id) => ipcRenderer.invoke('db:deleteTag', id),
+  getTaskTags: (taskId) => ipcRenderer.invoke('db:getTaskTags', taskId),
+  setTaskTags: (taskId, tagIds) => ipcRenderer.invoke('db:setTaskTags', taskId, tagIds),
+  getNoteTags: (noteId) => ipcRenderer.invoke('db:getNoteTags', noteId),
+  setNoteTags: (noteId, tagIds) => ipcRenderer.invoke('db:setNoteTags', noteId, tagIds),
+  getSnippetTags: (snippetId) => ipcRenderer.invoke('db:getSnippetTags', snippetId),
+  setSnippetTags: (snippetId, tagIds) => ipcRenderer.invoke('db:setSnippetTags', snippetId, tagIds),
+  getTasksByTag: (tagId) => ipcRenderer.invoke('db:getTasksByTag', tagId),
+  getNotesByTag: (tagId) => ipcRenderer.invoke('db:getNotesByTag', tagId),
+  getSnippetsByTag: (tagId) => ipcRenderer.invoke('db:getSnippetsByTag', tagId),
+
+  // Flashcards
+  getFlashcardDecks: () => ipcRenderer.invoke('db:getFlashcardDecks'),
+  createFlashcardDeck: (deck) => ipcRenderer.invoke('db:createFlashcardDeck', deck),
+  deleteFlashcardDeck: (id) => ipcRenderer.invoke('db:deleteFlashcardDeck', id),
+  getFlashcards: (deckId) => ipcRenderer.invoke('db:getFlashcards', deckId),
+  createFlashcard: (card) => ipcRenderer.invoke('db:createFlashcard', card),
+  updateFlashcard: (id, data) => ipcRenderer.invoke('db:updateFlashcard', id, data),
+  deleteFlashcard: (id) => ipcRenderer.invoke('db:deleteFlashcard', id),
+  reviewFlashcard: (cardId, rating) => ipcRenderer.invoke('db:reviewFlashcard', cardId, rating),
+  getDueFlashcards: (deckId) => ipcRenderer.invoke('db:getDueFlashcards', deckId),
+  getFlashcardStats: (deckId) => ipcRenderer.invoke('db:getFlashcardStats', deckId),
+
+  // Subtasks
+  getSubtasks: (taskId) => ipcRenderer.invoke('db:getSubtasks', taskId),
+  createSubtask: (subtask) => ipcRenderer.invoke('db:createSubtask', subtask),
+  updateSubtask: (id, data) => ipcRenderer.invoke('db:updateSubtask', id, data),
+  deleteSubtask: (id) => ipcRenderer.invoke('db:deleteSubtask', id),
+  toggleSubtask: (id) => ipcRenderer.invoke('db:toggleSubtask', id),
+
+  // Recurrence
+  getTaskRecurrence: (taskId) => ipcRenderer.invoke('db:getTaskRecurrence', taskId),
+  setTaskRecurrence: (taskId, data) => ipcRenderer.invoke('db:setTaskRecurrence', taskId, data),
+  deleteTaskRecurrence: (taskId) => ipcRenderer.invoke('db:deleteTaskRecurrence', taskId),
+  checkRecurringTasks: () => ipcRenderer.invoke('db:checkRecurringTasks'),
+
+  // Activity log
+  getActivityLog: (limit) => ipcRenderer.invoke('db:getActivityLog', limit),
+  logActivity: (entry) => ipcRenderer.invoke('db:logActivity', entry),
+
+  // Notebooks
+  getNotebooks: () => ipcRenderer.invoke('db:getNotebooks'),
+  createNotebook: (notebook) => ipcRenderer.invoke('db:createNotebook', notebook),
+  updateNotebook: (id, data) => ipcRenderer.invoke('db:updateNotebook', id, data),
+  deleteNotebook: (id) => ipcRenderer.invoke('db:deleteNotebook', id),
+
+  // Templates
+  getTemplates: (entityType) => ipcRenderer.invoke('db:getTemplates', entityType),
+  createTemplate: (template) => ipcRenderer.invoke('db:createTemplate', template),
+  deleteTemplate: (id) => ipcRenderer.invoke('db:deleteTemplate', id),
+
+  // Backup
+  saveBackupDialog: (data) => ipcRenderer.invoke('dialog:saveBackup', data),
+
+  // Auto-updater
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateAvailable: (cb) => {
+    const handler = (_event, info) => cb(info)
+    ipcRenderer.on('update:available', handler)
+    return () => ipcRenderer.removeListener('update:available', handler)
+  },
+  onUpdateDownloadProgress: (cb) => {
+    const handler = (_event, progress) => cb(progress)
+    ipcRenderer.on('update:downloadProgress', handler)
+    return () => ipcRenderer.removeListener('update:downloadProgress', handler)
+  },
+  onUpdateDownloaded: (cb) => {
+    const handler = () => cb()
+    ipcRenderer.on('update:downloaded', handler)
+    return () => ipcRenderer.removeListener('update:downloaded', handler)
+  },
+  onUpdateError: (cb) => {
+    const handler = (_event, msg) => cb(msg)
+    ipcRenderer.on('update:error', handler)
+    return () => ipcRenderer.removeListener('update:error', handler)
+  },
+
   // Export/Import
   exportData: () => ipcRenderer.invoke('db:exportData'),
   importData: (data) => ipcRenderer.invoke('db:importData', data),

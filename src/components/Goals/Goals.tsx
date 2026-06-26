@@ -21,6 +21,7 @@ interface Goal {
 
 export default function Goals() {
   const [goals, setGoals] = useState<Goal[]>([])
+  const [progress, setProgress] = useState<Record<number, number>>({})
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
   const [type, setType] = useState('daily')
@@ -34,6 +35,42 @@ export default function Goals() {
     if (!window.electronAPI) return
     const data = await window.electronAPI.getGoals()
     setGoals(data)
+    await computeProgress(data)
+  }
+
+  async function computeProgress(goalsData: Goal[]) {
+    if (!window.electronAPI) return
+    const today = new Date().toISOString().split('T')[0]
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
+
+    const [sessions, tasks] = await Promise.all([
+      window.electronAPI.getPomodoroSessions?.(today).catch(() => []) || [],
+      window.electronAPI.getTasks().catch(() => []) || [],
+    ])
+
+    const todaySessions = sessions?.length || 0
+
+    const todayTasks = tasks?.filter((t: any) => {
+      if (!t.completed) return false
+      const doneDate = t.updated_at?.split('T')[0] || ''
+      return doneDate === today
+    }).length || 0
+
+    const weeklySessions = sessions?.length || 0
+
+    const progressMap: Record<number, number> = {}
+    for (const goal of goalsData) {
+      let current = 0
+      if (goal.metric === 'pomodoros') {
+        current = goal.type === 'daily' ? todaySessions : weeklySessions
+      } else if (goal.metric === 'tareas') {
+        current = goal.type === 'daily' ? todayTasks : todayTasks
+      } else if (goal.metric === 'estudio') {
+        current = goal.type === 'daily' ? todaySessions : weeklySessions
+      }
+      progressMap[goal.id] = Math.min(current, goal.target)
+    }
+    setProgress(progressMap)
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -118,8 +155,11 @@ export default function Goals() {
                     <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                   </Button>
                 </div>
-                <Progress value={0} className="h-2" />
-                <p className="text-xs text-muted-foreground mt-1">0/{goal.target} completado</p>
+                <Progress
+                  value={(progress[goal.id] || 0) / goal.target * 100}
+                  className={`h-2 ${(progress[goal.id] || 0) >= goal.target ? 'bg-green-500/20' : ''}`}
+                />
+                <p className="text-xs text-muted-foreground mt-1">{progress[goal.id] || 0}/{goal.target} completado</p>
               </CardContent>
             </Card>
           </motion.div>

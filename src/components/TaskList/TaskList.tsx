@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckSquare, Plus, Trash2, Calendar, Bell, ChevronDown } from 'lucide-react'
+import { CheckSquare, Plus, Trash2, Calendar, Bell, ChevronDown, RotateCcw, Repeat } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from '@/components/ui/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
+import { safeIpc } from '@/lib/ipc'
+import { TagPicker } from '@/components/ui/tag-picker'
+import { TagBadge } from '@/components/ui/tag-badge'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import type { Subtask, TaskRecurrence, Tag } from '@/types'
 
 interface Task {
   id: number
@@ -24,6 +29,21 @@ interface Task {
   created_at: string
 }
 
+const recurrenceOptions = [
+  { value: 'none', label: 'No repetir' },
+  { value: 'daily', label: 'Diario' },
+  { value: 'weekdays', label: 'Días de semana' },
+  { value: 'weekly', label: 'Semanal' },
+  { value: 'monthly', label: 'Mensual' },
+]
+
+const recurrenceLabels: Record<string, string> = {
+  daily: 'Diario',
+  weekdays: 'Días de semana',
+  weekly: 'Semanal',
+  monthly: 'Mensual',
+}
+
 export default function TaskList() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [newTitle, setNewTitle] = useState('')
@@ -31,9 +51,17 @@ export default function TaskList() {
   const [newPriority, setNewPriority] = useState('media')
   const [newDueDate, setNewDueDate] = useState('')
   const [newReminder, setNewReminder] = useState('')
+  const [newTagIds, setNewTagIds] = useState<number[]>([])
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState('all')
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [subtasks, setSubtasks] = useState<Record<number, Subtask[]>>({})
+  const [recurrences, setRecurrences] = useState<Record<number, TaskRecurrence | null>>({})
+  const [taskTags, setTaskTags] = useState<Record<number, Tag[]>>({})
+  const [editingTitle, setEditingTitle] = useState<Record<number, string>>({})
+  const [editingDesc, setEditingDesc] = useState<Record<number, string>>({})
+  const [editingField, setEditingField] = useState<Record<number, 'title' | 'description' | null>>({})
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState<Record<number, string>>({})
 
   useEffect(() => { loadTasks() }, [])
 
@@ -41,16 +69,38 @@ export default function TaskList() {
     if (!window.electronAPI) return
     const data = await window.electronAPI.getTasks()
     setTasks(data)
+
+    const subsMap: Record<number, Subtask[]> = {}
+    const recMap: Record<number, TaskRecurrence | null> = {}
+    const tagsMap: Record<number, Tag[]> = {}
+
+    await Promise.all(data.map(async (task) => {
+      const [subs, rec, tags] = await Promise.all([
+        safeIpc<Subtask[]>('getSubtasks', task.id),
+        safeIpc<TaskRecurrence | undefined>('getTaskRecurrence', task.id),
+        safeIpc<Tag[]>('getTaskTags', task.id),
+      ])
+      if (subs) subsMap[task.id] = subs
+      recMap[task.id] = rec ?? null
+      if (tags) tagsMap[task.id] = tags
+    }))
+
+    setSubtasks(subsMap)
+    setRecurrences(recMap)
+    setTaskTags(tagsMap)
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!newTitle.trim() || !window.electronAPI) return
-    await window.electronAPI.createTask({
+    const created = await window.electronAPI.createTask({
       title: newTitle, description: newDesc, priority: newPriority,
       due_date: newDueDate || null, reminder: newReminder || null,
-    } as any)
-    setNewTitle(''); setNewDesc(''); setNewDueDate(''); setNewReminder('')
+    } as any) as Task | undefined
+    if (created && newTagIds.length > 0) {
+      await safeIpc('setTaskTags', created.id, newTagIds)
+    }
+    setNewTitle(''); setNewDesc(''); setNewDueDate(''); setNewReminder(''); setNewTagIds([])
     setShowForm(false)
     loadTasks()
     toast({ title: 'Tarea creada', description: `"${newTitle}" agregada.` })
@@ -77,6 +127,54 @@ export default function TaskList() {
     await window.electronAPI.deleteTask(id)
     loadTasks()
     toast({ title: 'Tarea eliminada', description: 'La tarea fue eliminada.' })
+  }
+
+  async function handleToggleSubtask(taskId: number, subtaskId: number) {
+    await safeIpc('toggleSubtask', subtaskId)
+    loadSubtasks(taskId)
+  }
+
+  async function loadSubtasks(taskId: number) {
+    const data = await safeIpc<Subtask[]>('getSubtasks', taskId)
+    if (data) setSubtasks(prev => ({ ...prev, [taskId]: data }))
+  }
+
+  async function handleCreateSubtask(taskId: number) {
+    const title = newSubtaskTitle[taskId]?.trim()
+    if (!title) return
+    await safeIpc('createSubtask', { task_id: taskId, title } as Partial<Subtask>)
+    setNewSubtaskTitle(prev => ({ ...prev, [taskId]: '' }))
+    loadSubtasks(taskId)
+  }
+
+  async function handleSetRecurrence(taskId: number, frequency: string) {
+    if (frequency === 'none') {
+      await safeIpc('deleteTaskRecurrence', taskId)
+    } else {
+      await safeIpc('setTaskRecurrence', taskId, { frequency } as Partial<TaskRecurrence>)
+    }
+    loadRecurrence(taskId)
+  }
+
+  async function loadRecurrence(taskId: number) {
+    const data = await safeIpc<TaskRecurrence | undefined>('getTaskRecurrence', taskId)
+    setRecurrences(prev => ({ ...prev, [taskId]: data ?? null }))
+  }
+
+  async function handleSaveTitle(taskId: number) {
+    const title = editingTitle[taskId]?.trim()
+    if (!title || !window.electronAPI) return
+    await window.electronAPI.updateTask(taskId, { title } as Partial<Task>)
+    setEditingField(prev => ({ ...prev, [taskId]: null }))
+    loadTasks()
+  }
+
+  async function handleSaveDescription(taskId: number) {
+    const description = editingDesc[taskId] ?? ''
+    if (!window.electronAPI) return
+    await window.electronAPI.updateTask(taskId, { description } as Partial<Task>)
+    setEditingField(prev => ({ ...prev, [taskId]: null }))
+    loadTasks()
   }
 
   const filtered = tasks.filter(task => {
@@ -135,6 +233,7 @@ export default function TaskList() {
                     <Bell className="h-4 w-4 text-muted-foreground" />
                     <Input type="datetime-local" value={newReminder} onChange={e => setNewReminder(e.target.value)} className="w-[180px]" />
                   </div>
+                  <TagPicker selectedIds={newTagIds} onChange={setNewTagIds} />
                 </div>
                 <Button type="submit" className="w-full">✓ Crear Tarea</Button>
               </CardContent>
@@ -181,24 +280,127 @@ export default function TaskList() {
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-sm font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
-                        {task.title}
-                      </span>
+                      {editingField[task.id] === 'title' ? (
+                        <Input
+                          value={editingTitle[task.id] ?? task.title}
+                          onChange={e => setEditingTitle(prev => ({ ...prev, [task.id]: e.target.value }))}
+                          onBlur={() => handleSaveTitle(task.id)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleSaveTitle(task.id)
+                            if (e.key === 'Escape') setEditingField(prev => ({ ...prev, [task.id]: null }))
+                          }}
+                          className="h-7 text-sm"
+                          autoFocus
+                        />
+                      ) : (
+                        <span
+                          className={`text-sm font-medium cursor-pointer ${task.completed ? 'line-through text-muted-foreground' : ''}`}
+                          onClick={() => {
+                            setEditingTitle(prev => ({ ...prev, [task.id]: task.title }))
+                            setEditingField(prev => ({ ...prev, [task.id]: 'title' }))
+                          }}
+                        >
+                          {task.title}
+                        </span>
+                      )}
                       <Badge variant="outline" className={`text-[10px] ${priorityColor[task.priority] || ''}`}>
                         {task.priority}
                       </Badge>
+                      {recurrences[task.id] && (
+                        <span className="text-xs" title={recurrenceLabels[recurrences[task.id]!.frequency] ?? recurrences[task.id]!.frequency}>
+                          🔄
+                        </span>
+                      )}
                     </div>
-                    {task.description && (
-                      <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
+                    {editingField[task.id] === 'description' ? (
+                      <Textarea
+                        value={editingDesc[task.id] ?? task.description}
+                        onChange={e => setEditingDesc(prev => ({ ...prev, [task.id]: e.target.value }))}
+                        onBlur={() => handleSaveDescription(task.id)}
+                        onKeyDown={e => {
+                          if (e.key === 'Escape') setEditingField(prev => ({ ...prev, [task.id]: null }))
+                        }}
+                        className="min-h-[40px] text-xs mt-1"
+                        autoFocus
+                      />
+                    ) : task.description ? (
+                      <p
+                        className="text-xs text-muted-foreground mt-1 cursor-pointer"
+                        onClick={() => {
+                          setEditingDesc(prev => ({ ...prev, [task.id]: task.description }))
+                          setEditingField(prev => ({ ...prev, [task.id]: 'description' }))
+                        }}
+                      >
+                        {task.description}
+                      </p>
+                    ) : null}
+                    {taskTags[task.id]?.length > 0 && (
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {taskTags[task.id].map(tag => (
+                          <TagBadge key={tag.id} name={tag.name} color={tag.color} />
+                        ))}
+                      </div>
                     )}
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                       {task.due_date && <span>📅 {task.due_date}</span>}
                       {task.reminder && <span>⏰ {new Date(task.reminder).toLocaleString()}</span>}
                     </div>
+                    {subtasks[task.id]?.length > 0 && (
+                      <div className="mt-2 ml-2 space-y-1 border-l-2 border-muted pl-3">
+                        {subtasks[task.id].map(sub => (
+                          <div key={sub.id} className="flex items-center gap-2 text-xs">
+                            <Checkbox
+                              checked={!!sub.completed}
+                              onCheckedChange={() => handleToggleSubtask(task.id, sub.id)}
+                              className="h-3 w-3"
+                            />
+                            <span className={sub.completed ? 'line-through text-muted-foreground' : ''}>
+                              {sub.title}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-1 mt-1 ml-2">
+                      <Input
+                        placeholder="Sub-tarea..."
+                        value={newSubtaskTitle[task.id] ?? ''}
+                        onChange={e => setNewSubtaskTitle(prev => ({ ...prev, [task.id]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') handleCreateSubtask(task.id) }}
+                        className="h-6 text-xs w-auto flex-1 min-w-[100px]"
+                      />
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => handleCreateSubtask(task.id)}>
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => setDeleteId(task.id)}>
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100">
+                          <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-40 p-1" align="end">
+                        <div className="flex flex-col gap-1">
+                          {recurrenceOptions.map(opt => (
+                            <Button
+                              key={opt.value}
+                              variant={recurrences[task.id]?.frequency === opt.value ? 'secondary' : 'ghost'}
+                              size="sm"
+                              className="justify-start text-xs h-7"
+                              onClick={() => handleSetRecurrence(task.id, opt.value)}
+                            >
+                              {opt.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => setDeleteId(task.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>

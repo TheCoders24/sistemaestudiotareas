@@ -14,6 +14,9 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { safeIpc } from '@/lib/ipc'
+import { TagPicker } from '@/components/ui/tag-picker'
+import { TagBadge } from '@/components/ui/tag-badge'
 
 const LANGUAGES = ['javascript', 'typescript', 'python', 'html', 'css', 'jsx', 'tsx', 'sql', 'bash', 'json', 'rust', 'go', 'java', 'cpp', 'csharp']
 
@@ -26,31 +29,32 @@ export default function SnippetsPage() {
   const [code, setCode] = useState('')
   const [language, setLanguage] = useState('javascript')
   const [description, setDescription] = useState('')
-  const [tags, setTags] = useState('')
+  const [tagIds, setTagIds] = useState<number[]>([])
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [deleteId, setDeleteId] = useState<number | null>(null)
 
   useEffect(() => { loadSnippets() }, [])
 
   async function loadSnippets() {
-    if (!window.electronAPI) return
-    const data = await window.electronAPI.getSnippets()
-    setSnippets(data)
+    const data = await safeIpc<any[]>('getSnippets')
+    if (data) setSnippets(data)
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim() || !code.trim() || !window.electronAPI) return
-    await window.electronAPI.createSnippet({ title, code, language, description, tags } as any)
-    setTitle(''); setCode(''); setDescription(''); setTags('')
+    if (!title.trim() || !code.trim()) return
+    const snippet = await safeIpc<any>('createSnippet', { title, code, language, description })
+    if (snippet && tagIds.length > 0) {
+      await safeIpc('setSnippetTags', snippet.id, tagIds)
+    }
+    setTitle(''); setCode(''); setDescription(''); setTagIds([])
     setOpen(false)
     loadSnippets()
     toast({ title: 'Snippet guardado', description: `"${title}" fue creado.` })
   }
 
   async function handleDelete(id: number) {
-    if (!window.electronAPI) return
-    await window.electronAPI.deleteSnippet(id)
+    await safeIpc('deleteSnippet', id)
     loadSnippets()
     toast({ title: 'Snippet eliminado' })
   }
@@ -66,7 +70,8 @@ export default function SnippetsPage() {
     if (filterLang !== 'all' && s.language !== filterLang) return false
     if (search) {
       const q = search.toLowerCase()
-      return s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q) || s.tags.toLowerCase().includes(q)
+      const matchesTags = Array.isArray(s.tags) ? s.tags.some((t: any) => t.name?.toLowerCase().includes(q)) : false
+      return s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q) || matchesTags
     }
     return true
   })
@@ -97,7 +102,7 @@ export default function SnippetsPage() {
                     {LANGUAGES.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Input value={tags} onChange={e => setTags(e.target.value)} placeholder="Tags (separados por coma)" />
+                <TagPicker selectedIds={tagIds} onChange={setTagIds} />
               </div>
               <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Descripción breve" />
               <div>
@@ -156,10 +161,10 @@ export default function SnippetsPage() {
                     </Button>
                   </div>
                 </div>
-                {snippet.tags && (
-                  <div className="flex gap-1 mt-2">
-                    {snippet.tags.split(',').map((t: string) => t.trim()).filter(Boolean).map((tag: string) => (
-                      <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>
+                {Array.isArray(snippet.tags) && snippet.tags.length > 0 && (
+                  <div className="flex gap-1 mt-2 flex-wrap">
+                    {snippet.tags.map((tag: any) => (
+                      <TagBadge key={tag.id} name={tag.name} color={tag.color} />
                     ))}
                   </div>
                 )}

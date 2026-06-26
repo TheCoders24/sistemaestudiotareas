@@ -8,12 +8,19 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
+import { safeIpc } from '@/lib/ipc'
+import { TagPicker } from '@/components/ui/tag-picker'
+import { TagBadge } from '@/components/ui/tag-badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import type { Tag, Notebook } from '@/types'
 
 interface Note {
   id: number
   title: string
   content: string
+  notebook_id: number | null
   updated_at: string
+  tags: Tag[]
 }
 
 export default function QuickNotes() {
@@ -24,11 +31,15 @@ export default function QuickNotes() {
   const [showCreate, setShowCreate] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
+  const [newNotebookId, setNewNotebookId] = useState<number | null>(null)
+  const [newTagIds, setNewTagIds] = useState<number[]>([])
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [notebooks, setNotebooks] = useState<Notebook[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     loadNotes()
+    loadNotebooks()
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !e.shiftKey) {
         e.preventDefault()
@@ -41,33 +52,45 @@ export default function QuickNotes() {
 
   useEffect(() => { if (showCreate && inputRef.current) inputRef.current.focus() }, [showCreate])
 
+  async function loadNotebooks() {
+    const data = await safeIpc<Notebook[]>('getNotebooks')
+    if (data) setNotebooks(data)
+  }
+
   async function loadNotes() {
-    if (!window.electronAPI) return
-    const data = await window.electronAPI.getNotes()
-    setNotes(data)
+    const data = await safeIpc<Note[]>('getNotes')
+    if (!data) return
+    const withTags = await Promise.all(
+      data.map(async (note) => {
+        const tags = await safeIpc<Tag[]>('getNoteTags', note.id)
+        return { ...note, tags: tags ?? [] }
+      })
+    )
+    setNotes(withTags)
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!newTitle.trim() || !window.electronAPI) return
-    await window.electronAPI.createNote({ title: newTitle, content: newContent } as any)
-    setNewTitle(''); setNewContent('')
+    if (!newTitle.trim()) return
+    const note = await safeIpc<Note>('createNote', { title: newTitle, content: newContent, notebook_id: newNotebookId } as any)
+    if (note && newTagIds.length > 0) {
+      await safeIpc('setNoteTags', note.id, newTagIds)
+    }
+    setNewTitle(''); setNewContent(''); setNewNotebookId(null); setNewTagIds([])
     setShowCreate(false)
     loadNotes()
     toast({ title: 'Nota creada' })
   }
 
   async function handleSave(id: number) {
-    if (!window.electronAPI) return
-    await window.electronAPI.updateNote(id, { title: editTitle, content: editContent } as any)
+    await safeIpc('updateNote', id, { title: editTitle, content: editContent } as any)
     setEditingId(null)
     loadNotes()
     toast({ title: 'Nota guardada' })
   }
 
   async function handleDelete(id: number) {
-    if (!window.electronAPI) return
-    await window.electronAPI.deleteNote(id)
+    await safeIpc('deleteNote', id)
     loadNotes()
     toast({ title: 'Nota eliminada' })
   }
@@ -100,8 +123,22 @@ export default function QuickNotes() {
             <Card>
               <CardContent className="pt-4 space-y-3">
                 <Input ref={inputRef} value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Título" required />
+                <Select value={newNotebookId?.toString() ?? '_none'} onValueChange={(v) => setNewNotebookId(v === '_none' ? null : Number(v))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Cuaderno..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">Sin cuaderno</SelectItem>
+                    {notebooks.map((nb) => (
+                      <SelectItem key={nb.id} value={nb.id.toString()}>{nb.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Textarea value={newContent} onChange={e => setNewContent(e.target.value)} placeholder="Contenido..." className="min-h-[100px]" />
-                <Button type="submit" className="w-full">✓ Guardar Nota</Button>
+                <div className="flex gap-2">
+                  <Button type="submit" className="flex-1">✓ Guardar Nota</Button>
+                  <TagPicker selectedIds={newTagIds} onChange={setNewTagIds} />
+                </div>
               </CardContent>
             </Card>
           </motion.form>
@@ -147,6 +184,13 @@ export default function QuickNotes() {
                       </div>
                     </div>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-6">{note.content}</p>
+                    {note.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {note.tags.map(tag => (
+                          <TagBadge key={tag.id} name={tag.name} color={tag.color} />
+                        ))}
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground/50 mt-2">{new Date(note.updated_at).toLocaleString()}</p>
                   </>
                 )}

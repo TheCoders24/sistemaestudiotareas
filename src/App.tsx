@@ -1,27 +1,34 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Toaster } from '@/components/ui/toaster'
 import { useAppStore } from '@/stores/appStore'
 import { CommandPalette } from '@/components/ui/command-palette'
 import { GlobalSearch } from '@/components/ui/global-search'
-import Dashboard from './components/Dashboard/Dashboard'
-import { PomodoroTimer } from './components/Pomodoro/PomodoroTimer'
-import KanbanBoard from './components/Kanban/KanbanBoard'
-import TaskList from './components/TaskList/TaskList'
-import StudyMap from './components/StudyMap/StudyMap'
-import Statistics from './components/Statistics/Statistics'
-import QuickNotes from './components/QuickNotes/QuickNotes'
-import Goals from './components/Goals/Goals'
+import { WelcomeDialog } from '@/components/ui/welcome-dialog'
+import { UpdateBanner } from '@/components/ui/update-banner'
+import { QuickCapture } from '@/components/ui/quick-capture'
 import Sidebar from './components/Sidebar/Sidebar'
 import Settings from './components/Settings/Settings'
-import ProjectsPage from './components/Projects/ProjectsPage'
-import DailyLogPage from './components/DailyLog/DailyLogPage'
-import SnippetsPage from './components/Snippets/SnippetsPage'
-import HabitsPage from './components/Habits/HabitsPage'
+import { CardSkeleton } from '@/components/ui/loading-skeleton'
+
+const Dashboard = lazy(() => import('./components/Dashboard/Dashboard'))
+const PomodoroTimer = lazy(() => import('./components/Pomodoro/PomodoroTimer'))
+const KanbanBoard = lazy(() => import('./components/Kanban/KanbanBoard'))
+const TaskList = lazy(() => import('./components/TaskList/TaskList'))
+const StudyMap = lazy(() => import('./components/StudyMap/StudyMap'))
+const Statistics = lazy(() => import('./components/Statistics/Statistics'))
+const QuickNotes = lazy(() => import('./components/QuickNotes/QuickNotes'))
+const Goals = lazy(() => import('./components/Goals/Goals'))
+const ProjectsPage = lazy(() => import('./components/Projects/ProjectsPage'))
+const DailyLogPage = lazy(() => import('./components/DailyLog/DailyLogPage'))
+const SnippetsPage = lazy(() => import('./components/Snippets/SnippetsPage'))
+const HabitsPage = lazy(() => import('./components/Habits/HabitsPage'))
+const FlashcardsPage = lazy(() => import('./components/Flashcards/FlashcardsPage'))
+const ActivityLog = lazy(() => import('./components/ActivityLog/ActivityLog'))
 import {
   Clock, LayoutDashboard, CheckSquare, BookOpen, BarChart3,
   StickyNote, Target, FolderKanban, NotebookPen, Code2, Activity,
-  Menu, Sun, Moon, Zap, Home,
+  Menu, Sun, Moon, Zap, Home, Brain, History,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -32,6 +39,7 @@ const TABS = [
   { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
   { id: 'tareas', label: 'Tareas', icon: CheckSquare },
   { id: 'proyectos', label: 'Proyectos', icon: FolderKanban },
+  { id: 'flashcards', label: 'Flashcards', icon: Brain },
   { id: 'diario', label: 'Diario', icon: NotebookPen },
   { id: 'snippets', label: 'Snippets', icon: Code2 },
   { id: 'habitos', label: 'Hábitos', icon: Activity },
@@ -39,6 +47,7 @@ const TABS = [
   { id: 'stats', label: 'Stats', icon: BarChart3 },
   { id: 'notas', label: 'Notas', icon: StickyNote },
   { id: 'metas', label: 'Metas', icon: Target },
+  { id: 'actividad', label: 'Actividad', icon: History },
 ]
 
 const KEYBOARD_SHORTCUTS: Record<string, string> = {
@@ -47,6 +56,7 @@ const KEYBOARD_SHORTCUTS: Record<string, string> = {
   kanban: 'Ctrl+K',
   tareas: 'Ctrl+T',
   proyectos: 'Ctrl+Shift+P',
+  flashcards: 'Ctrl+Shift+F',
   diario: 'Ctrl+D',
   snippets: 'Ctrl+Shift+S',
   habitos: 'Ctrl+H',
@@ -54,6 +64,7 @@ const KEYBOARD_SHORTCUTS: Record<string, string> = {
   stats: 'Ctrl+E',
   notas: 'Ctrl+N',
   metas: 'Ctrl+G',
+  actividad: 'Ctrl+Shift+A',
 }
 
 function useAppInitializer() {
@@ -64,14 +75,12 @@ function useAppInitializer() {
     if (window.electronAPI) {
       window.electronAPI.getSetting('theme').then((val) => {
         if (val !== null) setDarkMode(val === 'dark')
-      })
+      }).catch(() => {})
       window.electronAPI.getStreak('daily_study').then((s) => {
         if (s) setStreak(s)
-      })
-    } else {
-      console.warn('⚠️ electronAPI no disponible - asegúrate de ejecutar la app en Electron')
+      }).catch(() => {})
     }
-  }, [])
+  }, [setDarkMode, setStreak])
 }
 
 function useThemePersistence() {
@@ -90,6 +99,10 @@ function useKeyboardShortcuts() {
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      if (isInput) return
+
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
       const key = e.key.toLowerCase()
@@ -98,6 +111,7 @@ function useKeyboardShortcuts() {
       else if (key === 'k' && !e.shiftKey) { e.preventDefault(); setActiveTab('kanban') }
       else if (key === 't' && !e.shiftKey) { e.preventDefault(); setActiveTab('tareas') }
       else if (key === 'p' && e.shiftKey) { e.preventDefault(); setActiveTab('proyectos') }
+      else if (key === 'f' && e.shiftKey) { e.preventDefault(); setActiveTab('flashcards') }
       else if (key === 'd' && !e.shiftKey) { e.preventDefault(); setActiveTab('diario') }
       else if (key === 's' && e.shiftKey) { e.preventDefault(); setActiveTab('snippets') }
       else if (key === 'h' && !e.shiftKey) { e.preventDefault(); setActiveTab('habitos') }
@@ -105,10 +119,11 @@ function useKeyboardShortcuts() {
       else if (key === 'e' && !e.shiftKey) { e.preventDefault(); setActiveTab('stats') }
       else if (key === 'n' && !e.shiftKey) { e.preventDefault(); setActiveTab('notas') }
       else if (key === 'g' && !e.shiftKey) { e.preventDefault(); setActiveTab('metas') }
+      else if (key === 'a' && e.shiftKey) { e.preventDefault(); setActiveTab('actividad') }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [setActiveTab])
 }
 
 export default function App() {
@@ -119,6 +134,7 @@ export default function App() {
   const setActiveTab = useAppStore((s) => s.setActiveTab)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const setDarkMode = useAppStore((s) => s.setDarkMode)
+  const focusMode = useAppStore((s) => s.focusMode)
   const setPrivateStreak = useAppStore((s) => s.setStreak)
 
   useAppInitializer()
@@ -137,6 +153,9 @@ export default function App() {
     <>
       <CommandPalette />
       <GlobalSearch />
+      <WelcomeDialog />
+      <UpdateBanner />
+      <QuickCapture />
       <TooltipProvider>
       <div className="h-screen flex flex-col bg-background text-foreground">
         {/* Top Navbar */}
@@ -192,6 +211,11 @@ export default function App() {
                 </TooltipContent>
               </Tooltip>
             )}
+            {focusMode && (
+              <span className="text-xs text-red-500 font-medium flex items-center gap-1 mr-1">
+                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" /> Focus
+              </span>
+            )}
             <Button variant="ghost" size="icon" onClick={() => setDarkMode(!darkMode)}>
               {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
@@ -202,14 +226,27 @@ export default function App() {
         {/* Main content */}
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar */}
-          {sidebarOpen && (
-            <aside className="w-60 shrink-0 border-r bg-card overflow-y-auto p-4 hidden md:block">
-              <Sidebar />
-            </aside>
-          )}
+          <div className="hidden md:block">
+            <AnimatePresence>
+              {sidebarOpen && !focusMode && (
+                <motion.aside
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 240, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  className="shrink-0 border-r bg-card overflow-hidden p-4"
+                >
+                  <div className="w-52">
+                    <Sidebar />
+                  </div>
+                </motion.aside>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Content area */}
           <main className="flex-1 overflow-y-auto p-6">
+            <Suspense fallback={<CardSkeleton />}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
@@ -230,8 +267,11 @@ export default function App() {
                 {activeTab === 'stats' && <Statistics />}
                 {activeTab === 'notas' && <QuickNotes />}
                 {activeTab === 'metas' && <Goals />}
+                {activeTab === 'flashcards' && <FlashcardsPage />}
+                {activeTab === 'actividad' && <ActivityLog />}
               </motion.div>
             </AnimatePresence>
+            </Suspense>
           </main>
         </div>
 

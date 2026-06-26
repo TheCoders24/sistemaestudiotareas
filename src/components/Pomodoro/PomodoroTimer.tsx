@@ -1,15 +1,26 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { Play, Pause, RotateCcw, Coffee, Timer, Zap } from 'lucide-react'
+import { Play, Pause, RotateCcw, Coffee, Timer, Zap, Maximize2, Minimize2, Plus, Minus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
+import { useAppStore } from '@/stores/appStore'
 
-const POMODORO = 25 * 60
-const SHORT_BREAK = 5 * 60
-const LONG_BREAK = 15 * 60
+const DEFAULTS = { pomodoro: 25, short: 5, long: 15 }
+
+function loadDurations() {
+  try {
+    const raw = localStorage.getItem('pomodoro_durations')
+    if (raw) return { ...DEFAULTS, ...JSON.parse(raw) }
+  } catch {}
+  return { ...DEFAULTS }
+}
+
+function saveDurations(d: typeof DEFAULTS) {
+  localStorage.setItem('pomodoro_durations', JSON.stringify(d))
+}
 
 interface Task {
   id: number
@@ -21,24 +32,35 @@ interface Props {
   onComplete?: () => void
 }
 
-export function PomodoroTimer({ onComplete }: Props) {
+export default function PomodoroTimer({ onComplete }: Props) {
+  const [durations, setDurations] = useState(loadDurations)
   const [mode, setMode] = useState<'pomodoro' | 'short' | 'long'>('pomodoro')
-  const [timeLeft, setTimeLeft] = useState(POMODORO)
+  const [timeLeft, setTimeLeft] = useState(durations.pomodoro * 60)
   const [running, setRunning] = useState(false)
   const [sessions, setSessions] = useState(0)
   const [todayCount, setTodayCount] = useState(0)
   const [linkTaskId, setLinkTaskId] = useState<number | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
+  const focusMode = useAppStore((s) => s.focusMode)
+  const setFocusMode = useAppStore((s) => s.setFocusMode)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef<number | null>(null)
   const modeRef = useRef(mode)
   const sessionsRef = useRef(sessions)
 
   const MODES = {
-    pomodoro: { label: 'Pomodoro', duration: POMODORO, color: 'text-red-500', icon: Timer },
-    short: { label: 'Descanso Corto', duration: SHORT_BREAK, color: 'text-green-500', icon: Coffee },
-    long: { label: 'Descanso Largo', duration: LONG_BREAK, color: 'text-blue-500', icon: Coffee },
+    pomodoro: { label: 'Pomodoro', duration: durations.pomodoro * 60, color: 'text-red-500', icon: Timer },
+    short: { label: 'Descanso Corto', duration: durations.short * 60, color: 'text-green-500', icon: Coffee },
+    long: { label: 'Descanso Largo', duration: durations.long * 60, color: 'text-blue-500', icon: Coffee },
   }
+
+  const adjustDuration = useCallback((key: keyof typeof DEFAULTS, delta: number) => {
+    setDurations((prev) => {
+      const next = { ...prev, [key]: Math.max(1, Math.min(120, prev[key] + delta)) }
+      saveDurations(next)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     modeRef.current = mode
@@ -105,7 +127,8 @@ export function PomodoroTimer({ onComplete }: Props) {
 
   function switchMode(newMode: 'pomodoro' | 'short' | 'long') {
     setMode(newMode)
-    setTimeLeft(MODES[newMode].duration)
+    const d = newMode === 'pomodoro' ? durations.pomodoro : newMode === 'short' ? durations.short : durations.long
+    setTimeLeft(d * 60)
     setRunning(false)
     if (intervalRef.current) clearInterval(intervalRef.current)
   }
@@ -113,6 +136,8 @@ export function PomodoroTimer({ onComplete }: Props) {
   function toggleRunning() {
     if (timeLeft === 0) setTimeLeft(MODES[mode].duration)
     setRunning(!running)
+    if (!running && mode === 'pomodoro') setFocusMode(true)
+    else setFocusMode(false)
   }
 
   function resetTimer() {
@@ -142,17 +167,31 @@ export function PomodoroTimer({ onComplete }: Props) {
       </div>
 
       {/* Mode selector */}
-      <div className="flex justify-center gap-2 mb-8">
+      <div className="flex justify-center gap-2 mb-6 flex-wrap">
         {(Object.keys(MODES) as Array<keyof typeof MODES>).map(key => (
-          <Button
-            key={key}
-            variant={mode === key ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => switchMode(key)}
-            className="text-xs"
-          >
-            {MODES[key].label}
-          </Button>
+          <div key={key} className="flex items-center gap-1">
+            <Button
+              variant={mode === key ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => switchMode(key)}
+              className="text-xs"
+            >
+              {MODES[key].label}
+            </Button>
+            {!running && (
+              <div className="flex items-center gap-0.5">
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => adjustDuration(key, -1)}>
+                  <Minus className="h-3 w-3" />
+                </Button>
+                <span className="text-[10px] text-muted-foreground w-5 text-center tabular-nums">
+                  {durations[key]}
+                </span>
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => adjustDuration(key, 1)}>
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </div>
         ))}
       </div>
 
@@ -185,6 +224,15 @@ export function PomodoroTimer({ onComplete }: Props) {
         </Button>
         <Button variant="outline" size="icon" onClick={resetTimer} className="h-11 w-11">
           <RotateCcw className="h-5 w-5" />
+        </Button>
+        <Button
+          variant={focusMode ? 'default' : 'outline'}
+          size="icon"
+          onClick={() => setFocusMode(!focusMode)}
+          className="h-11 w-11"
+          title={focusMode ? 'Salir de modo focus' : 'Modo focus'}
+        >
+          {focusMode ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
         </Button>
       </div>
 

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 export default function Sidebar() {
   const [notes, setNotes] = useState<any[]>([])
   const [goals, setGoals] = useState<any[]>([])
+  const [progress, setProgress] = useState<Record<number, number>>({})
 
   useEffect(() => { loadData() }, [])
 
@@ -17,6 +18,31 @@ export default function Sidebar() {
     ])
     setNotes(notesData.slice(0, 5))
     setGoals(goalsData)
+    await computeProgress(goalsData)
+  }
+
+  async function computeProgress(goalsData: any[]) {
+    if (!window.electronAPI) return
+    const today = new Date().toISOString().split('T')[0]
+    const [sessions, tasks] = await Promise.all([
+      window.electronAPI.getPomodoroSessions?.(today).catch(() => []) || [],
+      window.electronAPI.getTasks().catch(() => []) || [],
+    ])
+    const todaySessions = sessions?.length || 0
+    const todayTasks = tasks?.filter((t: any) => {
+      if (!t.completed) return false
+      return (t.updated_at || '').split('T')[0] === today
+    }).length || 0
+
+    const p: Record<number, number> = {}
+    for (const goal of goalsData) {
+      let current = 0
+      if (goal.metric === 'pomodoros') current = todaySessions
+      else if (goal.metric === 'tareas') current = todayTasks
+      else if (goal.metric === 'estudio') current = todaySessions
+      p[goal.id] = Math.min(current, goal.target)
+    }
+    setProgress(p)
   }
 
   return (
@@ -56,17 +82,21 @@ export default function Sidebar() {
         </h3>
         <div className="space-y-2">
           {goals.length === 0 && <p className="text-xs text-muted-foreground">Sin metas aún</p>}
-          {goals.map(goal => (
-            <div key={goal.id} className="text-xs">
-              <div className="flex justify-between mb-0.5">
-                <span className="truncate">{goal.title}</span>
-                <Badge variant="outline" className="text-[10px] ml-1">0/{goal.target}</Badge>
+          {goals.map(goal => {
+            const val = progress[goal.id] || 0
+            const pct = (val / goal.target) * 100
+            return (
+              <div key={goal.id} className="text-xs">
+                <div className="flex justify-between mb-0.5">
+                  <span className="truncate">{goal.title}</span>
+                  <Badge variant="outline" className="text-[10px] ml-1">{val}/{goal.target}</Badge>
+                </div>
+                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                </div>
               </div>
-              <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 rounded-full" style={{ width: '0%' }} />
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

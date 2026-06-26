@@ -10,11 +10,13 @@ interface AppState {
   sidebarOpen: boolean
   darkMode: boolean
   streak: StreakData
+  focusMode: boolean
   setActiveTab: (tab: string) => void
   toggleSidebar: () => void
   setSidebarOpen: (open: boolean) => void
   setDarkMode: (dark: boolean) => void
   setStreak: (streak: StreakData) => void
+  setFocusMode: (focus: boolean) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -22,6 +24,7 @@ export const useAppStore = create<AppState>((set) => ({
   sidebarOpen: true,
   darkMode: true,
   streak: { current: 0, max: 0 },
+  focusMode: false,
   setActiveTab: (tab) => set({ activeTab: tab }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -30,4 +33,5 @@ export const useAppStore = create<AppState>((set) => ({
     set({ darkMode: dark })
   },
   setStreak: (streak) => set({ streak }),
+  setFocusMode: (focus) => set({ focusMode: focus }),
 }))

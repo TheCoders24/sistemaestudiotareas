@@ -170,6 +170,131 @@ function initDatabase() {
       name TEXT NOT NULL UNIQUE,
       color TEXT DEFAULT '#6366f1'
     );
+    CREATE TABLE IF NOT EXISTS task_tags (
+      task_id INTEGER NOT NULL,
+      tag_id INTEGER NOT NULL,
+      PRIMARY KEY (task_id, tag_id),
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS note_tags (
+      note_id INTEGER NOT NULL,
+      tag_id INTEGER NOT NULL,
+      PRIMARY KEY (note_id, tag_id),
+      FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS snippet_tags (
+      snippet_id INTEGER NOT NULL,
+      tag_id INTEGER NOT NULL,
+      PRIMARY KEY (snippet_id, tag_id),
+      FOREIGN KEY (snippet_id) REFERENCES snippets(id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+    );
+
+    -- Flashcards
+    CREATE TABLE IF NOT EXISTS flashcard_decks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS flashcards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      deck_id INTEGER NOT NULL,
+      front TEXT NOT NULL,
+      back TEXT NOT NULL,
+      ease REAL DEFAULT 2.5,
+      interval INTEGER DEFAULT 0,
+      repetitions INTEGER DEFAULT 0,
+      next_review TEXT DEFAULT (date('now')),
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (deck_id) REFERENCES flashcard_decks(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS flashcard_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      card_id INTEGER NOT NULL,
+      rating INTEGER NOT NULL,
+      reviewed_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (card_id) REFERENCES flashcards(id) ON DELETE CASCADE
+    );
+
+    -- Subtasks
+    CREATE TABLE IF NOT EXISTS subtasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      completed INTEGER DEFAULT 0,
+      position INTEGER DEFAULT 0,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );
+
+    -- Recurrence
+    CREATE TABLE IF NOT EXISTS task_recurrence (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL UNIQUE,
+      frequency TEXT NOT NULL CHECK(frequency IN ('daily','weekdays','weekly','monthly')),
+      interval_days INTEGER DEFAULT 1,
+      day_of_week INTEGER,
+      day_of_month INTEGER,
+      end_date TEXT,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );
+
+    -- Activity log
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER,
+      action TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Notebooks
+    CREATE TABLE IF NOT EXISTS notebooks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      parent_id INTEGER,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      color TEXT DEFAULT '#6366f1',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (parent_id) REFERENCES notebooks(id) ON DELETE CASCADE
+    );
+
+    -- Templates
+    CREATE TABLE IF NOT EXISTS templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `)
+
+  // Performance indexes
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed);
+    CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+    CREATE INDEX IF NOT EXISTS idx_kanban_column_type ON kanban_cards(column_type);
+    CREATE INDEX IF NOT EXISTS idx_kanban_position ON kanban_cards(position);
+    CREATE INDEX IF NOT EXISTS idx_pomodoro_started ON pomodoro_sessions(started_at);
+    CREATE INDEX IF NOT EXISTS idx_pomodoro_task ON pomodoro_sessions(task_id);
+    CREATE INDEX IF NOT EXISTS idx_study_progress_topic ON study_progress(topic_id);
+    CREATE INDEX IF NOT EXISTS idx_study_progress_date ON study_progress(date);
+    CREATE INDEX IF NOT EXISTS idx_habit_logs_habit ON habit_logs(habit_id);
+    CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(date);
+    CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id);
+    CREATE INDEX IF NOT EXISTS idx_snippets_project ON snippets(project_id);
+    CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags(task_id);
+    CREATE INDEX IF NOT EXISTS idx_note_tags_note ON note_tags(note_id);
+    CREATE INDEX IF NOT EXISTS idx_snippet_tags_snippet ON snippet_tags(snippet_id);
+    CREATE INDEX IF NOT EXISTS idx_flashcards_deck ON flashcards(deck_id);
+    CREATE INDEX IF NOT EXISTS idx_flashcards_review ON flashcards(next_review);
+    CREATE INDEX IF NOT EXISTS idx_subtasks_task ON subtasks(task_id);
+    CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_log(created_at);
+    CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_log(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_notebooks_parent ON notebooks(parent_id);
   `)
 
   // Migrations for existing databases (add columns that may be missing)
@@ -202,6 +327,9 @@ function initDatabase() {
     `ALTER TABLE projects ADD COLUMN color TEXT DEFAULT '#6366f1'`,
     `ALTER TABLE projects ADD COLUMN tech_stack TEXT DEFAULT ''`,
     `ALTER TABLE projects ADD COLUMN repo_url TEXT DEFAULT ''`,
+    `ALTER TABLE notes ADD COLUMN notebook_id INTEGER REFERENCES notebooks(id) ON DELETE SET NULL`,
+    `ALTER TABLE tasks ADD COLUMN recurrence_rule TEXT`,
+    `ALTER TABLE tasks ADD COLUMN recurrence_end TEXT`,
   ]
   for (const sql of migrations) {
     try {

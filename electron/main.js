@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, Notification } = require('electron')
+const { app, BrowserWindow, ipcMain, Notification, dialog } = require('electron')
 const path = require('path')
 const notifier = require('node-notifier')
+const { autoUpdater } = require('electron-updater')
 const { initDatabase, getDb, closeDatabase } = require('./database')
 
 let mainWindow
@@ -31,10 +32,44 @@ function createWindow() {
   })
 }
 
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('update-available', (info) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('update:available', info)
+    }
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('update:downloadProgress', progress)
+    }
+  })
+
+  autoUpdater.on('update-downloaded', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('update:downloaded')
+    }
+  })
+
+  autoUpdater.on('error', (err) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('update:error', err.message)
+    }
+  })
+}
+
 app.whenReady().then(() => {
   initDatabase()
   createWindow()
   registerIpcHandlers()
+  setupAutoUpdater()
+
+  if (!process.argv.includes('--dev') && process.env.NODE_ENV !== 'development') {
+    autoUpdater.checkForUpdates().catch(() => {})
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -45,6 +80,61 @@ app.on('window-all-closed', () => {
   closeDatabase()
   if (process.platform !== 'darwin') app.quit()
 })
+
+const ALLOWED_COLUMNS = {
+  tasks: ['title', 'description', 'completed', 'priority', 'due_date', 'reminder', 'project_id', 'recurrence_rule', 'recurrence_end'],
+  kanban_cards: ['title', 'description', 'column_type', 'position', 'priority', 'tags', 'due_date', 'project_id'],
+  study_topics: ['parent_id', 'name', 'description', 'order_position'],
+  notes: ['title', 'content', 'project_id', 'notebook_id'],
+  goals: ['title', 'type', 'target', 'metric'],
+  goal_progress: ['value'],
+  daily_logs: ['date', 'content', 'focus', 'blockers', 'tomorrow_plan'],
+  snippets: ['title', 'code', 'language', 'description', 'tags', 'project_id'],
+  projects: ['name', 'description', 'status', 'tech_stack', 'repo_url', 'color'],
+  tags: ['name', 'color'],
+  flashcard_decks: ['name', 'description'],
+  flashcards: ['deck_id', 'front', 'back', 'ease', 'interval', 'repetitions', 'next_review'],
+  subtasks: ['task_id', 'title', 'completed', 'position'],
+  notebooks: ['parent_id', 'name', 'description', 'color'],
+  templates: ['name', 'entity_type', 'content'],
+}
+
+const REQUIRED_FIELDS = {
+  tasks: ['title'],
+  kanban_cards: ['title', 'column_type'],
+  study_topics: ['name'],
+  notes: ['title'],
+  goals: ['title', 'type', 'target', 'metric'],
+  daily_logs: ['date'],
+  snippets: ['title', 'code'],
+  projects: ['name'],
+  habits: ['name'],
+  tags: ['name'],
+  flashcard_decks: ['name'],
+  flashcards: ['deck_id', 'front', 'back'],
+  subtasks: ['task_id', 'title'],
+  notebooks: ['name'],
+  templates: ['name', 'entity_type', 'content'],
+}
+
+function validateInput(table, data) {
+  const allowed = ALLOWED_COLUMNS[table]
+  if (!allowed) throw new Error(`Invalid table: ${table}`)
+  const cleaned = {}
+  for (const key of Object.keys(data)) {
+    if (allowed.includes(key)) {
+      if (typeof data[key] === 'string') cleaned[key] = data[key].slice(0, 10000)
+      else cleaned[key] = data[key]
+    }
+  }
+  const required = REQUIRED_FIELDS[table] || []
+  for (const field of required) {
+    if (!cleaned[field] || (typeof cleaned[field] === 'string' && cleaned[field].trim() === '')) {
+      throw new Error(`Campo requerido: ${field}`)
+    }
+  }
+  return cleaned
+}
 
 function registerIpcHandlers() {
   // Settings
@@ -57,20 +147,27 @@ function registerIpcHandlers() {
     return true
   })
 
+  function buildUpdate(table, id, data) {
+    const cleaned = validateInput(table, data)
+    const sets = Object.keys(cleaned).map(k => `${k} = @${k}`).join(', ')
+    cleaned.id = id
+    return { cleaned, sets }
+  }
+
   // Tasks
   ipcMain.handle('db:getTasks', () => {
     return getDb().prepare('SELECT * FROM tasks ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createTask', (_, task) => {
-    task.project_id = task.project_id ?? null
+    const cleaned = validateInput('tasks', task)
+    cleaned.project_id = cleaned.project_id ?? null
     const stmt = getDb().prepare('INSERT INTO tasks (title, description, priority, due_date, reminder, project_id) VALUES (@title, @description, @priority, @due_date, @reminder, @project_id)')
-    const result = stmt.run(task)
+    const result = stmt.run(cleaned)
     return getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateTask', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getDb().prepare(`UPDATE tasks SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    const { cleaned, sets } = buildUpdate('tasks', id, data)
+    getDb().prepare(`UPDATE tasks SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(cleaned)
     return getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteTask', (_, id) => {
@@ -78,7 +175,7 @@ function registerIpcHandlers() {
     return true
   })
   ipcMain.handle('db:toggleTask', (_, id) => {
-    getDb().prepare('UPDATE tasks SET completed = CASE WHEN completed THEN 0 ELSE 1 END, updated_at = datetime(\'now\') WHERE id = ?').run(id)
+    getDb().prepare("UPDATE tasks SET completed = CASE WHEN completed THEN 0 ELSE 1 END, updated_at = datetime('now') WHERE id = ?").run(id)
     return getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id)
   })
 
@@ -87,17 +184,17 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM kanban_cards ORDER BY position ASC').all()
   })
   ipcMain.handle('db:createKanbanCard', (_, card) => {
-    const maxPos = getDb().prepare('SELECT COALESCE(MAX(position), -1) + 1 as pos FROM kanban_cards WHERE column_type = ?').get(card.column_type)
-    card.position = maxPos.pos
-    card.project_id = card.project_id ?? null
+    const cleaned = validateInput('kanban_cards', card)
+    const maxPos = getDb().prepare("SELECT COALESCE(MAX(position), -1) + 1 as pos FROM kanban_cards WHERE column_type = ?").get(cleaned.column_type)
+    cleaned.position = maxPos.pos
+    cleaned.project_id = cleaned.project_id ?? null
     const stmt = getDb().prepare('INSERT INTO kanban_cards (title, description, column_type, position, priority, tags, due_date, project_id) VALUES (@title, @description, @column_type, @position, @priority, @tags, @due_date, @project_id)')
-    const result = stmt.run(card)
+    const result = stmt.run(cleaned)
     return getDb().prepare('SELECT * FROM kanban_cards WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateKanbanCard', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getDb().prepare(`UPDATE kanban_cards SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    const { cleaned, sets } = buildUpdate('kanban_cards', id, data)
+    getDb().prepare(`UPDATE kanban_cards SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(cleaned)
     return getDb().prepare('SELECT * FROM kanban_cards WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteKanbanCard', (_, id) => {
@@ -105,7 +202,7 @@ function registerIpcHandlers() {
     return true
   })
   ipcMain.handle('db:moveKanbanCard', (_, id, column, position) => {
-    getDb().prepare('UPDATE kanban_cards SET column_type = ?, position = ?, updated_at = datetime(\'now\') WHERE id = ?').run(column, position, id)
+    getDb().prepare("UPDATE kanban_cards SET column_type = ?, position = ?, updated_at = datetime('now') WHERE id = ?").run(column, position, id)
     return getDb().prepare('SELECT * FROM kanban_cards WHERE id = ?').get(id)
   })
 
@@ -128,14 +225,14 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM study_topics ORDER BY order_position ASC').all()
   })
   ipcMain.handle('db:createStudyTopic', (_, topic) => {
+    const cleaned = validateInput('study_topics', topic)
     const stmt = getDb().prepare('INSERT INTO study_topics (parent_id, name, description, order_position) VALUES (@parent_id, @name, @description, @order_position)')
-    const result = stmt.run(topic)
+    const result = stmt.run(cleaned)
     return getDb().prepare('SELECT * FROM study_topics WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateStudyTopic', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getDb().prepare(`UPDATE study_topics SET ${sets} WHERE id = @id`).run(data)
+    const { cleaned, sets } = buildUpdate('study_topics', id, data)
+    getDb().prepare(`UPDATE study_topics SET ${sets} WHERE id = @id`).run(cleaned)
     return getDb().prepare('SELECT * FROM study_topics WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteStudyTopic', (_, id) => {
@@ -158,15 +255,15 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM notes ORDER BY updated_at DESC').all()
   })
   ipcMain.handle('db:createNote', (_, note) => {
-    note.project_id = note.project_id ?? null
+    const cleaned = validateInput('notes', note)
+    cleaned.project_id = cleaned.project_id ?? null
     const stmt = getDb().prepare('INSERT INTO notes (title, content, project_id) VALUES (@title, @content, @project_id)')
-    const result = stmt.run(note)
+    const result = stmt.run(cleaned)
     return getDb().prepare('SELECT * FROM notes WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateNote', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getDb().prepare(`UPDATE notes SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    const { cleaned, sets } = buildUpdate('notes', id, data)
+    getDb().prepare(`UPDATE notes SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(cleaned)
     return getDb().prepare('SELECT * FROM notes WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteNote', (_, id) => {
@@ -179,14 +276,14 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM goals ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createGoal', (_, goal) => {
+    const cleaned = validateInput('goals', goal)
     const stmt = getDb().prepare('INSERT INTO goals (title, type, target, metric) VALUES (@title, @type, @target, @metric)')
-    const result = stmt.run(goal)
+    const result = stmt.run(cleaned)
     return getDb().prepare('SELECT * FROM goals WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateGoal', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getDb().prepare(`UPDATE goals SET ${sets} WHERE id = @id`).run(data)
+    const { cleaned, sets } = buildUpdate('goals', id, data)
+    getDb().prepare(`UPDATE goals SET ${sets} WHERE id = @id`).run(cleaned)
     return getDb().prepare('SELECT * FROM goals WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteGoal', (_, id) => {
@@ -233,25 +330,22 @@ function registerIpcHandlers() {
 
   // Statistics
   ipcMain.handle('db:getStats', (_, period) => {
-    const today = new Date().toISOString().split('T')[0]
-    let dateFilter = "date('now')"
+    const days = period === 'week' ? 7 : period === 'month' ? 30 : 0
+    const cutoff = new Date(Date.now() - days * 86400000).toISOString().split('T')[0]
 
-    if (period === 'week') dateFilter = "date('now', '-7 days')"
-    else if (period === 'month') dateFilter = "date('now', '-30 days')"
+    const pomodoroCount = days > 0
+      ? getDb().prepare("SELECT COUNT(*) as count, COALESCE(SUM(duration), 0) as total FROM pomodoro_sessions WHERE date(started_at) >= ?").get(cutoff)
+      : getDb().prepare("SELECT COUNT(*) as count, COALESCE(SUM(duration), 0) as total FROM pomodoro_sessions WHERE date(started_at) = date('now')").get()
 
-    const pomodoroCount = getDb().prepare(
-      `SELECT COUNT(*) as count, COALESCE(SUM(duration), 0) as total FROM pomodoro_sessions WHERE date(started_at) >= ${dateFilter}`
-    ).get()
-
-    const tasksCompleted = getDb().prepare(
-      `SELECT COUNT(*) as count FROM tasks WHERE completed = 1 AND updated_at >= ${dateFilter}`
-    ).get()
+    const tasksCompleted = days > 0
+      ? getDb().prepare("SELECT COUNT(*) as count FROM tasks WHERE completed = 1 AND updated_at >= ?").get(cutoff)
+      : getDb().prepare("SELECT COUNT(*) as count FROM tasks WHERE completed = 1 AND date(updated_at) = date('now')").get()
 
     const tasksTotal = getDb().prepare('SELECT COUNT(*) as count FROM tasks').get()
 
     const dailyPomodoros = getDb().prepare(
       "SELECT date(started_at) as date, COUNT(*) as count FROM pomodoro_sessions WHERE date(started_at) >= ? GROUP BY date(started_at) ORDER BY date"
-    ).all(period === 'week' ? new Date(Date.now() - 7*86400000).toISOString().split('T')[0] : new Date(Date.now() - 30*86400000).toISOString().split('T')[0])
+    ).all(days > 0 ? cutoff : new Date().toISOString().split('T')[0])
 
     return { pomodoroCount, tasksCompleted, tasksTotal, dailyPomodoros }
   })
@@ -271,14 +365,14 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM projects ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createProject', (_, project) => {
+    const cleaned = validateInput('projects', project)
     const stmt = getDb().prepare('INSERT INTO projects (name, description, status, tech_stack, repo_url, color) VALUES (@name, @description, @status, @tech_stack, @repo_url, @color)')
-    const result = stmt.run(project)
+    const result = stmt.run(cleaned)
     return getDb().prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateProject', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getDb().prepare(`UPDATE projects SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    const { cleaned, sets } = buildUpdate('projects', id, data)
+    getDb().prepare(`UPDATE projects SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(cleaned)
     return getDb().prepare('SELECT * FROM projects WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteProject', (_, id) => {
@@ -294,14 +388,14 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM daily_logs WHERE date = ?').get(date)
   })
   ipcMain.handle('db:createDailyLog', (_, log) => {
+    const cleaned = validateInput('daily_logs', log)
     const stmt = getDb().prepare('INSERT OR REPLACE INTO daily_logs (date, content, focus, blockers, tomorrow_plan) VALUES (@date, @content, @focus, @blockers, @tomorrow_plan)')
-    const result = stmt.run(log)
+    const result = stmt.run(cleaned)
     return getDb().prepare('SELECT * FROM daily_logs WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateDailyLog', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getDb().prepare(`UPDATE daily_logs SET ${sets} WHERE id = @id`).run(data)
+    const { cleaned, sets } = buildUpdate('daily_logs', id, data)
+    getDb().prepare(`UPDATE daily_logs SET ${sets} WHERE id = @id`).run(cleaned)
     return getDb().prepare('SELECT * FROM daily_logs WHERE id = ?').get(id)
   })
 
@@ -310,15 +404,15 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM snippets ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createSnippet', (_, snippet) => {
-    snippet.project_id = snippet.project_id ?? null
+    const cleaned = validateInput('snippets', snippet)
+    cleaned.project_id = cleaned.project_id ?? null
     const stmt = getDb().prepare('INSERT INTO snippets (title, code, language, description, tags, project_id) VALUES (@title, @code, @language, @description, @tags, @project_id)')
-    const result = stmt.run(snippet)
+    const result = stmt.run(cleaned)
     return getDb().prepare('SELECT * FROM snippets WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateSnippet', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getDb().prepare(`UPDATE snippets SET ${sets} WHERE id = @id`).run(data)
+    const { cleaned, sets } = buildUpdate('snippets', id, data)
+    getDb().prepare(`UPDATE snippets SET ${sets} WHERE id = @id`).run(cleaned)
     return getDb().prepare('SELECT * FROM snippets WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteSnippet', (_, id) => {
@@ -331,8 +425,9 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM habits ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createHabit', (_, habit) => {
+    const cleaned = validateInput('habits', habit)
     const stmt = getDb().prepare('INSERT INTO habits (name, icon, color, frequency) VALUES (@name, @icon, @color, @frequency)')
-    const result = stmt.run(habit)
+    const result = stmt.run(cleaned)
     return getDb().prepare('SELECT * FROM habits WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:deleteHabit', (_, id) => {
@@ -353,9 +448,272 @@ function registerIpcHandlers() {
     }
   })
 
+  // Tags
+  ipcMain.handle('db:getTags', () => {
+    return getDb().prepare('SELECT * FROM tags ORDER BY name ASC').all()
+  })
+  ipcMain.handle('db:createTag', (_, tag) => {
+    const cleaned = validateInput('tags', tag)
+    const stmt = getDb().prepare('INSERT INTO tags (name, color) VALUES (@name, @color)')
+    const result = stmt.run(cleaned)
+    return getDb().prepare('SELECT * FROM tags WHERE id = ?').get(result.lastInsertRowid)
+  })
+  ipcMain.handle('db:deleteTag', (_, id) => {
+    getDb().prepare('DELETE FROM tags WHERE id = ?').run(id)
+    return true
+  })
+  ipcMain.handle('db:getTaskTags', (_, taskId) => {
+    return getDb().prepare('SELECT t.* FROM tags t JOIN task_tags tt ON t.id = tt.tag_id WHERE tt.task_id = ?').all(taskId)
+  })
+  ipcMain.handle('db:setTaskTags', (_, taskId, tagIds) => {
+    const tx = getDb().transaction(() => {
+      getDb().prepare('DELETE FROM task_tags WHERE task_id = ?').run(taskId)
+      const stmt = getDb().prepare('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)')
+      for (const tagId of tagIds) stmt.run(taskId, tagId)
+    })
+    tx()
+    return true
+  })
+  ipcMain.handle('db:getNoteTags', (_, noteId) => {
+    return getDb().prepare('SELECT t.* FROM tags t JOIN note_tags nt ON t.id = nt.tag_id WHERE nt.note_id = ?').all(noteId)
+  })
+  ipcMain.handle('db:setNoteTags', (_, noteId, tagIds) => {
+    const tx = getDb().transaction(() => {
+      getDb().prepare('DELETE FROM note_tags WHERE note_id = ?').run(noteId)
+      const stmt = getDb().prepare('INSERT INTO note_tags (note_id, tag_id) VALUES (?, ?)')
+      for (const tagId of tagIds) stmt.run(noteId, tagId)
+    })
+    tx()
+    return true
+  })
+  ipcMain.handle('db:getSnippetTags', (_, snippetId) => {
+    return getDb().prepare('SELECT t.* FROM tags t JOIN snippet_tags st ON t.id = st.tag_id WHERE st.snippet_id = ?').all(snippetId)
+  })
+  ipcMain.handle('db:setSnippetTags', (_, snippetId, tagIds) => {
+    const tx = getDb().transaction(() => {
+      getDb().prepare('DELETE FROM snippet_tags WHERE snippet_id = ?').run(snippetId)
+      const stmt = getDb().prepare('INSERT INTO snippet_tags (snippet_id, tag_id) VALUES (?, ?)')
+      for (const tagId of tagIds) stmt.run(snippetId, tagId)
+    })
+    tx()
+    return true
+  })
+  ipcMain.handle('db:getTasksByTag', (_, tagId) => {
+    return getDb().prepare('SELECT ta.* FROM tasks ta JOIN task_tags tt ON ta.id = tt.task_id WHERE tt.tag_id = ? ORDER BY ta.created_at DESC').all(tagId)
+  })
+  ipcMain.handle('db:getNotesByTag', (_, tagId) => {
+    return getDb().prepare('SELECT n.* FROM notes n JOIN note_tags nt ON n.id = nt.note_id WHERE nt.tag_id = ? ORDER BY n.updated_at DESC').all(tagId)
+  })
+  ipcMain.handle('db:getSnippetsByTag', (_, tagId) => {
+    return getDb().prepare('SELECT s.* FROM snippets s JOIN snippet_tags st ON s.id = st.snippet_id WHERE st.tag_id = ? ORDER BY s.created_at DESC').all(tagId)
+  })
+
+  // Flashcards
+  ipcMain.handle('db:getFlashcardDecks', () => {
+    return getDb().prepare('SELECT * FROM flashcard_decks ORDER BY created_at DESC').all()
+  })
+  ipcMain.handle('db:createFlashcardDeck', (_, deck) => {
+    const cleaned = validateInput('flashcard_decks', deck)
+    const stmt = getDb().prepare('INSERT INTO flashcard_decks (name, description) VALUES (@name, @description)')
+    const result = stmt.run(cleaned)
+    return getDb().prepare('SELECT * FROM flashcard_decks WHERE id = ?').get(result.lastInsertRowid)
+  })
+  ipcMain.handle('db:deleteFlashcardDeck', (_, id) => {
+    getDb().prepare('DELETE FROM flashcard_decks WHERE id = ?').run(id)
+    return true
+  })
+  ipcMain.handle('db:getFlashcards', (_, deckId) => {
+    return getDb().prepare('SELECT * FROM flashcards WHERE deck_id = ? ORDER BY created_at ASC').all(deckId)
+  })
+  ipcMain.handle('db:createFlashcard', (_, card) => {
+    const cleaned = validateInput('flashcards', card)
+    const stmt = getDb().prepare('INSERT INTO flashcards (deck_id, front, back) VALUES (@deck_id, @front, @back)')
+    const result = stmt.run(cleaned)
+    return getDb().prepare('SELECT * FROM flashcards WHERE id = ?').get(result.lastInsertRowid)
+  })
+  ipcMain.handle('db:updateFlashcard', (_, id, data) => {
+    const { cleaned, sets } = buildUpdate('flashcards', id, data)
+    getDb().prepare(`UPDATE flashcards SET ${sets} WHERE id = @id`).run(cleaned)
+    return getDb().prepare('SELECT * FROM flashcards WHERE id = ?').get(id)
+  })
+  ipcMain.handle('db:deleteFlashcard', (_, id) => {
+    getDb().prepare('DELETE FROM flashcards WHERE id = ?').run(id)
+    return true
+  })
+  ipcMain.handle('db:reviewFlashcard', (_, cardId, rating) => {
+    const card = getDb().prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId)
+    if (!card) throw new Error('Card not found')
+    let { ease, interval, repetitions } = card
+    if (rating >= 3) {
+      if (repetitions === 0) interval = 1
+      else if (repetitions === 1) interval = 6
+      else interval = Math.round(interval * ease)
+      repetitions += 1
+    } else {
+      repetitions = 0
+      interval = 1
+    }
+    ease = Math.max(1.3, ease + (0.1 - (5 - rating) * (0.08 + (5 - rating) * 0.02)))
+    const nextReview = new Date(Date.now() + interval * 86400000).toISOString().split('T')[0]
+    getDb().prepare('UPDATE flashcards SET ease = ?, interval = ?, repetitions = ?, next_review = ? WHERE id = ?').run(ease, interval, repetitions, nextReview, cardId)
+    getDb().prepare('INSERT INTO flashcard_reviews (card_id, rating) VALUES (?, ?)').run(cardId, rating)
+    return getDb().prepare('SELECT * FROM flashcards WHERE id = ?').get(cardId)
+  })
+  ipcMain.handle('db:getDueFlashcards', (_, deckId) => {
+    const today = new Date().toISOString().split('T')[0]
+    return getDb().prepare("SELECT * FROM flashcards WHERE deck_id = ? AND next_review <= ? ORDER BY next_review ASC").all(deckId, today)
+  })
+  ipcMain.handle('db:getFlashcardStats', (_, deckId) => {
+    const total = getDb().prepare('SELECT COUNT(*) as count FROM flashcards WHERE deck_id = ?').get(deckId)
+    const today = new Date().toISOString().split('T')[0]
+    const due = getDb().prepare("SELECT COUNT(*) as count FROM flashcards WHERE deck_id = ? AND next_review <= ?").get(deckId, today)
+    const reviewed = getDb().prepare("SELECT COUNT(DISTINCT card_id) as count FROM flashcard_reviews WHERE reviewed_at >= ?").get(today)
+    return { total: total.count, due: due.count, reviewed: reviewed.count }
+  })
+
+  // Subtasks
+  ipcMain.handle('db:getSubtasks', (_, taskId) => {
+    return getDb().prepare('SELECT * FROM subtasks WHERE task_id = ? ORDER BY position ASC').all(taskId)
+  })
+  ipcMain.handle('db:createSubtask', (_, subtask) => {
+    const cleaned = validateInput('subtasks', subtask)
+    const stmt = getDb().prepare('INSERT INTO subtasks (task_id, title, position) VALUES (@task_id, @title, @position)')
+    const result = stmt.run(cleaned)
+    return getDb().prepare('SELECT * FROM subtasks WHERE id = ?').get(result.lastInsertRowid)
+  })
+  ipcMain.handle('db:updateSubtask', (_, id, data) => {
+    const { cleaned, sets } = buildUpdate('subtasks', id, data)
+    getDb().prepare(`UPDATE subtasks SET ${sets} WHERE id = @id`).run(cleaned)
+    return getDb().prepare('SELECT * FROM subtasks WHERE id = ?').get(id)
+  })
+  ipcMain.handle('db:deleteSubtask', (_, id) => {
+    getDb().prepare('DELETE FROM subtasks WHERE id = ?').run(id)
+    return true
+  })
+  ipcMain.handle('db:toggleSubtask', (_, id) => {
+    getDb().prepare("UPDATE subtasks SET completed = CASE WHEN completed THEN 0 ELSE 1 END WHERE id = ?").run(id)
+    return getDb().prepare('SELECT * FROM subtasks WHERE id = ?').get(id)
+  })
+
+  // Recurrence
+  ipcMain.handle('db:getTaskRecurrence', (_, taskId) => {
+    return getDb().prepare('SELECT * FROM task_recurrence WHERE task_id = ?').get(taskId) || undefined
+  })
+  ipcMain.handle('db:setTaskRecurrence', (_, taskId, data) => {
+    data.task_id = taskId
+    getDb().prepare('INSERT OR REPLACE INTO task_recurrence (task_id, frequency, interval_days, day_of_week, day_of_month, end_date) VALUES (@task_id, @frequency, @interval_days, @day_of_week, @day_of_month, @end_date)').run(data)
+    return true
+  })
+  ipcMain.handle('db:deleteTaskRecurrence', (_, taskId) => {
+    getDb().prepare('DELETE FROM task_recurrence WHERE task_id = ?').run(taskId)
+    return true
+  })
+  ipcMain.handle('db:checkRecurringTasks', () => {
+    const today = new Date().toISOString().split('T')[0]
+    const recurrences = getDb().prepare('SELECT * FROM task_recurrence').all()
+    const created = []
+    for (const rec of recurrences) {
+      if (rec.end_date && rec.end_date < today) continue
+      const lastTask = getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(rec.task_id)
+      if (!lastTask) continue
+      let shouldCreate = false
+      if (rec.frequency === 'daily') shouldCreate = true
+      else if (rec.frequency === 'weekdays') shouldCreate = new Date().getDay() % 6 !== 0
+      else if (rec.frequency === 'weekly') shouldCreate = new Date().getDay() === (rec.day_of_week || 0)
+      else if (rec.frequency === 'monthly') shouldCreate = new Date().getDate() === (rec.day_of_month || 1)
+      if (shouldCreate) {
+        const newTask = { ...lastTask }
+        delete newTask.id
+        newTask.completed = 0
+        newTask.created_at = new Date().toISOString()
+        newTask.updated_at = newTask.created_at
+        const stmt = getDb().prepare('INSERT INTO tasks (title, description, priority, created_at, updated_at) VALUES (@title, @description, @priority, @created_at, @updated_at)')
+        const result = stmt.run(newTask)
+        const task = getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid)
+        created.push(task)
+      }
+    }
+    return created
+  })
+
+  // Activity log
+  ipcMain.handle('db:getActivityLog', (_, limit) => {
+    return getDb().prepare('SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?').all(limit || 100)
+  })
+  ipcMain.handle('db:logActivity', (_, entry) => {
+    const stmt = getDb().prepare('INSERT INTO activity_log (entity_type, entity_id, action, description) VALUES (@entity_type, @entity_id, @action, @description)')
+    stmt.run(entry)
+    return true
+  })
+
+  // Notebooks
+  ipcMain.handle('db:getNotebooks', () => {
+    return getDb().prepare('SELECT * FROM notebooks ORDER BY name ASC').all()
+  })
+  ipcMain.handle('db:createNotebook', (_, notebook) => {
+    const cleaned = validateInput('notebooks', notebook)
+    const stmt = getDb().prepare('INSERT INTO notebooks (parent_id, name, description, color) VALUES (@parent_id, @name, @description, @color)')
+    const result = stmt.run(cleaned)
+    return getDb().prepare('SELECT * FROM notebooks WHERE id = ?').get(result.lastInsertRowid)
+  })
+  ipcMain.handle('db:updateNotebook', (_, id, data) => {
+    const { cleaned, sets } = buildUpdate('notebooks', id, data)
+    getDb().prepare(`UPDATE notebooks SET ${sets} WHERE id = @id`).run(cleaned)
+    return getDb().prepare('SELECT * FROM notebooks WHERE id = ?').get(id)
+  })
+  ipcMain.handle('db:deleteNotebook', (_, id) => {
+    getDb().prepare('DELETE FROM notebooks WHERE id = ?').run(id)
+    return true
+  })
+
+  // Templates
+  ipcMain.handle('db:getTemplates', (_, entityType) => {
+    if (entityType) return getDb().prepare('SELECT * FROM templates WHERE entity_type = ? ORDER BY name ASC').all(entityType)
+    return getDb().prepare('SELECT * FROM templates ORDER BY name ASC').all()
+  })
+  ipcMain.handle('db:createTemplate', (_, template) => {
+    const cleaned = validateInput('templates', template)
+    const stmt = getDb().prepare('INSERT INTO templates (name, entity_type, content) VALUES (@name, @entity_type, @content)')
+    const result = stmt.run(cleaned)
+    return getDb().prepare('SELECT * FROM templates WHERE id = ?').get(result.lastInsertRowid)
+  })
+  ipcMain.handle('db:deleteTemplate', (_, id) => {
+    getDb().prepare('DELETE FROM templates WHERE id = ?').run(id)
+    return true
+  })
+
+  // Backup
+  ipcMain.handle('dialog:saveBackup', async (_, data) => {
+    const defaultName = `auto-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: defaultName,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (!result.canceled && result.filePath) {
+      const fs = require('fs')
+      fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf-8')
+      return result.filePath
+    }
+    return null
+  })
+
+  // Auto-updater
+  ipcMain.handle('update:check', () => {
+    autoUpdater.checkForUpdates().catch(() => {})
+    return true
+  })
+  ipcMain.handle('update:download', () => {
+    autoUpdater.downloadUpdate().catch(() => {})
+    return true
+  })
+  ipcMain.handle('update:install', () => {
+    autoUpdater.quitAndInstall()
+    return true
+  })
+
   // Export/Import
   ipcMain.handle('db:exportData', () => {
-    const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags']
+    const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags', 'task_tags', 'note_tags', 'snippet_tags', 'flashcard_decks', 'flashcards', 'flashcard_reviews', 'subtasks', 'task_recurrence', 'activity_log', 'notebooks', 'templates']
     const data = {}
     for (const table of tables) {
       try {
@@ -367,7 +725,7 @@ function registerIpcHandlers() {
     return data
   })
   ipcMain.handle('db:importData', (_, data) => {
-    const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags']
+    const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags', 'task_tags', 'note_tags', 'snippet_tags', 'flashcard_decks', 'flashcards', 'flashcard_reviews', 'subtasks', 'task_recurrence', 'activity_log', 'notebooks', 'templates']
     const tx = getDb().transaction(() => {
       for (const table of tables) {
         try {
