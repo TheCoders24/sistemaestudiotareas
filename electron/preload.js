@@ -160,6 +160,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('update:error', handler)
   },
 
+  // Batch handlers
+  getAllTaskTags: (taskIds) => ipcRenderer.invoke('db:getAllTaskTags', taskIds),
+  getAllNoteTags: (noteIds) => ipcRenderer.invoke('db:getAllNoteTags', noteIds),
+  getAllSnippetTags: (snippetIds) => ipcRenderer.invoke('db:getAllSnippetTags', snippetIds),
+  getAllSubtasks: (taskIds) => ipcRenderer.invoke('db:getAllSubtasks', taskIds),
+  getAllTaskRecurrences: (taskIds) => ipcRenderer.invoke('db:getAllTaskRecurrences', taskIds),
+  getAllHabitLogs: (habitIds, date) => ipcRenderer.invoke('db:getAllHabitLogs', habitIds, date),
   // Export/Import
   exportData: () => ipcRenderer.invoke('db:exportData'),
   importData: (data) => ipcRenderer.invoke('db:importData', data),

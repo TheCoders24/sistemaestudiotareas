@@ -15,6 +15,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { toast } from '@/components/ui/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
+import { safeIpc } from '@/lib/ipc'
+import type { Project } from '@/types'
 
 const STATUS_OPTIONS = ['activo', 'en pausa', 'completado', 'archivado']
 const STATUS_COLORS: Record<string, string> = {
@@ -25,7 +27,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<any[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
@@ -39,14 +41,14 @@ export default function ProjectsPage() {
 
   async function loadProjects() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getProjects()
-    setProjects(data)
+    const data = await safeIpc<Project[]>('getProjects')
+    setProjects(data ?? [])
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !window.electronAPI) return
-    await window.electronAPI.createProject({ name, description: desc, status, tech_stack: techStack, repo_url: repoUrl, color })
+    await safeIpc('createProject', { name, description: desc, status, tech_stack: techStack, repo_url: repoUrl, color })
     setName(''); setDesc(''); setTechStack(''); setRepoUrl('')
     setOpen(false)
     loadProjects()
@@ -55,14 +57,14 @@ export default function ProjectsPage() {
 
   async function handleDelete(id: number) {
     if (!window.electronAPI) return
-    await window.electronAPI.deleteProject(id)
+    await safeIpc('deleteProject', id)
     loadProjects()
     toast({ title: 'Proyecto eliminado', description: 'El proyecto fue eliminado.' })
   }
 
   async function handleStatusChange(id: number, newStatus: string) {
     if (!window.electronAPI) return
-    await window.electronAPI.updateProject(id, { status: newStatus } as any)
+    await safeIpc('updateProject', id, { status: newStatus })
     loadProjects()
   }
 

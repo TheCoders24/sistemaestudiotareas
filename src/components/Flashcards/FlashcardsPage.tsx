@@ -203,15 +203,16 @@ export default function FlashcardsPage() {
                 </div>
               </DialogContent>
             </Dialog>
+            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeckToDelete(selectedDeck)}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
             <ConfirmDialog
+              open={deckToDelete !== null}
+              onOpenChange={(open) => { if (!open) setDeckToDelete(null) }}
               title="Eliminar mazo"
               description="Se eliminarán todas las tarjetas de este mazo."
               onConfirm={async () => { if (deckToDelete) { await safeIpc('deleteFlashcardDeck', deckToDelete); setDeckToDelete(null); setSelectedDeck(null); loadDecks() } }}
-            >
-              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeckToDelete(selectedDeck)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </ConfirmDialog>
+            />
           </div>
 
           <div className="space-y-2">

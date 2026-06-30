@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { StickyNote, Target, Zap } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { safeIpc } from '@/lib/ipc'
+import type { Note, Goal } from '@/types'
 
 export default function Sidebar() {
-  const [notes, setNotes] = useState<any[]>([])
-  const [goals, setGoals] = useState<any[]>([])
+  const [notes, setNotes] = useState<Note[]>([])
+  const [goals, setGoals] = useState<Goal[]>([])
   const [progress, setProgress] = useState<Record<number, number>>({})
 
   useEffect(() => { loadData() }, [])
@@ -13,23 +15,23 @@ export default function Sidebar() {
   async function loadData() {
     if (!window.electronAPI) return
     const [notesData, goalsData] = await Promise.all([
-      window.electronAPI.getNotes(),
-      window.electronAPI.getGoals(),
+      safeIpc<Note[]>('getNotes'),
+      safeIpc<Goal[]>('getGoals'),
     ])
-    setNotes(notesData.slice(0, 5))
-    setGoals(goalsData)
-    await computeProgress(goalsData)
+    setNotes((notesData ?? []).slice(0, 5))
+    setGoals(goalsData ?? [])
+    await computeProgress(goalsData ?? [])
   }
 
-  async function computeProgress(goalsData: any[]) {
+  async function computeProgress(goalsData: Goal[]) {
     if (!window.electronAPI) return
     const today = new Date().toISOString().split('T')[0]
     const [sessions, tasks] = await Promise.all([
-      window.electronAPI.getPomodoroSessions?.(today).catch(() => []) || [],
-      window.electronAPI.getTasks().catch(() => []) || [],
+      safeIpc('getPomodoroSessions', today),
+      safeIpc('getTasks'),
     ])
-    const todaySessions = sessions?.length || 0
-    const todayTasks = tasks?.filter((t: any) => {
+    const todaySessions = (sessions as any[])?.length || 0
+    const todayTasks = (tasks as any[])?.filter((t: any) => {
       if (!t.completed) return false
       return (t.updated_at || '').split('T')[0] === today
     }).length || 0

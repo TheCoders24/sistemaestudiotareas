@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
 import { useAppStore } from '@/stores/appStore'
+import { safeIpc } from '@/lib/ipc'
+import { PomodoroSession } from '@/types'
 
 const DEFAULTS = { pomodoro: 25, short: 5, long: 15 }
 
@@ -47,6 +49,9 @@ export default function PomodoroTimer({ onComplete }: Props) {
   const startTimeRef = useRef<number | null>(null)
   const modeRef = useRef(mode)
   const sessionsRef = useRef(sessions)
+  const linkTaskIdRef = useRef(linkTaskId)
+
+  useEffect(() => { linkTaskIdRef.current = linkTaskId }, [linkTaskId])
 
   const MODES = {
     pomodoro: { label: 'Pomodoro', duration: durations.pomodoro * 60, color: 'text-red-500', icon: Timer },
@@ -55,7 +60,7 @@ export default function PomodoroTimer({ onComplete }: Props) {
   }
 
   const adjustDuration = useCallback((key: keyof typeof DEFAULTS, delta: number) => {
-    setDurations((prev) => {
+    setDurations((prev: { pomodoro: number; short: number; long: number }) => {
       const next = { ...prev, [key]: Math.max(1, Math.min(120, prev[key] + delta)) }
       saveDurations(next)
       return next
@@ -71,11 +76,9 @@ export default function PomodoroTimer({ onComplete }: Props) {
   }, [sessions])
 
   useEffect(() => {
-    if (window.electronAPI) {
-      const today = new Date().toISOString().split('T')[0]
-      window.electronAPI.getPomodoroSessions(today).then((s: any[]) => setTodayCount(s.length))
-      window.electronAPI.getTasks().then((t: Task[]) => setTasks(t.filter(task => !task.completed)))
-    }
+    const today = new Date().toISOString().split('T')[0]
+    safeIpc<PomodoroSession[]>('getPomodoroSessions', today).then(s => { if (s) setTodayCount(s.length) })
+    safeIpc<Task[]>('getTasks').then(t => { if (t) setTasks(t.filter(task => !task.completed)) })
   }, [])
 
   useEffect(() => {
@@ -95,23 +98,33 @@ export default function PomodoroTimer({ onComplete }: Props) {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [running])
 
-  function handleComplete() {
+  const switchMode = useCallback((newMode: 'pomodoro' | 'short' | 'long') => {
+    setMode(newMode)
+    const d = newMode === 'pomodoro' ? durations.pomodoro : newMode === 'short' ? durations.short : durations.long
+    setTimeLeft(d * 60)
+    setRunning(false)
+    if (intervalRef.current) clearInterval(intervalRef.current)
+  }, [durations])
+
+  const handleComplete = useCallback(() => {
     setRunning(false)
     const endedAt = new Date().toISOString()
-    const elapsed = startTimeRef.current ? Math.round((Date.now() - startTimeRef.current) / 1000) : MODES[modeRef.current].duration
+    const elapsed = startTimeRef.current
+      ? Math.round((Date.now() - startTimeRef.current) / 1000)
+      : durations[modeRef.current] * 60
     const startedAt = new Date(Date.now() - elapsed * 1000).toISOString()
     const currentMode = modeRef.current
     const currentSessions = sessionsRef.current
 
-    if (currentMode === 'pomodoro' && window.electronAPI) {
-      window.electronAPI.createPomodoroSession({
-        task_id: linkTaskId,
+    if (currentMode === 'pomodoro') {
+      safeIpc('createPomodoroSession', {
+        task_id: linkTaskIdRef.current,
         project_id: null,
-        duration: MODES.pomodoro.duration,
+        duration: durations.pomodoro * 60,
         started_at: startedAt,
         ended_at: endedAt,
-      } as any)
-      window.electronAPI.showNotification('🍅 Pomodoro Completado', '¡Buen trabajo! Tómate un descanso.')
+      })
+      safeIpc('showNotification', '🍅 Pomodoro Completado', '¡Buen trabajo! Tómate un descanso.')
       toast({ title: '🍅 Pomodoro completado', description: '¡Buen trabajo!' })
       setSessions(s => s + 1)
       setTodayCount(c => c + 1)
@@ -120,31 +133,25 @@ export default function PomodoroTimer({ onComplete }: Props) {
       if ((currentSessions + 1) % 4 === 0) switchMode('long')
       else switchMode('short')
     } else {
-      if (window.electronAPI) window.electronAPI.showNotification('⏰ Descanso terminado', '¡De vuelta al trabajo!')
+      safeIpc('showNotification', '⏰ Descanso terminado', '¡De vuelta al trabajo!')
       switchMode('pomodoro')
     }
-  }
+  }, [durations, onComplete, switchMode])
 
-  function switchMode(newMode: 'pomodoro' | 'short' | 'long') {
-    setMode(newMode)
-    const d = newMode === 'pomodoro' ? durations.pomodoro : newMode === 'short' ? durations.short : durations.long
-    setTimeLeft(d * 60)
-    setRunning(false)
-    if (intervalRef.current) clearInterval(intervalRef.current)
-  }
-
-  function toggleRunning() {
-    if (timeLeft === 0) setTimeLeft(MODES[mode].duration)
+  const toggleRunning = useCallback(() => {
+    const d = mode === 'pomodoro' ? durations.pomodoro : mode === 'short' ? durations.short : durations.long
+    if (timeLeft === 0) setTimeLeft(d * 60)
     setRunning(!running)
     if (!running && mode === 'pomodoro') setFocusMode(true)
     else setFocusMode(false)
-  }
+  }, [timeLeft, running, mode, durations, setFocusMode])
 
-  function resetTimer() {
+  const resetTimer = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
     setRunning(false)
-    setTimeLeft(MODES[mode].duration)
-  }
+    const d = mode === 'pomodoro' ? durations.pomodoro : mode === 'short' ? durations.short : durations.long
+    setTimeLeft(d * 60)
+  }, [mode, durations])
 
   function formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60)

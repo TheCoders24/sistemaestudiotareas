@@ -3,16 +3,18 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { BarChart3, Timer, CheckSquare, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { safeIpc } from '@/lib/ipc'
+import type { Stats } from '@/types'
 
 export default function Statistics() {
   const [period, setPeriod] = useState('week')
-  const [stats, setStats] = useState<any>(null)
+  const [stats, setStats] = useState<Stats | null>(null)
 
   useEffect(() => { loadStats() }, [period])
 
   async function loadStats() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getStats(period)
+    const data = await safeIpc<Stats>('getStats', period)
     setStats(data)
   }
 
@@ -25,7 +27,7 @@ export default function Statistics() {
     </div>
   )
 
-  const chartData = (stats.dailyPomodoros || []).map((d: any) => ({
+  const chartData = (stats.dailyPomodoros || []).map(d => ({
     date: d.date.slice(5),
     pomodoros: d.count,
   }))

@@ -1,6 +1,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Badge } from '@/components/ui/badge'
+import type { KanbanCard } from '@/types'
 import KanbanCardComponent from './KanbanCard'
 
 interface Column {
@@ -11,11 +12,12 @@ interface Column {
 
 interface Props {
   column: Column
-  cards: any[]
+  cards: KanbanCard[]
   onDelete: (id: number) => void
+  onView: (card: KanbanCard) => void
 }
 
-export default function KanbanColumn({ column, cards, onDelete }: Props) {
+export default function KanbanColumn({ column, cards, onDelete, onView }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
 
   return (
@@ -38,7 +40,7 @@ export default function KanbanColumn({ column, cards, onDelete }: Props) {
             <p className="text-xs text-muted-foreground text-center py-4">Arrastra tarjetas aquí</p>
           )}
           {cards.map(card => (
-            <KanbanCardComponent key={card.id} card={card} onDelete={onDelete} />
+            <KanbanCardComponent key={card.id} card={card} onDelete={onDelete} onView={onView} />
           ))}
         </SortableContext>
       </div>

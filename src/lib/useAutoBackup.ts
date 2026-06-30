@@ -54,14 +54,15 @@ export function useAutoBackup() {
     if (!window.electronAPI) return
     try {
       const data = await window.electronAPI.exportData()
-      const path = await window.electronAPI.saveBackupDialog(data)
-      if (path) {
+      const p = await window.electronAPI.saveBackupDialog(data)
+      if (p) {
         const now = new Date().toISOString()
         setConfig((prev) => ({ ...prev, lastBackup: now }))
-        toast({ title: '💾 Backup guardado', description: path.split('\\').pop() })
+        const name = p.replace(/\\/g, '/').split('/').pop()
+        toast({ title: 'Backup guardado', description: name })
       }
     } catch {
-      toast({ title: '❌ Error en backup', description: 'No se pudo crear el backup.', variant: 'destructive' })
+      toast({ title: 'Error en backup', description: 'No se pudo crear el backup.', variant: 'destructive' })
     }
   }, [])
 

@@ -8,13 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAppStore } from '@/stores/appStore'
 import { StatsCardSkeleton } from '@/components/ui/loading-skeleton'
 import { cn } from '@/lib/utils'
+import { safeIpc } from '@/lib/ipc'
+import type { Note, Task, PomodoroSession } from '@/types'
 
 export default function Dashboard() {
   const streak = useAppStore((s) => s.streak)
   const [todayPomodoros, setTodayPomodoros] = useState(0)
   const [pendingTasks, setPendingTasks] = useState(0)
   const [totalTasks, setTotalTasks] = useState(0)
-  const [recentNotes, setRecentNotes] = useState<any[]>([])
+  const [recentNotes, setRecentNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -26,14 +28,14 @@ export default function Dashboard() {
     setLoading(true)
     const today = new Date().toISOString().split('T')[0]
     const [sessions, tasks, notes] = await Promise.all([
-      window.electronAPI.getPomodoroSessions(today),
-      window.electronAPI.getTasks(),
-      window.electronAPI.getNotes(),
+      safeIpc<PomodoroSession[]>('getPomodoroSessions', today),
+      safeIpc<Task[]>('getTasks'),
+      safeIpc<Note[]>('getNotes'),
     ])
-    setTodayPomodoros(sessions.length)
-    setPendingTasks(tasks.filter((t: any) => !t.completed).length)
-    setTotalTasks(tasks.length)
-    setRecentNotes(notes.slice(0, 3))
+    setTodayPomodoros(sessions?.length ?? 0)
+    setPendingTasks((tasks ?? []).filter(t => !t.completed).length)
+    setTotalTasks((tasks ?? []).length)
+    setRecentNotes((notes ?? []).slice(0, 3))
     setLoading(false)
   }
 
@@ -107,7 +109,7 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">Sin notas aún</p>
             ) : (
               <div className="space-y-2">
-                {recentNotes.map((note: any) => (
+                {recentNotes.map((note) => (
                   <div key={note.id} className="p-2 rounded-lg bg-accent/50 text-sm">
                     <p className="font-medium truncate">{note.title}</p>
                     <p className="text-xs text-muted-foreground truncate">{note.content}</p>

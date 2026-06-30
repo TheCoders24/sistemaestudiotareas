@@ -1,14 +1,20 @@
 import { useState, useEffect } from 'react'
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Plus, LayoutDashboard } from 'lucide-react'
+import { Plus, LayoutDashboard, Calendar, Tag, AlignLeft, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
 import { toast } from '@/components/ui/use-toast'
+import { safeIpc } from '@/lib/ipc'
+import { PRIORITY_COLORS } from '@/lib/constants'
+import type { KanbanCard } from '@/types'
 import KanbanColumn from './KanbanColumn'
-import KanbanCard from './KanbanCard'
+import KanbanCardComponent from './KanbanCard'
 
 const COLUMNS = [
   { id: 'pendiente', label: 'Por Hacer', color: 'border-t-gray-500' },
@@ -16,8 +22,55 @@ const COLUMNS = [
   { id: 'hecho', label: 'Hecho', color: 'border-t-green-500' },
 ]
 
+function CardDetailModal({ card, open, onClose }: { card: KanbanCard | null; open: boolean; onClose: () => void }) {
+  if (!card) return null
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle className="text-lg pr-6">{card.title}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {card.description && (
+            <div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                <AlignLeft className="h-3.5 w-3.5" /> Descripción
+              </div>
+              <p className="text-sm whitespace-pre-wrap">{card.description}</p>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-1.5">
+              <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+              <Badge variant="outline" className={`text-xs ${PRIORITY_COLORS[card.priority] || ''}`}>
+                {card.priority === 'alta' ? 'Alta' : card.priority === 'media' ? 'Media' : 'Baja'}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-sm">{card.due_date || 'Sin fecha'}</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-1.5">
+            <Tag className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="flex flex-wrap gap-1">
+              {card.tags ? card.tags.split(',').map(t => t.trim()).filter(Boolean).map(tag => (
+                <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
+              )) : <span className="text-sm text-muted-foreground">Sin etiquetas</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Columna:</span>
+            <span className="text-sm font-medium">{COLUMNS.find(c => c.id === card.column_type)?.label || card.column_type}</span>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function KanbanBoard() {
-  const [cards, setCards] = useState<any[]>([])
+  const [cards, setCards] = useState<KanbanCard[]>([])
   const [showForm, setShowForm] = useState(false)
   const [formColumn, setFormColumn] = useState('pendiente')
   const [formTitle, setFormTitle] = useState('')
@@ -26,6 +79,7 @@ export default function KanbanBoard() {
   const [formTags, setFormTags] = useState('')
   const [formDueDate, setFormDueDate] = useState('')
   const [activeId, setActiveId] = useState<number | null>(null)
+  const [viewCard, setViewCard] = useState<KanbanCard | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -33,8 +87,8 @@ export default function KanbanBoard() {
 
   async function loadCards() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getKanbanCards()
-    setCards(data)
+    const data = await safeIpc<KanbanCard[]>('getKanbanCards')
+    setCards(data ?? [])
   }
 
   function getColumnCards(columnId: string) {
@@ -44,10 +98,10 @@ export default function KanbanBoard() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!formTitle.trim() || !window.electronAPI) return
-    await window.electronAPI.createKanbanCard({
+    await safeIpc('createKanbanCard', {
       title: formTitle, description: formDesc, column_type: formColumn,
       priority: formPriority, tags: formTags, due_date: formDueDate || null,
-    } as any)
+    })
     setFormTitle(''); setFormDesc(''); setFormTags(''); setFormDueDate('')
     setShowForm(false)
     loadCards()
@@ -56,28 +110,28 @@ export default function KanbanBoard() {
 
   async function handleDelete(id: number) {
     if (!window.electronAPI) return
-    await window.electronAPI.deleteKanbanCard(id)
+    await safeIpc('deleteKanbanCard', id)
     loadCards()
   }
 
-  async function handleDragEnd(event: any) {
+  async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     setActiveId(null)
     if (!over) return
 
-    const activeCard = cards.find((c: any) => c.id === Number(active.id))
+    const activeCard = cards.find(c => c.id === Number(active.id))
     if (!activeCard) return
 
     let targetColumn = String(over.id)
     let targetPosition = 0
 
-    const overCard = cards.find((c: any) => c.id === Number(over.id))
+    const overCard = cards.find(c => c.id === Number(over.id))
     if (overCard) {
       targetColumn = overCard.column_type
     }
 
     if (window.electronAPI) {
-      await window.electronAPI.moveKanbanCard(Number(active.id), targetColumn, targetPosition)
+      await safeIpc('moveKanbanCard', Number(active.id), targetColumn, targetPosition)
     }
     loadCards()
   }
@@ -125,7 +179,7 @@ export default function KanbanBoard() {
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e) => setActiveId(e.active.id as number)} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {COLUMNS.map(column => (
-            <KanbanColumn key={column.id} column={column} cards={getColumnCards(column.id)} onDelete={handleDelete} />
+            <KanbanColumn key={column.id} column={column} cards={getColumnCards(column.id)} onDelete={handleDelete} onView={setViewCard} />
           ))}
         </div>
         <DragOverlay>
@@ -136,6 +190,7 @@ export default function KanbanBoard() {
           ) : null}
         </DragOverlay>
       </DndContext>
+      <CardDetailModal card={viewCard} open={viewCard !== null} onClose={() => setViewCard(null)} />
     </div>
   )
 }

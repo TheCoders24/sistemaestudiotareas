@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 
 interface StreakData {
   current: number
@@ -28,10 +28,7 @@ export const useAppStore = create<AppState>((set) => ({
   setActiveTab: (tab) => set({ activeTab: tab }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  setDarkMode: (dark) => {
-    document.documentElement.classList.toggle('dark', dark)
-    set({ darkMode: dark })
-  },
+  setDarkMode: (dark) => set({ darkMode: dark }),
   setStreak: (streak) => set({ streak }),
   setFocusMode: (focus) => set({ focusMode: focus }),
 }))

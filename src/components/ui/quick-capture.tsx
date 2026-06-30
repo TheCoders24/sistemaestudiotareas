@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { safeIpc } from '@/lib/ipc'
 import { toast } from '@/components/ui/use-toast'
+import type { Task } from '@/types'
 
 export function QuickCapture() {
   const [open, setOpen] = useState(false)
@@ -29,7 +30,8 @@ export function QuickCapture() {
 
   const handleSubmit = useCallback(async () => {
     if (!title.trim()) return
-    await safeIpc('createTask', { title: title.trim(), description, priority } as any)
+    const task: Partial<Task> = { title: title.trim(), description, priority }
+    await safeIpc('createTask', task)
     toast({ title: '⚡ Tarea creada', description: title.trim() })
     setTitle(''); setDescription(''); setPriority('media'); setOpen(false)
   }, [title, description, priority])

@@ -332,6 +332,22 @@ declare global {
       createTemplate: (template: Partial<Template>) => Promise<Template>
       deleteTemplate: (id: number) => Promise<boolean>
 
+      // Batch handlers
+      getAllTaskTags: (taskIds: number[]) => Promise<(Tag & { task_id: number })[]>
+      getAllNoteTags: (noteIds: number[]) => Promise<(Tag & { note_id: number })[]>
+      getAllSnippetTags: (snippetIds: number[]) => Promise<(Tag & { snippet_id: number })[]>
+      getAllSubtasks: (taskIds: number[]) => Promise<Subtask[]>
+      getAllTaskRecurrences: (taskIds: number[]) => Promise<TaskRecurrence[]>
+      getAllHabitLogs: (habitIds: number[], date?: string) => Promise<HabitLog[]>
+
+      // Auto-updater
+      checkForUpdates: () => Promise<{ version: string } | null>
+      downloadUpdate: () => Promise<boolean>
+      installUpdate: () => Promise<boolean>
+      onUpdateAvailable: (cb: (info: { version: string }) => void) => () => void
+      onUpdateDownloadProgress: (cb: (progress: { percent: number }) => void) => () => void
+      onUpdateDownloaded: (cb: () => void) => () => void
+      onUpdateError: (cb: (msg: string) => void) => () => void
       // New: Habits
       getHabits: () => Promise<Habit[]>
       createHabit: (habit: Partial<Habit>) => Promise<Habit>

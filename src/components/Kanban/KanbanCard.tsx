@@ -2,19 +2,16 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Badge } from '@/components/ui/badge'
 import { GripVertical, X } from 'lucide-react'
-
-const priorityColor: Record<string, string> = {
-  baja: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
-  media: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  alta: 'bg-red-500/20 text-red-400 border-red-500/30',
-}
+import { PRIORITY_COLORS } from '@/lib/constants'
+import type { KanbanCard } from '@/types'
 
 interface Props {
-  card: any
+  card: KanbanCard
   onDelete: (id: number) => void
+  onView: (card: KanbanCard) => void
 }
 
-export default function KanbanCard({ card, onDelete }: Props) {
+export default function KanbanCardComponent({ card, onDelete, onView }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
 
   const style = {
@@ -27,11 +24,12 @@ export default function KanbanCard({ card, onDelete }: Props) {
     <div
       ref={setNodeRef}
       style={style}
-      className="bg-card border rounded-lg p-3 cursor-grab active:cursor-grabbing hover:bg-accent/50 group"
+      onClick={() => onView(card)}
+      className="bg-card border rounded-lg p-3 cursor-pointer hover:bg-accent/50 group"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 flex items-start gap-2">
-          <div {...attributes} {...listeners} className="mt-0.5">
+          <div {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="mt-0.5 cursor-grab active:cursor-grabbing">
             <GripVertical className="h-4 w-4 text-muted-foreground" />
           </div>
           <div className="min-w-0 flex-1">
@@ -50,7 +48,7 @@ export default function KanbanCard({ card, onDelete }: Props) {
       </div>
 
       <div className="flex items-center gap-2 mt-2 flex-wrap">
-        <Badge variant="outline" className={`text-[10px] ${priorityColor[card.priority] || ''}`}>
+        <Badge variant="outline" className={`text-[10px] ${PRIORITY_COLORS[card.priority] || ''}`}>
           {card.priority}
         </Badge>
         {card.tags && card.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean).map((tag: string) => (

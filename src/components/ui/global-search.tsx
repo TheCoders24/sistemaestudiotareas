@@ -19,7 +19,7 @@ export function GlobalSearch() {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const ICONS = {
     task: CheckSquare, note: StickyNote, snippet: Code2, project: FolderKanban,

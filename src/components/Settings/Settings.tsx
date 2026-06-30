@@ -10,6 +10,7 @@ import { toast } from '@/components/ui/use-toast'
 import { THEMES, useThemeStore } from '@/stores/themeStore'
 import { useAutoBackup } from '@/lib/useAutoBackup'
 import { cn } from '@/lib/utils'
+import { safeIpc } from '@/lib/ipc'
 
 export default function Settings() {
   const [eyeRestEnabled, setEyeRestEnabled] = useState(true)
@@ -28,15 +29,13 @@ export default function Settings() {
   function startEyeRestTimer() {
     if (eyeRestTimerRef.current) clearInterval(eyeRestTimerRef.current)
     eyeRestTimerRef.current = setInterval(() => {
-      if (window.electronAPI) {
-        window.electronAPI.showNotification('👀 Descanso Visual', 'Mira algo a 6 metros durante 20 segundos (Regla 20-20-20)')
-      }
+      safeIpc('showNotification', '👀 Descanso Visual', 'Mira algo a 6 metros durante 20 segundos (Regla 20-20-20)')
     }, eyeRestInterval * 60 * 1000)
   }
 
   async function handleExport() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.exportData()
+    const data = await safeIpc('exportData')
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -57,10 +56,11 @@ export default function Settings() {
       try {
         const data = JSON.parse(event.target?.result as string)
         if (window.electronAPI) {
-          await window.electronAPI.importData(data)
+          await safeIpc('importData', data)
           toast({ title: '✅ Importación exitosa', description: 'Datos restaurados correctamente.' })
         }
-      } catch {
+      } catch (err) {
+        console.error('[Settings] Import error:', err)
         toast({ title: '❌ Error', description: 'Archivo JSON inválido.', variant: 'destructive' })
       }
     }
@@ -142,7 +142,7 @@ export default function Settings() {
                 <div className="flex items-center gap-2">
                   <Select
                     value={backupConfig.interval}
-                    onValueChange={(v: any) => setBackupConfig({ ...backupConfig, interval: v })}
+                    onValueChange={(v: 'hourly' | 'daily' | 'weekly') => setBackupConfig({ ...backupConfig, interval: v })}
                   >
                     <SelectTrigger className="flex-1 h-8 text-xs">
                       <SelectValue />

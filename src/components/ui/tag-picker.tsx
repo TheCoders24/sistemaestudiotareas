@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { TagBadge } from '@/components/ui/tag-badge'
 import { safeIpc } from '@/lib/ipc'
-import type { Tag } from '@/types'
+import type { Tag as TagType } from '@/types'
 
 interface TagPickerProps {
   selectedIds: number[]
@@ -13,12 +13,12 @@ interface TagPickerProps {
 }
 
 export function TagPicker({ selectedIds, onChange }: TagPickerProps) {
-  const [tags, setTags] = useState<Tag[]>([])
+  const [tags, setTags] = useState<TagType[]>([])
   const [newName, setNewName] = useState('')
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    safeIpc<Tag[]>('getTags').then(setTags)
+    safeIpc<TagType[]>('getTags').then((tags) => { if (tags) setTags(tags) })
   }, [])
 
   const toggle = useCallback((id: number) => {
@@ -29,7 +29,7 @@ export function TagPicker({ selectedIds, onChange }: TagPickerProps) {
   const createAndAdd = useCallback(async () => {
     const name = newName.trim()
     if (!name) return
-    const tag = await safeIpc<Tag>('createTag', { name } as Partial<Tag>)
+    const tag = await safeIpc<TagType>('createTag', { name } as Partial<TagType>)
     if (tag) {
       setTags((prev) => [...prev, tag])
       onChange([...selectedIds, tag.id])

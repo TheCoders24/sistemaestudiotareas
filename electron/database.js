@@ -93,7 +93,7 @@ function initDatabase() {
 
     CREATE TABLE IF NOT EXISTS notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT DEFAULT 'Sin título',
+      title TEXT DEFAULT 'Sin tÃ­tulo',
       content TEXT DEFAULT '',
       project_id INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
