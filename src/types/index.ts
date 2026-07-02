@@ -246,6 +246,7 @@ declare global {
       createGoal: (goal: Partial<Goal>) => Promise<Goal>
       updateGoal: (id: number, data: Partial<Goal>) => Promise<Goal>
       deleteGoal: (id: number) => Promise<boolean>
+      getGoalProgress: (goalId: number) => Promise<GoalProgress[]>
       addGoalProgress: (goalId: number, date: string, value: number) => Promise<boolean>
 
       getStreak: (name: string) => Promise<Streak | undefined>
@@ -303,6 +304,7 @@ declare global {
       reviewFlashcard: (cardId: number, rating: number) => Promise<Flashcard>
       getDueFlashcards: (deckId: number) => Promise<Flashcard[]>
       getFlashcardStats: (deckId: number) => Promise<{ total: number; due: number; reviewed: number }>
+      getRetentionStats: (deckId: number) => Promise<{ total: number; easy: number; hard: number; retentionRate: number }>
 
       // Subtasks
       getSubtasks: (taskId: number) => Promise<Subtask[]>

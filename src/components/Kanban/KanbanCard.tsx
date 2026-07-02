@@ -1,17 +1,19 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Badge } from '@/components/ui/badge'
-import { GripVertical, X } from 'lucide-react'
+import { GripVertical, X, Archive } from 'lucide-react'
 import { PRIORITY_COLORS } from '@/lib/constants'
+import { cn } from '@/lib/utils'
 import type { KanbanCard } from '@/types'
 
 interface Props {
   card: KanbanCard
   onDelete: (id: number) => void
   onView: (card: KanbanCard) => void
+  onArchive?: (id: number) => void
 }
 
-export default function KanbanCardComponent({ card, onDelete, onView }: Props) {
+export default function KanbanCardComponent({ card, onDelete, onView, onArchive }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
 
   const style = {
@@ -39,23 +41,37 @@ export default function KanbanCardComponent({ card, onDelete, onView }: Props) {
             )}
           </div>
         </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(card.id) }}
-          className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          {onArchive && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onArchive(card.id) }}
+              className="text-muted-foreground hover:text-blue-500 p-0.5"
+              title="Archivar"
+            >
+              <Archive className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(card.id) }}
+            className="text-muted-foreground hover:text-destructive p-0.5"
+            title="Eliminar"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 mt-2 flex-wrap">
-        <Badge variant="outline" className={`text-[10px] ${PRIORITY_COLORS[card.priority] || ''}`}>
+        <Badge variant="outline" className={cn("text-[10px]", PRIORITY_COLORS[card.priority])}>
           {card.priority}
         </Badge>
         {card.tags && card.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean).map((tag: string) => (
           <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
         ))}
         {card.due_date && (
-          <span className="text-[10px] text-muted-foreground ml-auto">📅 {card.due_date}</span>
+          <span className="text-[10px] text-muted-foreground ml-auto">
+            {new Date(card.due_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+          </span>
         )}
       </div>
     </div>

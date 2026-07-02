@@ -15,9 +15,10 @@ interface Props {
   cards: KanbanCard[]
   onDelete: (id: number) => void
   onView: (card: KanbanCard) => void
+  onArchive?: (id: number) => void
 }
 
-export default function KanbanColumn({ column, cards, onDelete, onView }: Props) {
+export default function KanbanColumn({ column, cards, onDelete, onView, onArchive }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
 
   return (
@@ -40,7 +41,7 @@ export default function KanbanColumn({ column, cards, onDelete, onView }: Props)
             <p className="text-xs text-muted-foreground text-center py-4">Arrastra tarjetas aquí</p>
           )}
           {cards.map(card => (
-            <KanbanCardComponent key={card.id} card={card} onDelete={onDelete} onView={onView} />
+            <KanbanCardComponent key={card.id} card={card} onDelete={onDelete} onView={onView} onArchive={onArchive} />
           ))}
         </SortableContext>
       </div>

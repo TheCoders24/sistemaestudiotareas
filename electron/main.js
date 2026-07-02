@@ -309,6 +309,9 @@ function registerIpcHandlers() {
     return getDb().prepare('SELECT * FROM goals WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteGoal', (_, id) => { getDb().prepare('DELETE FROM goals WHERE id = ?').run(id); return true })
+  ipcMain.handle('db:getGoalProgress', (_, goalId) => {
+    return getDb().prepare('SELECT * FROM goal_progress WHERE goal_id = ? ORDER BY date DESC').all(goalId)
+  })
   ipcMain.handle('db:addGoalProgress', (_, goalId, date, value) => {
     const existing = getDb().prepare('SELECT * FROM goal_progress WHERE goal_id = ? AND date = ?').get(goalId, date)
     if (existing) getDb().prepare('UPDATE goal_progress SET value = ? WHERE id = ?').run(value, existing.id)
@@ -497,6 +500,17 @@ function registerIpcHandlers() {
   ipcMain.handle('db:getDueFlashcards', (_, deckId) => {
     const today = new Date().toISOString().split('T')[0]
     return getDb().prepare("SELECT * FROM flashcards WHERE deck_id = ? AND next_review <= ? ORDER BY next_review ASC").all(deckId, today)
+  })
+  ipcMain.handle('db:getRetentionStats', (_, deckId) => {
+    const total = getDb().prepare('SELECT COUNT(*) as count FROM flashcard_reviews fr JOIN flashcards f ON f.id = fr.card_id WHERE f.deck_id = ?').get(deckId)
+    const easy = getDb().prepare("SELECT COUNT(*) as count FROM flashcard_reviews fr JOIN flashcards f ON f.id = fr.card_id WHERE f.deck_id = ? AND fr.rating >= 4").get(deckId)
+    const hard = getDb().prepare("SELECT COUNT(*) as count FROM flashcard_reviews fr JOIN flashcards f ON f.id = fr.card_id WHERE f.deck_id = ? AND fr.rating <= 2").get(deckId)
+    return {
+      total: total.count,
+      easy: easy.count,
+      hard: hard.count,
+      retentionRate: total.count > 0 ? Math.round((easy.count / total.count) * 100) : 0,
+    }
   })
   ipcMain.handle('db:getFlashcardStats', (_, deckId) => {
     const total = getDb().prepare('SELECT COUNT(*) as count FROM flashcards WHERE deck_id = ?').get(deckId)

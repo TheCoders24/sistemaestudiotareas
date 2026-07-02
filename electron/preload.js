@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createGoal: (goal) => ipcRenderer.invoke('db:createGoal', goal),
   updateGoal: (id, data) => ipcRenderer.invoke('db:updateGoal', id, data),
   deleteGoal: (id) => ipcRenderer.invoke('db:deleteGoal', id),
+  getGoalProgress: (goalId) => ipcRenderer.invoke('db:getGoalProgress', goalId),
   addGoalProgress: (goalId, date, value) => ipcRenderer.invoke('db:addGoalProgress', goalId, date, value),
 
   // Streaks
@@ -103,6 +104,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   reviewFlashcard: (cardId, rating) => ipcRenderer.invoke('db:reviewFlashcard', cardId, rating),
   getDueFlashcards: (deckId) => ipcRenderer.invoke('db:getDueFlashcards', deckId),
   getFlashcardStats: (deckId) => ipcRenderer.invoke('db:getFlashcardStats', deckId),
+  getRetentionStats: (deckId) => ipcRenderer.invoke('db:getRetentionStats', deckId),
 
   // Subtasks
   getSubtasks: (taskId) => ipcRenderer.invoke('db:getSubtasks', taskId),
