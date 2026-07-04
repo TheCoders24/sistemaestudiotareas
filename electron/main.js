@@ -1,7 +1,9 @@
 const { app, BrowserWindow, ipcMain, Notification } = require('electron')
 const path = require('path')
-const notifier = require('node-notifier')
 const { initDatabase, getDb, closeDatabase } = require('./database')
+
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256 --optimize-for-size')
+app.commandLine.appendSwitch('no-proxy-server')
 
 let mainWindow
 
@@ -11,6 +13,7 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 700,
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -19,9 +22,15 @@ function createWindow() {
     titleBarStyle: 'default',
   })
 
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show()
+    if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev')) {
+      mainWindow.webContents.openDevTools()
+    }
+  })
+
   if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev')) {
     mainWindow.loadURL('http://localhost:5173')
-    mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
@@ -261,6 +270,7 @@ function registerIpcHandlers() {
     if (Notification.isSupported()) {
       new Notification({ title, body }).show()
     } else {
+      const notifier = require('node-notifier')
       notifier.notify({ title, message: body, sound: true, wait: false })
     }
     return true

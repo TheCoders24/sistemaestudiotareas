@@ -2,6 +2,9 @@ const Database = require('better-sqlite3')
 const path = require('path')
 const { app } = require('electron')
 
+const SCHEMA_VERSION = 2
+const SCHEMA_KEY = 'db_schema_version'
+
 let db
 
 function getDbPath() {
@@ -15,6 +18,11 @@ function initDatabase() {
 
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
+  db.pragma('synchronous = NORMAL')
+  db.pragma('cache_size = -8000')
+  db.pragma('temp_store = MEMORY')
+
+  const currentVersion = db.prepare("SELECT value FROM settings WHERE key = ?").get(SCHEMA_KEY)
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
@@ -172,57 +180,60 @@ function initDatabase() {
     );
   `)
 
-  // Migrations for existing databases (add columns that may be missing)
-  const migrationLog = []
-  const migrations = [
-    `ALTER TABLE tasks ADD COLUMN project_id INTEGER`,
-    `ALTER TABLE tasks ADD COLUMN reminder TEXT`,
-    `ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'media'`,
-    `ALTER TABLE tasks ADD COLUMN description TEXT DEFAULT ''`,
-    `ALTER TABLE kanban_cards ADD COLUMN project_id INTEGER`,
-    `ALTER TABLE kanban_cards ADD COLUMN tags TEXT DEFAULT ''`,
-    `ALTER TABLE kanban_cards ADD COLUMN priority TEXT DEFAULT 'media'`,
-    `ALTER TABLE kanban_cards ADD COLUMN description TEXT DEFAULT ''`,
-    `ALTER TABLE pomodoro_sessions ADD COLUMN project_id INTEGER`,
-    `ALTER TABLE pomodoro_sessions ADD COLUMN task_id INTEGER`,
-    `ALTER TABLE notes ADD COLUMN project_id INTEGER`,
-    `ALTER TABLE notes ADD COLUMN content TEXT DEFAULT ''`,
-    `ALTER TABLE snippets ADD COLUMN project_id INTEGER`,
-    `ALTER TABLE snippets ADD COLUMN tags TEXT DEFAULT ''`,
-    `ALTER TABLE snippets ADD COLUMN description TEXT DEFAULT ''`,
-    `ALTER TABLE snippets ADD COLUMN language TEXT DEFAULT 'text'`,
-    `ALTER TABLE daily_logs ADD COLUMN tomorrow_plan TEXT DEFAULT ''`,
-    `ALTER TABLE daily_logs ADD COLUMN focus TEXT DEFAULT ''`,
-    `ALTER TABLE daily_logs ADD COLUMN blockers TEXT DEFAULT ''`,
-    `ALTER TABLE study_progress ADD COLUMN completed INTEGER DEFAULT 0`,
-    `ALTER TABLE study_progress ADD COLUMN date TEXT DEFAULT (date('now'))`,
-    `ALTER TABLE habits ADD COLUMN icon TEXT DEFAULT 'check'`,
-    `ALTER TABLE habits ADD COLUMN color TEXT DEFAULT '#6366f1'`,
-    `ALTER TABLE habits ADD COLUMN frequency TEXT DEFAULT 'daily'`,
-    `ALTER TABLE projects ADD COLUMN color TEXT DEFAULT '#6366f1'`,
-    `ALTER TABLE projects ADD COLUMN tech_stack TEXT DEFAULT ''`,
-    `ALTER TABLE projects ADD COLUMN repo_url TEXT DEFAULT ''`,
-  ]
-  for (const sql of migrations) {
+  // Only run migrations if schema version is outdated
+  if (!currentVersion || Number(currentVersion.value) < SCHEMA_VERSION) {
+    const migrationLog = []
+    const migrations = [
+      `ALTER TABLE tasks ADD COLUMN project_id INTEGER`,
+      `ALTER TABLE tasks ADD COLUMN reminder TEXT`,
+      `ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'media'`,
+      `ALTER TABLE tasks ADD COLUMN description TEXT DEFAULT ''`,
+      `ALTER TABLE kanban_cards ADD COLUMN project_id INTEGER`,
+      `ALTER TABLE kanban_cards ADD COLUMN tags TEXT DEFAULT ''`,
+      `ALTER TABLE kanban_cards ADD COLUMN priority TEXT DEFAULT 'media'`,
+      `ALTER TABLE kanban_cards ADD COLUMN description TEXT DEFAULT ''`,
+      `ALTER TABLE pomodoro_sessions ADD COLUMN project_id INTEGER`,
+      `ALTER TABLE pomodoro_sessions ADD COLUMN task_id INTEGER`,
+      `ALTER TABLE notes ADD COLUMN project_id INTEGER`,
+      `ALTER TABLE notes ADD COLUMN content TEXT DEFAULT ''`,
+      `ALTER TABLE snippets ADD COLUMN project_id INTEGER`,
+      `ALTER TABLE snippets ADD COLUMN tags TEXT DEFAULT ''`,
+      `ALTER TABLE snippets ADD COLUMN description TEXT DEFAULT ''`,
+      `ALTER TABLE snippets ADD COLUMN language TEXT DEFAULT 'text'`,
+      `ALTER TABLE daily_logs ADD COLUMN tomorrow_plan TEXT DEFAULT ''`,
+      `ALTER TABLE daily_logs ADD COLUMN focus TEXT DEFAULT ''`,
+      `ALTER TABLE daily_logs ADD COLUMN blockers TEXT DEFAULT ''`,
+      `ALTER TABLE study_progress ADD COLUMN completed INTEGER DEFAULT 0`,
+      `ALTER TABLE study_progress ADD COLUMN date TEXT DEFAULT (date('now'))`,
+      `ALTER TABLE habits ADD COLUMN icon TEXT DEFAULT 'check'`,
+      `ALTER TABLE habits ADD COLUMN color TEXT DEFAULT '#6366f1'`,
+      `ALTER TABLE habits ADD COLUMN frequency TEXT DEFAULT 'daily'`,
+      `ALTER TABLE projects ADD COLUMN color TEXT DEFAULT '#6366f1'`,
+      `ALTER TABLE projects ADD COLUMN tech_stack TEXT DEFAULT ''`,
+      `ALTER TABLE projects ADD COLUMN repo_url TEXT DEFAULT ''`,
+    ]
+    for (const sql of migrations) {
+      try {
+        db.exec(sql)
+        migrationLog.push(`OK: ${sql}`)
+      } catch (e) {
+        // Column likely already exists - ignore
+      }
+    }
+    // Handle old column name in daily_logs (migrate tomorrowPlan -> tomorrow_plan)
     try {
-      db.exec(sql)
-      migrationLog.push(`OK: ${sql}`)
-    } catch (e) {
-      // Column likely already exists - ignore
+      const cols = db.prepare("PRAGMA table_info('daily_logs')").all()
+      const hasNew = cols.some((c) => c.name === 'tomorrow_plan')
+      const hasOld = cols.some((c) => c.name === 'tomorrowPlan')
+      if (!hasNew && hasOld) {
+        db.exec(`ALTER TABLE daily_logs RENAME COLUMN tomorrowPlan TO tomorrow_plan`)
+        migrationLog.push('OK: Renamed tomorrowPlan -> tomorrow_plan in daily_logs')
+      }
+    } catch {}
+    if (migrationLog.length > 0) {
+      console.log('[DB Migration] Applied:', migrationLog.join('; '))
     }
-  }
-  // Handle old column name in daily_logs (migrate tomorrowPlan -> tomorrow_plan)
-  try {
-    const cols = db.prepare("PRAGMA table_info('daily_logs')").all()
-    const hasNew = cols.some((c) => c.name === 'tomorrow_plan')
-    const hasOld = cols.some((c) => c.name === 'tomorrowPlan')
-    if (!hasNew && hasOld) {
-      db.exec(`ALTER TABLE daily_logs RENAME COLUMN tomorrowPlan TO tomorrow_plan`)
-      migrationLog.push('OK: Renamed tomorrowPlan -> tomorrow_plan in daily_logs')
-    }
-  } catch {}
-  if (migrationLog.length > 0) {
-    console.log('[DB Migration] Applied:', migrationLog.join('; '))
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(SCHEMA_KEY, String(SCHEMA_VERSION))
   }
 
   return db

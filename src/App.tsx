@@ -1,26 +1,26 @@
-import { useState, useEffect, useCallback } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { Toaster } from '@/components/ui/toaster'
-import { PomodoroTimer } from './components/Pomodoro/PomodoroTimer'
-import KanbanBoard from './components/Kanban/KanbanBoard'
-import TaskList from './components/TaskList/TaskList'
-import StudyMap from './components/StudyMap/StudyMap'
-import Statistics from './components/Statistics/Statistics'
-import QuickNotes from './components/QuickNotes/QuickNotes'
-import Goals from './components/Goals/Goals'
-import Sidebar from './components/Sidebar/Sidebar'
-import Settings from './components/Settings/Settings'
-import ProjectsPage from './components/Projects/ProjectsPage'
-import DailyLogPage from './components/DailyLog/DailyLogPage'
-import SnippetsPage from './components/Snippets/SnippetsPage'
-import HabitsPage from './components/Habits/HabitsPage'
 import {
   Clock, LayoutDashboard, CheckSquare, BookOpen, BarChart3,
   StickyNote, Target, FolderKanban, NotebookPen, Code2, Activity,
-  Menu, Sun, Moon, Zap
+  Menu, Sun, Moon, Zap, Loader
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+
+const PomodoroTimer = lazy(() => import('./components/Pomodoro/PomodoroTimer').then(m => ({ default: m.PomodoroTimer })))
+const KanbanBoard = lazy(() => import('./components/Kanban/KanbanBoard'))
+const TaskList = lazy(() => import('./components/TaskList/TaskList'))
+const StudyMap = lazy(() => import('./components/StudyMap/StudyMap'))
+const Statistics = lazy(() => import('./components/Statistics/Statistics'))
+const QuickNotes = lazy(() => import('./components/QuickNotes/QuickNotes'))
+const Goals = lazy(() => import('./components/Goals/Goals'))
+const Sidebar = lazy(() => import('./components/Sidebar/Sidebar'))
+const Settings = lazy(() => import('./components/Settings/Settings'))
+const ProjectsPage = lazy(() => import('./components/Projects/ProjectsPage'))
+const DailyLogPage = lazy(() => import('./components/DailyLog/DailyLogPage'))
+const SnippetsPage = lazy(() => import('./components/Snippets/SnippetsPage'))
+const HabitsPage = lazy(() => import('./components/Habits/HabitsPage'))
 
 const TABS = [
   { id: 'pomodoro', label: 'Pomodoro', icon: Clock },
@@ -163,7 +163,7 @@ export default function App() {
             <Button variant="ghost" size="icon" onClick={() => setDarkMode(!darkMode)}>
               {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
-            <Settings />
+            <Suspense fallback={null}><Settings /></Suspense>
           </div>
         </header>
 
@@ -172,33 +172,27 @@ export default function App() {
           {/* Sidebar */}
           {sidebarOpen && (
             <aside className="w-60 shrink-0 border-r bg-card overflow-y-auto p-4 hidden md:block">
-              <Sidebar darkMode={darkMode} />
+              <Suspense fallback={<div className="animate-pulse bg-muted h-32 rounded" />}><Sidebar darkMode={darkMode} /></Suspense>
             </aside>
           )}
 
           {/* Content area */}
           <main className="flex-1 overflow-y-auto p-6">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.15 }}
-              >
-                {activeTab === 'pomodoro' && <PomodoroTimer onComplete={handleStreakUpdate} />}
-                {activeTab === 'kanban' && <KanbanBoard />}
-                {activeTab === 'tareas' && <TaskList />}
-                {activeTab === 'proyectos' && <ProjectsPage />}
-                {activeTab === 'diario' && <DailyLogPage />}
-                {activeTab === 'snippets' && <SnippetsPage />}
-                {activeTab === 'habitos' && <HabitsPage />}
-                {activeTab === 'mapa' && <StudyMap darkMode={darkMode} />}
-                {activeTab === 'stats' && <Statistics />}
-                {activeTab === 'notas' && <QuickNotes />}
-                {activeTab === 'metas' && <Goals />}
-              </motion.div>
-            </AnimatePresence>
+              <div key={activeTab} className="animate-fade-slide-in">
+                <Suspense fallback={<div className="flex items-center justify-center h-64 text-muted-foreground"><Loader className="h-6 w-6 animate-spin" /></div>}>
+                  {activeTab === 'pomodoro' && <PomodoroTimer onComplete={handleStreakUpdate} />}
+                  {activeTab === 'kanban' && <KanbanBoard />}
+                  {activeTab === 'tareas' && <TaskList />}
+                  {activeTab === 'proyectos' && <ProjectsPage />}
+                  {activeTab === 'diario' && <DailyLogPage />}
+                  {activeTab === 'snippets' && <SnippetsPage />}
+                  {activeTab === 'habitos' && <HabitsPage />}
+                  {activeTab === 'mapa' && <StudyMap darkMode={darkMode} />}
+                  {activeTab === 'stats' && <Statistics />}
+                  {activeTab === 'notas' && <QuickNotes />}
+                  {activeTab === 'metas' && <Goals />}
+                </Suspense>
+              </div>
           </main>
         </div>
 
