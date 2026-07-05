@@ -1,7 +1,7 @@
 appId: com.sistema.estudio-tareas
 productName: Sistema Estudio y Tareas
 directories:
-  output: release
+  output: release_new
 win:
   target:
     - portable
