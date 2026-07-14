@@ -1,18 +1,34 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Trash2, Activity, Flame, CheckCircle2, Circle } from 'lucide-react'
+import { Plus, Trash2, Activity, Flame, CheckCircle2, Circle, Edit3, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/components/ui/use-toast'
 
+const ICONS = [
+  { value: 'check', label: '✓' },
+  { value: 'book', label: '📚' },
+  { value: 'code', label: '💻' },
+  { value: 'gym', label: '💪' },
+  { value: 'read', label: '📖' },
+  { value: 'meditate', label: '🧘' },
+  { value: 'music', label: '🎵' },
+  { value: 'water', label: '💧' },
+  { value: 'sleep', label: '😴' },
+]
+
+const todayStr = () => new Date().toISOString().split('T')[0]
+const dayStr = (offset: number) => new Date(Date.now() - offset * 86400000).toISOString().split('T')[0]
+
 export default function HabitsPage() {
   const [habits, setHabits] = useState<any[]>([])
   const [habitLogs, setHabitLogs] = useState<Record<number, any[]>>({})
   const [open, setOpen] = useState(false)
+  const [editHabit, setEditHabit] = useState<any | null>(null)
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('check')
   const [color, setColor] = useState('#6366f1')
@@ -24,19 +40,37 @@ export default function HabitsPage() {
     if (!window.electronAPI) return
     const data = await window.electronAPI.getHabits()
     setHabits(data)
-    for (const h of data) {
-      const logs = await window.electronAPI.getHabitLogs(h.id)
-      setHabitLogs(prev => ({ ...prev, [h.id]: logs }))
-    }
+    const allLogs: Record<number, any[]> = {}
+    await Promise.all(data.map(async (h: any) => {
+      allLogs[h.id] = await window.electronAPI.getHabitLogs(h.id)
+    }))
+    setHabitLogs(allLogs)
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  function openCreate() {
+    setEditHabit(null)
+    setName(''); setIcon('check'); setColor('#6366f1'); setFrequency('daily')
+    setOpen(true)
+  }
+
+  function openEdit(habit: any) {
+    setEditHabit(habit)
+    setName(habit.name); setIcon(habit.icon); setColor(habit.color); setFrequency(habit.frequency)
+    setOpen(true)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !window.electronAPI) return
-    await window.electronAPI.createHabit({ name, icon, color, frequency } as any)
+    if (editHabit) {
+      await window.electronAPI.updateHabit(editHabit.id, { name, icon, color, frequency })
+      toast({ title: 'Hábito actualizado' })
+    } else {
+      await window.electronAPI.createHabit({ name, icon, color, frequency } as any)
+      toast({ title: 'Hábito creado', description: `"${name}" agregado.` })
+    }
     setName(''); setOpen(false)
     loadHabits()
-    toast({ title: 'Hábito creado', description: `"${name}" agregado.` })
   }
 
   async function handleDelete(id: number) {
@@ -52,32 +86,40 @@ export default function HabitsPage() {
     loadHabits()
   }
 
-  function getLastDays(n: number): string[] {
+  const last30Days = useMemo(() => {
     const dates: string[] = []
-    for (let i = n - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000)
-      dates.push(d.toISOString().split('T')[0])
-    }
+    for (let i = 29; i >= 0; i--) dates.push(dayStr(i))
     return dates
-  }
+  }, [])
 
   function isCompleted(habitId: number, date: string): boolean {
     return (habitLogs[habitId] || []).some((l: any) => l.date === date && l.completed)
   }
 
-  function getStreak(habitId: number): number {
-    const logs = habitLogs[habitId] || []
-    let streak = 0
-    const today = new Date().toISOString().split('T')[0]
-    for (let i = 0; i < 365; i++) {
-      const d = new Date(Date.now() - i * 86400000).toISOString().split('T')[0]
-      if (logs.some((l: any) => l.date === d && l.completed)) streak++
-      else break
+  const streaks = useMemo(() => {
+    const result: Record<number, number> = {}
+    for (const habitId of Object.keys(habitLogs)) {
+      const logs = habitLogs[Number(habitId)] || []
+      let streak = 0
+      for (let i = 0; i < 365; i++) {
+        const d = dayStr(i)
+        if (logs.some((l: any) => l.date === d && l.completed)) streak++
+        else break
+      }
+      result[Number(habitId)] = streak
     }
-    return streak
-  }
+    return result
+  }, [habitLogs])
 
-  const last30Days = getLastDays(30)
+  const completionRates = useMemo(() => {
+    const rates: Record<number, number> = {}
+    for (const habitId of Object.keys(habitLogs)) {
+      const logs = habitLogs[Number(habitId)] || []
+      const done = logs.filter((l: any) => l.completed).length
+      rates[Number(habitId)] = Math.round((done / 30) * 100)
+    }
+    return rates
+  }, [habitLogs])
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -88,51 +130,48 @@ export default function HabitsPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Trackea tus hábitos diarios</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-1" /> Nuevo Hábito</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Crear Hábito</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Estudiar 2 horas" required />
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Icono</label>
-                  <Select value={icon} onValueChange={setIcon}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="check">✓</SelectItem>
-                      <SelectItem value="book">📚</SelectItem>
-                      <SelectItem value="code">💻</SelectItem>
-                      <SelectItem value="gym">💪</SelectItem>
-                      <SelectItem value="read">📖</SelectItem>
-                      <SelectItem value="meditate">🧘</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Color</label>
-                  <Input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-9 p-1" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Frecuencia</label>
-                  <Select value={frequency} onValueChange={setFrequency}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Diario</SelectItem>
-                      <SelectItem value="weekly">Semanal</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <Button type="submit" className="w-full">Crear Hábito</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" /> Nuevo Hábito</Button>
       </div>
+
+      {/* Dialogs */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editHabit ? 'Editar Hábito' : 'Crear Hábito'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Estudiar 2 horas" required />
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Icono</label>
+                <Select value={icon} onValueChange={setIcon}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ICONS.map(ic => (
+                      <SelectItem key={ic.value} value={ic.value}>{ic.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Color</label>
+                <Input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-9 p-1" />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Frecuencia</label>
+                <Select value={frequency} onValueChange={setFrequency}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Diario</SelectItem>
+                    <SelectItem value="weekly">Semanal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button type="submit" className="w-full">{editHabit ? 'Guardar Cambios' : 'Crear Hábito'}</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <div className="space-y-4">
         {habits.length === 0 && (
@@ -152,27 +191,32 @@ export default function HabitsPage() {
               <CardContent className="py-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm" style={{ backgroundColor: habit.color + '20', color: habit.color }}>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm"
+                      style={{ backgroundColor: habit.color + '20', color: habit.color }}>
                       {habit.icon === 'check' ? <CheckCircle2 className="h-4 w-4" /> : habit.icon}
                     </div>
                     <div>
                       <span className="font-medium">{habit.name}</span>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Flame className="h-3 w-3 text-orange-500" /> {getStreak(habit.id)} días seguidos
+                        <Flame className="h-3 w-3 text-orange-500" /> {streaks[habit.id] ?? 0} días
+                        <BarChart3 className="h-3 w-3 ml-1 text-indigo-500" /> {completionRates[habit.id] ?? 0}%
                       </div>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(habit.id)}>
-                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(habit)}>
+                      <Edit3 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(habit.id)}>
+                      <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                    </Button>
+                  </div>
                 </div>
 
-                {/* Calendar grid */}
                 <div className="flex gap-0.5">
                   {last30Days.map(date => {
                     const completed = isCompleted(habit.id, date)
-                    const isToday = date === new Date().toISOString().split('T')[0]
-                    const dayNum = new Date(date + 'T12:00:00').getDate()
+                    const isToday = date === todayStr()
                     return (
                       <Tooltip key={date}>
                         <TooltipTrigger asChild>

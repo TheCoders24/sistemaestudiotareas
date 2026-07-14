@@ -33,6 +33,7 @@ export function PomodoroTimer({ onComplete }: Props) {
   const startTimeRef = useRef<number | null>(null)
   const modeRef = useRef(mode)
   const sessionsRef = useRef(sessions)
+  const completedRef = useRef(false)
 
   const MODES = {
     pomodoro: { label: 'Pomodoro', duration: POMODORO, color: 'text-red-500', icon: Timer },
@@ -58,12 +59,14 @@ export function PomodoroTimer({ onComplete }: Props) {
 
   useEffect(() => {
     if (running) {
+      completedRef.current = false
       startTimeRef.current = Date.now()
       intervalRef.current = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
             if (intervalRef.current) clearInterval(intervalRef.current)
-            handleComplete()
+            intervalRef.current = null
+            completedRef.current = true
             return 0
           }
           return prev - 1
@@ -72,6 +75,13 @@ export function PomodoroTimer({ onComplete }: Props) {
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [running])
+
+  useEffect(() => {
+    if (completedRef.current) {
+      completedRef.current = false
+      handleComplete()
+    }
+  }, [timeLeft])
 
   function handleComplete() {
     setRunning(false)

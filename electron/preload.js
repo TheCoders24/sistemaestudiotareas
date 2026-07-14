@@ -7,10 +7,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Tasks
   getTasks: () => ipcRenderer.invoke('db:getTasks'),
+  getTasksWithSubtasks: () => ipcRenderer.invoke('db:getTasksWithSubtasks'),
   createTask: (task) => ipcRenderer.invoke('db:createTask', task),
   updateTask: (id, data) => ipcRenderer.invoke('db:updateTask', id, data),
   deleteTask: (id) => ipcRenderer.invoke('db:deleteTask', id),
   toggleTask: (id) => ipcRenderer.invoke('db:toggleTask', id),
+  reorderTasks: (orderedIds) => ipcRenderer.invoke('db:reorderTasks', orderedIds),
 
   // Kanban
   getKanbanCards: () => ipcRenderer.invoke('db:getKanbanCards'),
@@ -74,9 +76,50 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Habits
   getHabits: () => ipcRenderer.invoke('db:getHabits'),
   createHabit: (habit) => ipcRenderer.invoke('db:createHabit', habit),
+  updateHabit: (id, data) => ipcRenderer.invoke('db:updateHabit', id, data),
   deleteHabit: (id) => ipcRenderer.invoke('db:deleteHabit', id),
   getHabitLogs: (habitId) => ipcRenderer.invoke('db:getHabitLogs', habitId),
   toggleHabitLog: (habitId, date) => ipcRenderer.invoke('db:toggleHabitLog', habitId, date),
+
+  // Search
+  search: (query) => ipcRenderer.invoke('db:search', query),
+
+  // XP / Gamification
+  getXp: () => ipcRenderer.invoke('xp:get'),
+  addXp: (amount, reason) => ipcRenderer.invoke('xp:add', amount, reason),
+  getXpHistory: (days) => ipcRenderer.invoke('xp:getHistory', days),
+  getAchievements: () => ipcRenderer.invoke('xp:getAchievements'),
+  checkAchievements: () => ipcRenderer.invoke('xp:checkAchievements'),
+  getGoalProgress: (goalId, today) => ipcRenderer.invoke('db:getGoalProgress', goalId, today),
+
+  // Subtasks
+  getSubtasks: (taskId) => ipcRenderer.invoke('db:getSubtasks', taskId),
+  createSubtask: (subtask) => ipcRenderer.invoke('db:createSubtask', subtask),
+  toggleSubtask: (id) => ipcRenderer.invoke('db:toggleSubtask', id),
+  deleteSubtask: (id) => ipcRenderer.invoke('db:deleteSubtask', id),
+
+  // Trash
+  softDeleteItem: (type, id) => ipcRenderer.invoke('db:softDeleteItem', type, id),
+  getTrashItems: () => ipcRenderer.invoke('db:getTrashItems'),
+  restoreItem: (type, id) => ipcRenderer.invoke('db:restoreItem', type, id),
+  deleteItemPermanent: (type, id) => ipcRenderer.invoke('db:deleteItemPermanent', type, id),
+  emptyTrash: () => ipcRenderer.invoke('db:emptyTrash'),
+
+  // Entity Links
+  linkEntities: (fromType, fromId, toType, toId) => ipcRenderer.invoke('db:linkEntities', fromType, fromId, toType, toId),
+  getEntityLinks: (type, id) => ipcRenderer.invoke('db:getEntityLinks', type, id),
+
+  // Challenges
+  getChallenges: () => ipcRenderer.invoke('db:getChallenges'),
+  updateChallengeProgress: (type, amount) => ipcRenderer.invoke('db:updateChallengeProgress', type, amount),
+
+  // Weekly Report
+  getWeeklyReport: () => ipcRenderer.invoke('db:getWeeklyReport'),
+
+  // Dashboard
+  getDashboard: () => ipcRenderer.invoke('db:getDashboard'),
+  getActivityFeed: () => ipcRenderer.invoke('db:getActivityFeed'),
+  getHabitStats: () => ipcRenderer.invoke('db:getHabitStats'),
 
   // Export/Import
   exportData: () => ipcRenderer.invoke('db:exportData'),

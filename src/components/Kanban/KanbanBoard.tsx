@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Plus, LayoutDashboard } from 'lucide-react'
@@ -37,9 +37,11 @@ export default function KanbanBoard() {
     setCards(data)
   }
 
-  function getColumnCards(columnId: string) {
-    return cards.filter(c => c.column_type === columnId)
-  }
+  const cardsByColumn = useMemo(() => {
+    const map: Record<string, any[]> = { pendiente: [], progreso: [], hecho: [] }
+    cards.forEach(c => { if (map[c.column_type]) map[c.column_type].push(c) })
+    return map
+  }, [cards])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -125,7 +127,7 @@ export default function KanbanBoard() {
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e) => setActiveId(e.active.id as number)} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {COLUMNS.map(column => (
-            <KanbanColumn key={column.id} column={column} cards={getColumnCards(column.id)} onDelete={handleDelete} />
+            <KanbanColumn key={column.id} column={column} cards={cardsByColumn[column.id] || []} onDelete={handleDelete} />
           ))}
         </div>
         <DragOverlay>

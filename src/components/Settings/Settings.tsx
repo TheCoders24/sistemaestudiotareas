@@ -1,31 +1,87 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings2, Download, Upload, Eye } from 'lucide-react'
+import { Settings2, Download, Upload, Eye, Volume2, VolumeX, Palette, Timer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { Separator } from '@/components/ui/separator'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
+import { useSound } from '@/hooks/useSound'
+
+const THEMES = [
+  { id: 'indigo', name: 'Índigo', primary: '#6366f1', bg: '#0f172a' },
+  { id: 'rose', name: 'Rosa', primary: '#e11d48', bg: '#1c1917' },
+  { id: 'emerald', name: 'Esmeralda', primary: '#059669', bg: '#0c1917' },
+  { id: 'amber', name: 'Ámbar', primary: '#d97706', bg: '#1c1917' },
+  { id: 'sky', name: 'Cielo', primary: '#0284c7', bg: '#0f172a' },
+  { id: 'violet', name: 'Violeta', primary: '#7c3aed', bg: '#0f172a' },
+]
+
+const POMODORO_PRESETS = [
+  { id: 'default', name: 'Clásico', focus: 25, short: 5, long: 15 },
+  { id: 'long', name: 'Enfoque largo', focus: 50, short: 10, long: 20 },
+  { id: 'short', name: 'Rápido', focus: 15, short: 3, long: 10 },
+  { id: 'custom', name: 'Personalizado', focus: 25, short: 5, long: 15 },
+]
 
 export default function Settings() {
   const [eyeRestEnabled, setEyeRestEnabled] = useState(true)
   const [eyeRestInterval, setEyeRestInterval] = useState(20)
+  const [theme, setTheme] = useState('indigo')
+  const [pomodoroPreset, setPomodoroPreset] = useState('default')
+  const [focusTime, setFocusTime] = useState(25)
+  const { soundEnabled, setSoundEnabled } = useSound()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const eyeRestTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    if (eyeRestEnabled) startEyeRestTimer()
+    if (window.electronAPI) {
+      window.electronAPI.getSetting('theme_color').then((val: string | null) => {
+        if (val) setTheme(val)
+      })
+      window.electronAPI.getSetting('pomodoro_preset').then((val: string | null) => {
+        if (val) setPomodoroPreset(val)
+      })
+      window.electronAPI.getSetting('pomodoro_focus').then((val: string | null) => {
+        if (val) setFocusTime(Number(val))
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    const root = document.documentElement
+    const t = THEMES.find(t => t.id === theme) || THEMES[0]
+    root.style.setProperty('--theme-primary', t.primary)
+    if (window.electronAPI) window.electronAPI.setSetting('theme_color', theme)
+  }, [theme])
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.setSetting('pomodoro_preset', pomodoroPreset)
+      if (pomodoroPreset === 'custom') {
+        window.electronAPI.setSetting('pomodoro_focus', String(focusTime))
+      } else {
+        const preset = POMODORO_PRESETS.find(p => p.id === pomodoroPreset)
+        if (preset) {
+          setFocusTime(preset.focus)
+          window.electronAPI.setSetting('pomodoro_focus', String(preset.focus))
+        }
+      }
+    }
+  }, [pomodoroPreset, focusTime])
+
+  useEffect(() => {
+    if (eyeRestTimerRef.current) clearInterval(eyeRestTimerRef.current)
+    if (eyeRestEnabled) {
+      eyeRestTimerRef.current = setInterval(() => {
+        if (window.electronAPI) {
+          window.electronAPI.showNotification('👀 Descanso Visual', 'Mira algo a 6 metros durante 20 segundos (Regla 20-20-20)')
+        }
+      }, eyeRestInterval * 60 * 1000)
+    }
     return () => { if (eyeRestTimerRef.current) clearInterval(eyeRestTimerRef.current) }
   }, [eyeRestEnabled, eyeRestInterval])
-
-  function startEyeRestTimer() {
-    if (eyeRestTimerRef.current) clearInterval(eyeRestTimerRef.current)
-    eyeRestTimerRef.current = setInterval(() => {
-      if (window.electronAPI) {
-        window.electronAPI.showNotification('👀 Descanso Visual', 'Mira algo a 6 metros durante 20 segundos (Regla 20-20-20)')
-      }
-    }, eyeRestInterval * 60 * 1000)
-  }
 
   async function handleExport() {
     if (!window.electronAPI) return
@@ -68,14 +124,71 @@ export default function Settings() {
           <Settings2 className="h-5 w-5" />
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5" /> Configuración
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {/* Eye rest */}
+          <div className="bg-accent/50 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                {soundEnabled ? <Volume2 className="h-4 w-4 text-blue-500" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
+                <span className="text-sm font-medium">Efectos de sonido</span>
+              </div>
+              <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
+            </div>
+            <p className="text-xs text-muted-foreground">Sonidos al completar pomodoros, tareas y subir de nivel</p>
+          </div>
+
+          <Separator />
+
+          <div className="bg-accent/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Palette className="h-4 w-4 text-indigo-500" />
+                <span className="text-sm font-medium">Tema de color</span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {THEMES.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setTheme(t.id)}
+                  className={`w-8 h-8 rounded-full transition-all ${theme === t.id ? 'ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110' : ''}`}
+                  style={{ backgroundColor: t.primary }}
+                  title={t.name}
+                />
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="bg-accent/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Timer className="h-4 w-4 text-red-500" />
+              <span className="text-sm font-medium">Pomodoro</span>
+            </div>
+            <Select value={pomodoroPreset} onValueChange={setPomodoroPreset}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {POMODORO_PRESETS.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Tiempo de enfoque: {focusTime} min</label>
+              <Slider value={[focusTime]} onValueChange={([v]) => {
+                setFocusTime(v); setPomodoroPreset('custom')
+              }} min={5} max={60} step={5} />
+            </div>
+          </div>
+
+          <Separator />
+
           <div className="bg-accent/50 rounded-lg p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -86,19 +199,13 @@ export default function Settings() {
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Intervalo: {eyeRestInterval} minutos</label>
-              <Slider
-                value={[eyeRestInterval]}
-                onValueChange={([v]) => setEyeRestInterval(v)}
-                min={10}
-                max={60}
-                step={5}
-              />
+              <Slider value={[eyeRestInterval]} onValueChange={([v]) => setEyeRestInterval(v)}
+                min={10} max={60} step={5} />
             </div>
           </div>
 
           <Separator />
 
-          {/* Export */}
           <div className="space-y-2">
             <p className="text-sm font-medium flex items-center gap-2">
               <Download className="h-4 w-4 text-green-500" /> Exportar datos
@@ -108,7 +215,6 @@ export default function Settings() {
             </Button>
           </div>
 
-          {/* Import */}
           <div className="space-y-2">
             <p className="text-sm font-medium flex items-center gap-2">
               <Upload className="h-4 w-4 text-blue-500" /> Importar datos

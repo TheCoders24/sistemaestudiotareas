@@ -1,11 +1,12 @@
 appId: com.sistema.estudio-tareas
 productName: Sistema Estudio y Tareas
 directories:
-  output: release_new
+  output: release
 win:
   target:
     - portable
   icon: null
+  signExecutable: false
 portable:
   artifactName: "${productName}-${version}-portable.${ext}"
 asarUnpack:

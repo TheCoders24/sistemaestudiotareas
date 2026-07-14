@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckSquare, Plus, Trash2, Calendar, Bell, ChevronDown } from 'lucide-react'
+import { CheckSquare, Plus, Trash2, Calendar, Bell, ChevronDown, ChevronRight, GripVertical, ListChecks, FolderKanban, Repeat, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -9,35 +9,66 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/components/ui/use-toast'
 
-interface Task {
-  id: number
-  title: string
-  description: string
-  completed: number
-  priority: string
-  due_date: string | null
-  reminder: string | null
-  created_at: string
+interface Subtask {
+  id: number; task_id: number; title: string; completed: number; position: number
 }
+
+interface Task {
+  id: number; title: string; description: string; completed: number
+  priority: string; due_date: string | null; reminder: string | null
+  project_id: number | null; repeat: string | null; position: number
+  created_at: string; subtasks?: Subtask[]
+}
+
+interface Project { id: number; name: string; color: string }
+
+const REPEAT_OPTIONS = [
+  { value: '', label: 'No repetir' },
+  { value: 'daily', label: 'Cada día' },
+  { value: 'weekly', label: 'Cada semana' },
+  { value: 'monthly', label: 'Cada mes' },
+  { value: 'weekdays', label: 'Días de semana' },
+]
 
 export default function TaskList() {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newPriority, setNewPriority] = useState('media')
   const [newDueDate, setNewDueDate] = useState('')
   const [newReminder, setNewReminder] = useState('')
+  const [newProjectId, setNewProjectId] = useState<string>('')
+  const [newRepeat, setNewRepeat] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState('all')
+  const [projectFilter, setProjectFilter] = useState<string>('all')
+  const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set())
+  const [dragId, setDragId] = useState<number | null>(null)
+  const [dragOverId, setDragOverId] = useState<number | null>(null)
+  const [editingSubtask, setEditingSubtask] = useState<{ taskId: number; title: string } | null>(null)
 
-  useEffect(() => { loadTasks() }, [])
+  useEffect(() => { loadTasks(); loadProjects() }, [])
+
+  const taskCounts = useMemo(() => {
+    let pending = 0, done = 0
+    for (const t of tasks) { t.completed ? done++ : pending++ }
+    return { total: tasks.length, pending, done }
+  }, [tasks])
 
   async function loadTasks() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getTasks()
+    const data = await window.electronAPI.getTasksWithSubtasks?.() || []
     setTasks(data)
+  }
+
+  async function loadProjects() {
+    if (!window.electronAPI) return
+    setProjects(await window.electronAPI.getProjects())
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -46,40 +77,94 @@ export default function TaskList() {
     await window.electronAPI.createTask({
       title: newTitle, description: newDesc, priority: newPriority,
       due_date: newDueDate || null, reminder: newReminder || null,
+      project_id: newProjectId ? Number(newProjectId) : null,
+      repeat: newRepeat || null,
     } as any)
-    setNewTitle(''); setNewDesc(''); setNewDueDate(''); setNewReminder('')
+    setNewTitle(''); setNewDesc(''); setNewDueDate(''); setNewReminder(''); setNewProjectId(''); setNewRepeat('')
     setShowForm(false)
     loadTasks()
     toast({ title: 'Tarea creada', description: `"${newTitle}" agregada.` })
-
-    if (newReminder) {
-      const remindMs = new Date(newReminder).getTime()
-      const delay = remindMs - Date.now()
-      if (delay > 0) setTimeout(async () => {
-        if (window.electronAPI) {
-          await window.electronAPI.showNotification('⏰ Recordatorio', `Tarea: ${newTitle}`)
-        }
-      }, delay)
-    }
   }
 
   async function handleToggle(id: number) {
     if (!window.electronAPI) return
+    const task = tasks.find(t => t.id === id)
     await window.electronAPI.toggleTask(id)
+    if (task?.repeat && task.completed) {
+      await window.electronAPI.createTask({
+        title: task.title, description: task.description, priority: task.priority,
+        project_id: task.project_id, repeat: task.repeat,
+      } as any)
+      toast({ title: 'Tarea recurrente renovada' })
+    }
     loadTasks()
   }
 
   async function handleDelete(id: number) {
     if (!window.electronAPI) return
-    await window.electronAPI.deleteTask(id)
+    const task = tasks.find(t => t.id === id)
+    if (window.__confirmDelete) {
+      window.__confirmDelete('task', id, task?.title || '')
+    } else {
+      await window.electronAPI.softDeleteItem('task', id)
+      loadTasks()
+    }
+  }
+
+  async function handleAddSubtask(taskId: number) {
+    if (!editingSubtask || !editingSubtask.title.trim() || !window.electronAPI) return
+    await window.electronAPI.createSubtask({ task_id: taskId, title: editingSubtask.title } as any)
+    setEditingSubtask(null)
     loadTasks()
   }
 
-  const filtered = tasks.filter(task => {
-    if (filter === 'pending') return !task.completed
-    if (filter === 'done') return task.completed
-    return true
-  })
+  async function handleToggleSubtask(id: number) {
+    if (!window.electronAPI) return
+    await window.electronAPI.toggleSubtask(id)
+    loadTasks()
+  }
+
+  async function handleDeleteSubtask(id: number) {
+    if (!window.electronAPI) return
+    await window.electronAPI.deleteSubtask(id)
+    loadTasks()
+  }
+
+  const handleDragStart = useCallback((id: number) => setDragId(id), [])
+  const handleDragOver = useCallback((e: React.DragEvent, id: number) => {
+    e.preventDefault(); setDragOverId(id)
+  }, [])
+  const handleDrop = useCallback(async () => {
+    if (dragId === null || dragOverId === null || dragId === dragOverId) {
+      setDragId(null); setDragOverId(null); return
+    }
+    const copy = [...tasks]
+    const dragIdx = copy.findIndex(t => t.id === dragId)
+    const overIdx = copy.findIndex(t => t.id === dragOverId)
+    const [item] = copy.splice(dragIdx, 1)
+    copy.splice(overIdx, 0, item)
+    setTasks(copy)
+    setDragId(null); setDragOverId(null)
+    if (window.electronAPI) {
+      await window.electronAPI.reorderTasks(copy.map(t => t.id))
+    }
+  }, [dragId, dragOverId, tasks])
+
+  const toggleExpand = (id: number) => {
+    setExpandedTasks(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const filtered = useMemo(() => {
+    let result = tasks
+    if (filter === 'pending') result = result.filter(t => !t.completed)
+    else if (filter === 'done') result = result.filter(t => t.completed)
+    if (projectFilter !== 'all') result = result.filter(t => t.project_id === Number(projectFilter))
+    return result
+  }, [tasks, filter, projectFilter])
 
   const priorityColor: Record<string, string> = {
     baja: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
@@ -87,14 +172,17 @@ export default function TaskList() {
     alta: 'bg-red-500/20 text-red-400 border-red-500/30',
   }
 
+  const getProject = (id: number | null) => projects.find(p => p.id === id)
+
   return (
+    <TooltipProvider>
     <div className="max-w-3xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CheckSquare className="h-6 w-6 text-indigo-500" /> Tareas
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Gestiona tus tareas pendientes</p>
+          <p className="text-sm text-muted-foreground mt-1">Arrastrá para reordenar</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}>
           <Plus className="h-4 w-4 mr-1" /> {showForm ? 'Cerrar' : 'Nueva Tarea'}
@@ -132,6 +220,25 @@ export default function TaskList() {
                     <Input type="datetime-local" value={newReminder} onChange={e => setNewReminder(e.target.value)} className="w-[180px]" />
                   </div>
                 </div>
+                <div className="flex gap-3 flex-wrap">
+                  <Select value={newProjectId} onValueChange={setNewProjectId}>
+                    <SelectTrigger className="w-[160px]"><FolderKanban className="h-3.5 w-3.5 mr-1" /><SelectValue placeholder="Sin proyecto" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sin proyecto</SelectItem>
+                      {projects.map(p => (
+                        <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={newRepeat} onValueChange={setNewRepeat}>
+                    <SelectTrigger className="w-[160px]"><Repeat className="h-3.5 w-3.5 mr-1" /><SelectValue placeholder="No repetir" /></SelectTrigger>
+                    <SelectContent>
+                      {REPEAT_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button type="submit" className="w-full">✓ Crear Tarea</Button>
               </CardContent>
             </Card>
@@ -139,65 +246,159 @@ export default function TaskList() {
         )}
       </AnimatePresence>
 
-      <div className="mb-4">
+      <div className="mb-4 flex items-center gap-2 flex-wrap">
         <Tabs value={filter} onValueChange={v => setFilter(v)}>
           <TabsList>
-            <TabsTrigger value="all">Todas ({tasks.length})</TabsTrigger>
-            <TabsTrigger value="pending">Pendientes ({tasks.filter(t => !t.completed).length})</TabsTrigger>
-            <TabsTrigger value="done">Completadas ({tasks.filter(t => t.completed).length})</TabsTrigger>
+            <TabsTrigger value="all">Todas ({taskCounts.total})</TabsTrigger>
+            <TabsTrigger value="pending">Pendientes ({taskCounts.pending})</TabsTrigger>
+            <TabsTrigger value="done">Completadas ({taskCounts.done})</TabsTrigger>
           </TabsList>
         </Tabs>
+        <Select value={projectFilter} onValueChange={setProjectFilter}>
+          <SelectTrigger className="w-[150px] h-9 text-xs"><FolderKanban className="h-3.5 w-3.5 mr-1" /><SelectValue placeholder="Todos" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los proyectos</SelectItem>
+            {projects.map(p => (
+              <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1">
         {filtered.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <CheckSquare className="h-10 w-10 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">No hay tareas {filter !== 'all' ? (filter === 'pending' ? 'pendientes' : 'completadas') : ''}</p>
+            <p className="text-sm">No hay tareas</p>
           </div>
         )}
         <AnimatePresence>
-          {filtered.map(task => (
-            <motion.div
-              key={task.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              layout
-            >
-              <Card className={`group ${task.completed ? 'opacity-60' : ''}`}>
-                <CardContent className="py-3 flex items-start gap-3">
-                  <Checkbox
-                    checked={!!task.completed}
-                    onCheckedChange={() => handleToggle(task.id)}
-                    className="mt-1"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-sm font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
-                        {task.title}
-                      </span>
-                      <Badge variant="outline" className={`text-[10px] ${priorityColor[task.priority] || ''}`}>
-                        {task.priority}
-                      </Badge>
+          {filtered.map((task, idx) => {
+            const project = getProject(task.project_id)
+            const subtasks = task.subtasks || []
+            const subtasksDone = subtasks.filter(s => s.completed).length
+            const isExpanded = expandedTasks.has(task.id)
+            return (
+              <motion.div
+                key={task.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                layout
+                draggable
+                onDragStart={() => handleDragStart(task.id)}
+                onDragOver={(e) => handleDragOver(e, task.id)}
+                onDrop={handleDrop}
+                onDragEnd={() => { setDragId(null); setDragOverId(null) }}
+                className={`${dragOverId === task.id ? 'border-t-2 border-indigo-500' : ''}`}
+              >
+                <Card className={`group ${task.completed ? 'opacity-60' : ''}`}>
+                  <CardContent className="py-2.5 px-3">
+                    <div className="flex items-start gap-2">
+                      <div className="flex items-center gap-1 pt-0.5">
+                        <GripVertical className="h-4 w-4 text-muted-foreground/30 cursor-grab active:cursor-grabbing hover:text-muted-foreground/60 shrink-0" />
+                        <Checkbox checked={!!task.completed} onCheckedChange={() => handleToggle(task.id)} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-sm font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                            {task.title}
+                          </span>
+                          <Badge variant="outline" className={`text-[10px] ${priorityColor[task.priority] || ''}`}>
+                            {task.priority}
+                          </Badge>
+                          {project && (
+                            <Badge variant="outline" className="text-[10px] bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
+                              {project.name}
+                            </Badge>
+                          )}
+                          {task.repeat && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <RotateCcw className="h-3 w-3 text-blue-400" />
+                              </TooltipTrigger>
+                              <TooltipContent side="top"><span>Repite: {task.repeat}</span></TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                        {task.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>
+                        )}
+                        <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted-foreground">
+                          {task.due_date && <span>📅 {task.due_date}</span>}
+                          {task.reminder && <span>⏰ {new Date(task.reminder).toLocaleString()}</span>}
+                          {subtasks.length > 0 && (
+                            <span className="text-muted-foreground/60">{subtasksDone}/{subtasks.length} sub</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {subtasks.length > 0 && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleExpand(task.id)}>
+                            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                          onClick={() => setEditingSubtask({ taskId: task.id, title: '' })}>
+                          <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                          onClick={() => handleDelete(task.id)}>
+                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                        </Button>
+                      </div>
                     </div>
-                    {task.description && (
-                      <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
-                    )}
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      {task.due_date && <span>📅 {task.due_date}</span>}
-                      {task.reminder && <span>⏰ {new Date(task.reminder).toLocaleString()}</span>}
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleDelete(task.id)}>
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+
+                    <AnimatePresence>
+                      {isExpanded && subtasks.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="ml-9 mt-2 space-y-1 overflow-hidden"
+                        >
+                          {subtasks.map((sub) => (
+                            <div key={sub.id} className="flex items-center gap-2 py-0.5 group/sub">
+                              <Checkbox
+                                checked={!!sub.completed}
+                                onCheckedChange={() => handleToggleSubtask(sub.id)}
+                                className="h-3.5 w-3.5"
+                              />
+                              <span className={`text-xs flex-1 ${sub.completed ? 'line-through text-muted-foreground' : ''}`}>
+                                {sub.title}
+                              </span>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover/sub:opacity-100"
+                                onClick={() => handleDeleteSubtask(sub.id)}>
+                                <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                              </Button>
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )
+          })}
         </AnimatePresence>
       </div>
+
+      <Dialog open={editingSubtask !== null} onOpenChange={() => setEditingSubtask(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><ListChecks className="h-5 w-5" /> Agregar subtarea</DialogTitle></DialogHeader>
+          <form onSubmit={e => { e.preventDefault(); editingSubtask && handleAddSubtask(editingSubtask.taskId) }} className="flex gap-2">
+            <Input
+              value={editingSubtask?.title || ''}
+              onChange={e => setEditingSubtask(prev => prev ? { ...prev, title: e.target.value } : null)}
+              placeholder="Nombre de la subtarea"
+              autoFocus
+            />
+            <Button type="submit">Agregar</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
+    </TooltipProvider>
   )
 }

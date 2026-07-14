@@ -6,14 +6,25 @@ app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256 --optimize-fo
 app.commandLine.appendSwitch('no-proxy-server')
 
 let mainWindow
+let boundsSaveTimeout
+const stmts = {}
+function getStmt(sql) {
+  if (!stmts[sql]) stmts[sql] = getDb().prepare(sql)
+  return stmts[sql]
+}
 
 function createWindow() {
+  const savedBounds = loadWindowBounds()
+
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: savedBounds?.width ?? 1400,
+    height: savedBounds?.height ?? 900,
+    x: savedBounds?.x,
+    y: savedBounds?.y,
     minWidth: 1000,
     minHeight: 700,
     show: false,
+    backgroundColor: '#0f172a',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -29,6 +40,15 @@ function createWindow() {
     }
   })
 
+  mainWindow.on('resize', () => {
+    clearTimeout(boundsSaveTimeout)
+    boundsSaveTimeout = setTimeout(saveWindowBounds, 500)
+  })
+  mainWindow.on('move', () => {
+    clearTimeout(boundsSaveTimeout)
+    boundsSaveTimeout = setTimeout(saveWindowBounds, 500)
+  })
+
   if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev')) {
     mainWindow.loadURL('http://localhost:5173')
   } else {
@@ -38,6 +58,24 @@ function createWindow() {
   mainWindow.webContents.on('unhandled-rejection', (event, promise, reason) => {
     console.error('[RENDERER UNHANDLED REJECTION]', reason)
   })
+}
+
+function loadWindowBounds() {
+  try {
+    const db = getDb()
+    if (!db) return null
+    const row = getStmt("SELECT value FROM settings WHERE key = 'window_bounds'").get()
+    if (row) return JSON.parse(row.value)
+  } catch {}
+  return null
+}
+
+function saveWindowBounds() {
+  try {
+    if (!mainWindow) return
+    const bounds = mainWindow.getBounds()
+    getStmt("INSERT OR REPLACE INTO settings (key, value) VALUES ('window_bounds', ?)").run(JSON.stringify(bounds))
+  } catch {}
 }
 
 app.whenReady().then(() => {
@@ -55,173 +93,338 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
+function validate(val, type) {
+  if (type === 'string') return typeof val === 'string' ? val : ''
+  if (type === 'number') return typeof val === 'number' ? val : 0
+  if (type === 'int') return Number.isInteger(val) ? val : 0
+  return val
+}
+
+function doAutoBackup() {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    const lastBackup = getStmt("SELECT value FROM settings WHERE key = 'last_auto_backup'").get()
+    if (lastBackup && lastBackup.value === today) return
+    const fs = require('fs')
+    const backupDir = path.join(app.getPath('userData'), 'backups')
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true })
+    const tables = ['settings','projects','tasks','kanban_cards','pomodoro_sessions','study_topics','study_progress','notes','goals','goal_progress','streaks','daily_logs','snippets','habits','habit_logs','tags','xp_log','achievements','user_achievements','challenges','user_challenges','weekly_reports','subtasks','entity_links']
+    const data = {}
+    for (const t of tables) { try { data[t] = getStmt(`SELECT * FROM ${t}`).all() } catch { data[t] = [] } }
+    fs.writeFileSync(path.join(backupDir, `backup-${today}.json`), JSON.stringify(data, null, 2))
+    const backups = fs.readdirSync(backupDir).filter(f => f.startsWith('backup-')).sort().reverse()
+    if (backups.length > 30) { for (let i = 30; i < backups.length; i++) fs.unlinkSync(path.join(backupDir, backups[i])) }
+    getStmt("INSERT OR REPLACE INTO settings (key, value) VALUES ('last_auto_backup', ?)").run(today)
+  } catch (e) { console.error('[AutoBackup]', e) }
+}
+
+// Run auto-backup check every hour
+setInterval(doAutoBackup, 3600000)
+
+// Reminder checker: runs every 30s, sends notification for tasks with reminders within the next 30s
+setInterval(() => {
+  try {
+    const now = new Date().toISOString().slice(0, 19)
+    const soon = new Date(Date.now() + 60000).toISOString().slice(0, 19)
+    const tasks = getStmt("SELECT id, title, reminder FROM tasks WHERE deleted = 0 AND completed = 0 AND reminder IS NOT NULL AND reminder >= ? AND reminder < ?").all(now, soon)
+    for (const t of tasks) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.executeJavaScript(`window.__reminderNotification?.('${t.title.replace(/'/g, "\\'")}')`)
+      }
+      if (Notification.isSupported()) {
+        new Notification({ title: '⏰ Recordatorio de tarea', body: t.title }).show()
+      }
+    }
+  } catch (e) { /* silent */ }
+}, 30000)
+
 function registerIpcHandlers() {
+  doAutoBackup()
+
+  // Gamification: XP
+  function addXp(amount, reason) {
+    const oldTotal = getStmt('SELECT COALESCE(SUM(amount), 0) as total FROM xp_log').get().total
+    getStmt('INSERT INTO xp_log (amount, reason) VALUES (?, ?)').run(amount, reason)
+    const totalRow = getStmt('SELECT COALESCE(SUM(amount), 0) as total FROM xp_log').get()
+    const total = totalRow.total
+    const level = Math.floor(total / 100) + 1
+    const oldLevel = Math.floor(oldTotal / 100) + 1
+    const nextLevelXp = level * 100
+    const currentXp = total - ((level - 1) * 100)
+    // Update challenge progress for XP type
+    updateChallengeProgress('xp', amount)
+    return { total, level, currentXp, nextLevelXp, leveledUp: level > oldLevel }
+  }
+
+  ipcMain.handle('xp:get', () => {
+    const totalRow = getStmt('SELECT COALESCE(SUM(amount), 0) as total FROM xp_log').get()
+    const total = totalRow.total
+    const level = Math.floor(total / 100) + 1
+    return { total, level, currentXp: total - ((level - 1) * 100), nextLevelXp: level * 100 }
+  })
+
+  ipcMain.handle('xp:add', (_, amount, reason) => addXp(amount, reason))
+
+  ipcMain.handle('xp:getHistory', (_, days = 7) => {
+    const since = new Date(Date.now() - days * 86400000).toISOString().split('T')[0]
+    return getStmt("SELECT date(created_at) as date, SUM(amount) as xp FROM xp_log WHERE created_at >= ? GROUP BY date(created_at) ORDER BY date").all(since)
+  })
+
+  ipcMain.handle('xp:getAchievements', () => {
+    return getStmt(`SELECT a.*, ua.unlocked_at IS NOT NULL as unlocked
+      FROM achievements a
+      LEFT JOIN user_achievements ua ON a.id = ua.achievement_id
+      ORDER BY a.id`).all()
+  })
+
+  ipcMain.handle('xp:checkAchievements', async () => {
+    const unlocked = []
+    const totalRow = getStmt('SELECT COALESCE(SUM(amount), 0) as total FROM xp_log').get()
+    const totalXp = totalRow.total
+    const oldLevel = Math.floor(totalXp / 100) + 1
+    const pomodoroCount = getStmt('SELECT COUNT(*) as count FROM pomodoro_sessions').get().count
+    const tasksDone = getStmt('SELECT COUNT(*) as count FROM tasks WHERE completed = 1').get().count
+    const notesCount = getStmt('SELECT COUNT(*) as count FROM notes WHERE deleted = 0').get().count
+    const snippetsCount = getStmt('SELECT COUNT(*) as count FROM snippets').get().count
+    const projectsCount = getStmt('SELECT COUNT(*) as count FROM projects WHERE deleted = 0').get().count
+    const streak = getStmt("SELECT current FROM streaks WHERE name = 'daily_study'").get()
+    const streakDays = streak ? streak.current : 0
+    const appStreak = getStmt("SELECT current FROM streaks WHERE name = 'app_usage'").get()
+    const appStreakDays = appStreak ? appStreak.current : 0
+
+    const checks = [
+      { key: 'first_pomodoro', condition: pomodoroCount >= 1 },
+      { key: 'ten_pomodoros', condition: pomodoroCount >= 10 },
+      { key: 'fifty_pomodoros', condition: pomodoroCount >= 50 },
+      { key: 'first_task', condition: tasksDone >= 1 },
+      { key: 'ten_tasks', condition: tasksDone >= 10 },
+      { key: 'hundred_tasks', condition: tasksDone >= 100 },
+      { key: 'first_note', condition: notesCount >= 1 },
+      { key: 'ten_notes', condition: notesCount >= 10 },
+      { key: 'fifty_notes', condition: notesCount >= 50 },
+      { key: 'ten_snippets', condition: snippetsCount >= 10 },
+      { key: 'five_projects', condition: projectsCount >= 5 },
+      { key: 'first_streak_3', condition: streakDays >= 3 },
+      { key: 'first_streak_7', condition: streakDays >= 7 },
+      { key: 'first_streak_30', condition: streakDays >= 30 },
+      { key: 'seven_day_streak_app', condition: appStreakDays >= 7 },
+    ]
+
+    for (const check of checks) {
+      const achievement = getStmt('SELECT * FROM achievements WHERE key = ?').get(check.key)
+      if (!achievement) continue
+      const alreadyUnlocked = getStmt('SELECT id FROM user_achievements WHERE achievement_id = ?').get(achievement.id)
+      if (check.condition && !alreadyUnlocked) {
+        getStmt('INSERT INTO user_achievements (achievement_id) VALUES (?)').run(achievement.id)
+        if (achievement.xp_reward > 0) addXp(achievement.xp_reward, `logro: ${achievement.name}`)
+        unlocked.push(achievement)
+      }
+    }
+    const newTotal = getStmt('SELECT COALESCE(SUM(amount), 0) as total FROM xp_log').get().total
+    const newLevel = Math.floor(newTotal / 100) + 1
+    return { unlocked, leveledUp: newLevel > oldLevel, newLevel }
+  })
+
   // Settings
   ipcMain.handle('db:getSetting', (_, key) => {
-    const row = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key)
+    const row = getStmt('SELECT value FROM settings WHERE key = ?').get(key)
     return row ? row.value : null
   })
   ipcMain.handle('db:setSetting', (_, key, value) => {
-    getDb().prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value)
+    getStmt('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value)
     return true
   })
 
   // Tasks
   ipcMain.handle('db:getTasks', () => {
-    return getDb().prepare('SELECT * FROM tasks ORDER BY created_at DESC').all()
+    return getStmt('SELECT * FROM tasks WHERE deleted = 0 ORDER BY position ASC, created_at DESC').all()
+  })
+  ipcMain.handle('db:reorderTasks', (_, orderedIds) => {
+    const tx = getDb().transaction(() => {
+      orderedIds.forEach((id: number, index: number) => {
+        getStmt('UPDATE tasks SET position = ?, updated_at = datetime(\'now\') WHERE id = ?').run(index, id)
+      })
+    })
+    tx()
+    return true
   })
   ipcMain.handle('db:createTask', (_, task) => {
     task.project_id = task.project_id ?? null
-    const stmt = getDb().prepare('INSERT INTO tasks (title, description, priority, due_date, reminder, project_id) VALUES (@title, @description, @priority, @due_date, @reminder, @project_id)')
+    task.repeat = task.repeat || null
+    const stmt = getStmt('INSERT INTO tasks (title, description, priority, due_date, reminder, project_id, repeat) VALUES (@title, @description, @priority, @due_date, @reminder, @project_id, @repeat)')
     const result = stmt.run(task)
-    return getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid)
+    return getStmt('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateTask', (_, id, data) => {
     const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
     data.id = id
-    getDb().prepare(`UPDATE tasks SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
-    return getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id)
+    getStmt(`UPDATE tasks SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    return getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteTask', (_, id) => {
-    getDb().prepare('DELETE FROM tasks WHERE id = ?').run(id)
+    getStmt('UPDATE tasks SET deleted = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id)
     return true
   })
+  ipcMain.handle('db:getTasksWithSubtasks', () => {
+    const tasks = getStmt('SELECT * FROM tasks WHERE deleted = 0 ORDER BY position ASC, created_at DESC').all()
+    const subtasks = getStmt('SELECT * FROM subtasks ORDER BY position ASC').all()
+    const map: Record<number, any[]> = {}
+    for (const s of subtasks) {
+      if (!map[s.task_id]) map[s.task_id] = []
+      map[s.task_id].push(s)
+    }
+    return tasks.map(t => ({ ...t, subtasks: map[t.id] || [] }))
+  })
   ipcMain.handle('db:toggleTask', (_, id) => {
-    getDb().prepare('UPDATE tasks SET completed = CASE WHEN completed THEN 0 ELSE 1 END, updated_at = datetime(\'now\') WHERE id = ?').run(id)
-    return getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id)
+    const task = getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
+    getStmt('UPDATE tasks SET completed = CASE WHEN completed THEN 0 ELSE 1 END, updated_at = datetime(\'now\') WHERE id = ?').run(id)
+    if (task && !task.completed) {
+      addXp(5, 'tarea completada')
+      updateChallengeProgress('task', 1)
+    }
+    return getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
   })
 
   // Kanban
   ipcMain.handle('db:getKanbanCards', () => {
-    return getDb().prepare('SELECT * FROM kanban_cards ORDER BY position ASC').all()
+    return getStmt('SELECT * FROM kanban_cards ORDER BY position ASC').all()
   })
   ipcMain.handle('db:createKanbanCard', (_, card) => {
-    const maxPos = getDb().prepare('SELECT COALESCE(MAX(position), -1) + 1 as pos FROM kanban_cards WHERE column_type = ?').get(card.column_type)
+    const maxPos = getStmt('SELECT COALESCE(MAX(position), -1) + 1 as pos FROM kanban_cards WHERE column_type = ?').get(card.column_type)
     card.position = maxPos.pos
     card.project_id = card.project_id ?? null
-    const stmt = getDb().prepare('INSERT INTO kanban_cards (title, description, column_type, position, priority, tags, due_date, project_id) VALUES (@title, @description, @column_type, @position, @priority, @tags, @due_date, @project_id)')
+    const stmt = getStmt('INSERT INTO kanban_cards (title, description, column_type, position, priority, tags, due_date, project_id) VALUES (@title, @description, @column_type, @position, @priority, @tags, @due_date, @project_id)')
     const result = stmt.run(card)
-    return getDb().prepare('SELECT * FROM kanban_cards WHERE id = ?').get(result.lastInsertRowid)
+    return getStmt('SELECT * FROM kanban_cards WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateKanbanCard', (_, id, data) => {
     const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
     data.id = id
-    getDb().prepare(`UPDATE kanban_cards SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
-    return getDb().prepare('SELECT * FROM kanban_cards WHERE id = ?').get(id)
+    getStmt(`UPDATE kanban_cards SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    return getStmt('SELECT * FROM kanban_cards WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteKanbanCard', (_, id) => {
-    getDb().prepare('DELETE FROM kanban_cards WHERE id = ?').run(id)
+    getStmt('DELETE FROM kanban_cards WHERE id = ?').run(id)
     return true
   })
   ipcMain.handle('db:moveKanbanCard', (_, id, column, position) => {
-    getDb().prepare('UPDATE kanban_cards SET column_type = ?, position = ?, updated_at = datetime(\'now\') WHERE id = ?').run(column, position, id)
-    return getDb().prepare('SELECT * FROM kanban_cards WHERE id = ?').get(id)
+    getStmt('UPDATE kanban_cards SET column_type = ?, position = ?, updated_at = datetime(\'now\') WHERE id = ?').run(column, position, id)
+    return getStmt('SELECT * FROM kanban_cards WHERE id = ?').get(id)
   })
 
   // Pomodoro
   ipcMain.handle('db:getPomodoroSessions', (_, date) => {
     if (date) {
-      return getDb().prepare("SELECT * FROM pomodoro_sessions WHERE date(started_at) = ? ORDER BY started_at DESC").all(date)
+      return getStmt("SELECT * FROM pomodoro_sessions WHERE date(started_at) = ? ORDER BY started_at DESC").all(date)
     }
-    return getDb().prepare('SELECT * FROM pomodoro_sessions ORDER BY started_at DESC').all()
+    return getStmt('SELECT * FROM pomodoro_sessions ORDER BY started_at DESC').all()
   })
   ipcMain.handle('db:createPomodoroSession', (_, session) => {
     session.project_id = session.project_id ?? null
-    const stmt = getDb().prepare('INSERT INTO pomodoro_sessions (task_id, project_id, duration, started_at, ended_at) VALUES (@task_id, @project_id, @duration, @started_at, @ended_at)')
+    const stmt = getStmt('INSERT INTO pomodoro_sessions (task_id, project_id, duration, started_at, ended_at) VALUES (@task_id, @project_id, @duration, @started_at, @ended_at)')
     const result = stmt.run(session)
-    return getDb().prepare('SELECT * FROM pomodoro_sessions WHERE id = ?').get(result.lastInsertRowid)
+    addXp(10, 'pomodoro completado')
+    updateChallengeProgress('pomodoro', 1)
+    return getStmt('SELECT * FROM pomodoro_sessions WHERE id = ?').get(result.lastInsertRowid)
   })
 
   // Study Topics
   ipcMain.handle('db:getStudyTopics', () => {
-    return getDb().prepare('SELECT * FROM study_topics ORDER BY order_position ASC').all()
+    return getStmt('SELECT * FROM study_topics ORDER BY order_position ASC').all()
   })
   ipcMain.handle('db:createStudyTopic', (_, topic) => {
-    const stmt = getDb().prepare('INSERT INTO study_topics (parent_id, name, description, order_position) VALUES (@parent_id, @name, @description, @order_position)')
+    const stmt = getStmt('INSERT INTO study_topics (parent_id, name, description, order_position) VALUES (@parent_id, @name, @description, @order_position)')
     const result = stmt.run(topic)
-    return getDb().prepare('SELECT * FROM study_topics WHERE id = ?').get(result.lastInsertRowid)
+    return getStmt('SELECT * FROM study_topics WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateStudyTopic', (_, id, data) => {
     const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
     data.id = id
-    getDb().prepare(`UPDATE study_topics SET ${sets} WHERE id = @id`).run(data)
-    return getDb().prepare('SELECT * FROM study_topics WHERE id = ?').get(id)
+    getStmt(`UPDATE study_topics SET ${sets} WHERE id = @id`).run(data)
+    return getStmt('SELECT * FROM study_topics WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteStudyTopic', (_, id) => {
-    getDb().prepare('DELETE FROM study_topics WHERE id = ?').run(id)
+    getStmt('DELETE FROM study_topics WHERE id = ?').run(id)
     return true
   })
   ipcMain.handle('db:toggleStudyProgress', (_, topicId, date) => {
-    const existing = getDb().prepare('SELECT * FROM study_progress WHERE topic_id = ? AND date = ?').get(topicId, date)
+    const existing = getStmt('SELECT * FROM study_progress WHERE topic_id = ? AND date = ?').get(topicId, date)
     if (existing) {
-      getDb().prepare('DELETE FROM study_progress WHERE id = ?').run(existing.id)
+      getStmt('DELETE FROM study_progress WHERE id = ?').run(existing.id)
       return false
     } else {
-      getDb().prepare('INSERT INTO study_progress (topic_id, date) VALUES (?, ?)').run(topicId, date)
+      getStmt('INSERT INTO study_progress (topic_id, date) VALUES (?, ?)').run(topicId, date)
       return true
     }
   })
 
   // Notes
   ipcMain.handle('db:getNotes', () => {
-    return getDb().prepare('SELECT * FROM notes ORDER BY updated_at DESC').all()
+    return getStmt('SELECT * FROM notes WHERE deleted = 0 ORDER BY updated_at DESC').all()
   })
   ipcMain.handle('db:createNote', (_, note) => {
     note.project_id = note.project_id ?? null
-    const stmt = getDb().prepare('INSERT INTO notes (title, content, project_id) VALUES (@title, @content, @project_id)')
+    const stmt = getStmt('INSERT INTO notes (title, content, project_id) VALUES (@title, @content, @project_id)')
     const result = stmt.run(note)
-    return getDb().prepare('SELECT * FROM notes WHERE id = ?').get(result.lastInsertRowid)
+    addXp(3, 'nota creada')
+    updateChallengeProgress('note', 1)
+    return getStmt('SELECT * FROM notes WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateNote', (_, id, data) => {
     const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
     data.id = id
-    getDb().prepare(`UPDATE notes SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
-    return getDb().prepare('SELECT * FROM notes WHERE id = ?').get(id)
+    getStmt(`UPDATE notes SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    return getStmt('SELECT * FROM notes WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteNote', (_, id) => {
-    getDb().prepare('DELETE FROM notes WHERE id = ?').run(id)
+    getStmt('UPDATE notes SET deleted = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id)
     return true
   })
 
   // Goals
   ipcMain.handle('db:getGoals', () => {
-    return getDb().prepare('SELECT * FROM goals ORDER BY created_at DESC').all()
+    return getStmt('SELECT * FROM goals ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createGoal', (_, goal) => {
-    const stmt = getDb().prepare('INSERT INTO goals (title, type, target, metric) VALUES (@title, @type, @target, @metric)')
+    const stmt = getStmt('INSERT INTO goals (title, type, target, metric) VALUES (@title, @type, @target, @metric)')
     const result = stmt.run(goal)
-    return getDb().prepare('SELECT * FROM goals WHERE id = ?').get(result.lastInsertRowid)
+    return getStmt('SELECT * FROM goals WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateGoal', (_, id, data) => {
     const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
     data.id = id
-    getDb().prepare(`UPDATE goals SET ${sets} WHERE id = @id`).run(data)
-    return getDb().prepare('SELECT * FROM goals WHERE id = ?').get(id)
+    getStmt(`UPDATE goals SET ${sets} WHERE id = @id`).run(data)
+    return getStmt('SELECT * FROM goals WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteGoal', (_, id) => {
-    getDb().prepare('DELETE FROM goals WHERE id = ?').run(id)
+    getStmt('DELETE FROM goals WHERE id = ?').run(id)
     return true
   })
+  ipcMain.handle('db:getGoalProgress', (_, goalId, today) => {
+    const row = getStmt('SELECT COALESCE(SUM(value), 0) as total FROM goal_progress WHERE goal_id = ? AND date = ?').get(goalId, today)
+    return row ? row.total : 0
+  })
+
   ipcMain.handle('db:addGoalProgress', (_, goalId, date, value) => {
-    const existing = getDb().prepare('SELECT * FROM goal_progress WHERE goal_id = ? AND date = ?').get(goalId, date)
+    const existing = getStmt('SELECT * FROM goal_progress WHERE goal_id = ? AND date = ?').get(goalId, date)
     if (existing) {
-      getDb().prepare('UPDATE goal_progress SET value = ? WHERE id = ?').run(value, existing.id)
+      getStmt('UPDATE goal_progress SET value = ? WHERE id = ?').run(value, existing.id)
     } else {
-      getDb().prepare('INSERT INTO goal_progress (goal_id, date, value) VALUES (?, ?, ?)').run(goalId, date, value)
+      getStmt('INSERT INTO goal_progress (goal_id, date, value) VALUES (?, ?, ?)').run(goalId, date, value)
     }
     return true
   })
 
   // Streaks
   ipcMain.handle('db:getStreak', (_, name) => {
-    return getDb().prepare('SELECT * FROM streaks WHERE name = ?').get(name)
+    return getStmt('SELECT * FROM streaks WHERE name = ?').get(name)
   })
   ipcMain.handle('db:updateStreak', (_, name) => {
     const today = new Date().toISOString().split('T')[0]
-    const streak = getDb().prepare('SELECT * FROM streaks WHERE name = ?').get(name)
+    const streak = getStmt('SELECT * FROM streaks WHERE name = ?').get(name)
 
     if (!streak) {
-      getDb().prepare('INSERT INTO streaks (name, current, max, updated_at) VALUES (?, 1, 1, ?)').run(name, today)
+      getStmt('INSERT INTO streaks (name, current, max, updated_at) VALUES (?, 1, 1, ?)').run(name, today)
       return { current: 1, max: 1 }
     }
 
@@ -236,7 +439,21 @@ function registerIpcHandlers() {
     }
 
     const max = Math.max(current, streak.max)
-    getDb().prepare('UPDATE streaks SET current = ?, max = ?, updated_at = ? WHERE name = ?').run(current, max, today, name)
+    getStmt('UPDATE streaks SET current = ?, max = ?, updated_at = ? WHERE name = ?').run(current, max, today, name)
+    addXp(20, 'racha actualizada')
+    updateChallengeProgress('streak', 1)
+
+    // Also update app_usage streak
+    const usageStreak = getStmt("SELECT * FROM streaks WHERE name = 'app_usage'").get()
+    if (!usageStreak) {
+      getStmt("INSERT INTO streaks (name, current, max, updated_at) VALUES ('app_usage', 1, 1, ?)").run(today)
+    } else if (usageStreak.updated_at !== today) {
+      const usageYesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+      let usageCurrent = 1
+      if (usageStreak.updated_at === usageYesterday) usageCurrent = usageStreak.current + 1
+      getStmt("UPDATE streaks SET current = ?, max = MAX(max, ?), updated_at = ? WHERE name = 'app_usage'").run(usageCurrent, usageCurrent, today)
+    }
+
     return { current, max }
   })
 
@@ -248,17 +465,17 @@ function registerIpcHandlers() {
     if (period === 'week') dateFilter = "date('now', '-7 days')"
     else if (period === 'month') dateFilter = "date('now', '-30 days')"
 
-    const pomodoroCount = getDb().prepare(
+    const pomodoroCount = getStmt(
       `SELECT COUNT(*) as count, COALESCE(SUM(duration), 0) as total FROM pomodoro_sessions WHERE date(started_at) >= ${dateFilter}`
     ).get()
 
-    const tasksCompleted = getDb().prepare(
+    const tasksCompleted = getStmt(
       `SELECT COUNT(*) as count FROM tasks WHERE completed = 1 AND updated_at >= ${dateFilter}`
     ).get()
 
-    const tasksTotal = getDb().prepare('SELECT COUNT(*) as count FROM tasks').get()
+    const tasksTotal = getStmt('SELECT COUNT(*) as count FROM tasks').get()
 
-    const dailyPomodoros = getDb().prepare(
+    const dailyPomodoros = getStmt(
       "SELECT date(started_at) as date, COUNT(*) as count FROM pomodoro_sessions WHERE date(started_at) >= ? GROUP BY date(started_at) ORDER BY date"
     ).all(period === 'week' ? new Date(Date.now() - 7*86400000).toISOString().split('T')[0] : new Date(Date.now() - 30*86400000).toISOString().split('T')[0])
 
@@ -278,89 +495,313 @@ function registerIpcHandlers() {
 
   // Projects
   ipcMain.handle('db:getProjects', () => {
-    return getDb().prepare('SELECT * FROM projects ORDER BY created_at DESC').all()
+    return getStmt('SELECT * FROM projects WHERE deleted = 0 ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createProject', (_, project) => {
-    const stmt = getDb().prepare('INSERT INTO projects (name, description, status, tech_stack, repo_url, color) VALUES (@name, @description, @status, @tech_stack, @repo_url, @color)')
+    const stmt = getStmt('INSERT INTO projects (name, description, status, tech_stack, repo_url, color) VALUES (@name, @description, @status, @tech_stack, @repo_url, @color)')
     const result = stmt.run(project)
-    return getDb().prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid)
+    addXp(15, 'proyecto creado')
+    return getStmt('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateProject', (_, id, data) => {
     const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
     data.id = id
-    getDb().prepare(`UPDATE projects SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
-    return getDb().prepare('SELECT * FROM projects WHERE id = ?').get(id)
+    getStmt(`UPDATE projects SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    return getStmt('SELECT * FROM projects WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteProject', (_, id) => {
-    getDb().prepare('DELETE FROM projects WHERE id = ?').run(id)
+    getStmt('UPDATE projects SET deleted = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id)
     return true
   })
 
   // Daily Logs
   ipcMain.handle('db:getDailyLogs', () => {
-    return getDb().prepare('SELECT * FROM daily_logs ORDER BY date DESC').all()
+    return getStmt('SELECT * FROM daily_logs ORDER BY date DESC').all()
   })
   ipcMain.handle('db:getDailyLog', (_, date) => {
-    return getDb().prepare('SELECT * FROM daily_logs WHERE date = ?').get(date)
+    return getStmt('SELECT * FROM daily_logs WHERE date = ?').get(date)
   })
   ipcMain.handle('db:createDailyLog', (_, log) => {
-    const stmt = getDb().prepare('INSERT OR REPLACE INTO daily_logs (date, content, focus, blockers, tomorrow_plan) VALUES (@date, @content, @focus, @blockers, @tomorrow_plan)')
+    const stmt = getStmt('INSERT OR REPLACE INTO daily_logs (date, content, focus, blockers, tomorrow_plan) VALUES (@date, @content, @focus, @blockers, @tomorrow_plan)')
     const result = stmt.run(log)
-    return getDb().prepare('SELECT * FROM daily_logs WHERE id = ?').get(result.lastInsertRowid)
+    return getStmt('SELECT * FROM daily_logs WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateDailyLog', (_, id, data) => {
     const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
     data.id = id
-    getDb().prepare(`UPDATE daily_logs SET ${sets} WHERE id = @id`).run(data)
-    return getDb().prepare('SELECT * FROM daily_logs WHERE id = ?').get(id)
+    getStmt(`UPDATE daily_logs SET ${sets} WHERE id = @id`).run(data)
+    return getStmt('SELECT * FROM daily_logs WHERE id = ?').get(id)
   })
 
   // Snippets
   ipcMain.handle('db:getSnippets', () => {
-    return getDb().prepare('SELECT * FROM snippets ORDER BY created_at DESC').all()
+    return getStmt('SELECT * FROM snippets ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createSnippet', (_, snippet) => {
     snippet.project_id = snippet.project_id ?? null
-    const stmt = getDb().prepare('INSERT INTO snippets (title, code, language, description, tags, project_id) VALUES (@title, @code, @language, @description, @tags, @project_id)')
+    const stmt = getStmt('INSERT INTO snippets (title, code, language, description, tags, project_id) VALUES (@title, @code, @language, @description, @tags, @project_id)')
     const result = stmt.run(snippet)
-    return getDb().prepare('SELECT * FROM snippets WHERE id = ?').get(result.lastInsertRowid)
+    addXp(3, 'snippet creado')
+    updateChallengeProgress('note', 1)
+    return getStmt('SELECT * FROM snippets WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateSnippet', (_, id, data) => {
     const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
     data.id = id
-    getDb().prepare(`UPDATE snippets SET ${sets} WHERE id = @id`).run(data)
-    return getDb().prepare('SELECT * FROM snippets WHERE id = ?').get(id)
+    getStmt(`UPDATE snippets SET ${sets} WHERE id = @id`).run(data)
+    return getStmt('SELECT * FROM snippets WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteSnippet', (_, id) => {
-    getDb().prepare('DELETE FROM snippets WHERE id = ?').run(id)
+    getStmt('DELETE FROM snippets WHERE id = ?').run(id)
     return true
   })
 
   // Habits
   ipcMain.handle('db:getHabits', () => {
-    return getDb().prepare('SELECT * FROM habits ORDER BY created_at DESC').all()
+    return getStmt('SELECT * FROM habits ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createHabit', (_, habit) => {
-    const stmt = getDb().prepare('INSERT INTO habits (name, icon, color, frequency) VALUES (@name, @icon, @color, @frequency)')
+    const stmt = getStmt('INSERT INTO habits (name, icon, color, frequency) VALUES (@name, @icon, @color, @frequency)')
     const result = stmt.run(habit)
-    return getDb().prepare('SELECT * FROM habits WHERE id = ?').get(result.lastInsertRowid)
+    return getStmt('SELECT * FROM habits WHERE id = ?').get(result.lastInsertRowid)
+  })
+  ipcMain.handle('db:updateHabit', (_, id, data) => {
+    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
+    data.id = id
+    getStmt(`UPDATE habits SET ${sets} WHERE id = @id`).run(data)
+    return getStmt('SELECT * FROM habits WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteHabit', (_, id) => {
-    getDb().prepare('DELETE FROM habits WHERE id = ?').run(id)
+    getStmt('DELETE FROM habits WHERE id = ?').run(id)
     return true
   })
   ipcMain.handle('db:getHabitLogs', (_, habitId) => {
-    return getDb().prepare('SELECT * FROM habit_logs WHERE habit_id = ? ORDER BY date DESC').all(habitId)
+    return getStmt('SELECT * FROM habit_logs WHERE habit_id = ? ORDER BY date DESC').all(habitId)
   })
   ipcMain.handle('db:toggleHabitLog', (_, habitId, date) => {
-    const existing = getDb().prepare('SELECT * FROM habit_logs WHERE habit_id = ? AND date = ?').get(habitId, date)
+    const existing = getStmt('SELECT * FROM habit_logs WHERE habit_id = ? AND date = ?').get(habitId, date)
     if (existing) {
-      getDb().prepare('DELETE FROM habit_logs WHERE id = ?').run(existing.id)
+      getStmt('DELETE FROM habit_logs WHERE id = ?').run(existing.id)
       return false
     } else {
-      getDb().prepare('INSERT INTO habit_logs (habit_id, date, completed) VALUES (?, ?, 1)').run(habitId, date)
+      getStmt('INSERT INTO habit_logs (habit_id, date, completed) VALUES (?, ?, 1)').run(habitId, date)
       return true
     }
+  })
+
+  // Subtasks
+  ipcMain.handle('db:getSubtasks', (_, taskId) => {
+    return getStmt('SELECT * FROM subtasks WHERE task_id = ? ORDER BY position ASC').all(taskId)
+  })
+  ipcMain.handle('db:createSubtask', (_, subtask) => {
+    const maxPos = getStmt('SELECT COALESCE(MAX(position), -1) + 1 as pos FROM subtasks WHERE task_id = ?').get(subtask.task_id)
+    subtask.position = maxPos.pos
+    const stmt = getStmt('INSERT INTO subtasks (task_id, title, position) VALUES (@task_id, @title, @position)')
+    const result = stmt.run(subtask)
+    return getStmt('SELECT * FROM subtasks WHERE id = ?').get(result.lastInsertRowid)
+  })
+  ipcMain.handle('db:toggleSubtask', (_, id) => {
+    getStmt('UPDATE subtasks SET completed = CASE WHEN completed THEN 0 ELSE 1 END WHERE id = ?').run(id)
+    return getStmt('SELECT * FROM subtasks WHERE id = ?').get(id)
+  })
+  ipcMain.handle('db:deleteSubtask', (_, id) => {
+    getStmt('DELETE FROM subtasks WHERE id = ?').run(id)
+    return true
+  })
+
+  // Trash / Soft Delete
+  ipcMain.handle('db:softDeleteItem', (_, type, id) => {
+    const tables = { task: 'tasks', note: 'notes', project: 'projects' }
+    const table = tables[type]
+    if (table) getStmt(`UPDATE ${table} SET deleted = 1, updated_at = datetime('now') WHERE id = ?`).run(id)
+    return true
+  })
+  ipcMain.handle('db:getTrashItems', () => {
+    const tasks = getStmt("SELECT id, title, updated_at FROM tasks WHERE deleted = 1 ORDER BY updated_at DESC").all()
+    const notes = getStmt("SELECT id, title, updated_at FROM notes WHERE deleted = 1 ORDER BY updated_at DESC").all()
+    const projects = getStmt("SELECT id, name as title, updated_at FROM projects WHERE deleted = 1 ORDER BY updated_at DESC").all()
+    return { tasks, notes, projects }
+  })
+  ipcMain.handle('db:restoreItem', (_, type, id) => {
+    const tables = { task: 'tasks', note: 'notes', project: 'projects' }
+    const table = tables[type]
+    if (table) getStmt(`UPDATE ${table} SET deleted = 0, updated_at = datetime('now') WHERE id = ?`).run(id)
+    return true
+  })
+  ipcMain.handle('db:deleteItemPermanent', (_, type, id) => {
+    const tables = { task: 'tasks', note: 'notes', project: 'projects' }
+    const table = tables[type]
+    if (table) getStmt(`DELETE FROM ${table} WHERE id = ?`).run(id)
+    return true
+  })
+  ipcMain.handle('db:emptyTrash', () => {
+    getStmt("DELETE FROM tasks WHERE deleted = 1").run()
+    getStmt("DELETE FROM notes WHERE deleted = 1").run()
+    getStmt("DELETE FROM projects WHERE deleted = 1").run()
+    return true
+  })
+  // Auto-clean trash older than 30 days
+  getStmt("DELETE FROM tasks WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run()
+  getStmt("DELETE FROM notes WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run()
+  getStmt("DELETE FROM projects WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run()
+
+  // Entity Links
+  ipcMain.handle('db:linkEntities', (_, fromType, fromId, toType, toId) => {
+    getStmt('INSERT OR IGNORE INTO entity_links (from_type, from_id, to_type, to_id) VALUES (?, ?, ?, ?)').run(fromType, fromId, toType, toId)
+    return true
+  })
+  ipcMain.handle('db:getEntityLinks', (_, type, id) => {
+    const links = getStmt('SELECT * FROM entity_links WHERE (from_type = ? AND from_id = ?) OR (to_type = ? AND to_id = ?)').all(type, id, type, id)
+    const result = []
+    for (const link of links) {
+      if (link.from_type === type && link.from_id === id) {
+        const row = getStmt(`SELECT 'id' as id, 'name' as name FROM ${link.to_type}s WHERE id = ?`).get(link.to_id)
+        if (row) result.push({ ...row, linkType: link.to_type })
+      } else {
+        const row = getStmt(`SELECT 'id' as id, 'name' as name FROM ${link.from_type}s WHERE id = ?`).get(link.from_id)
+        if (row) result.push({ ...row, linkType: link.from_type })
+      }
+    }
+    return result
+  })
+
+  function getWeekStart() {
+    const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+    return new Date(d.setDate(diff)).toISOString().split('T')[0]
+  }
+
+  function updateChallengeProgress(type, amount) {
+    try {
+      const weekStart = getWeekStart()
+      const challenges = getStmt('SELECT * FROM challenges WHERE requirement_type = ?').all(type)
+      for (const c of challenges) {
+        let uc = getStmt('SELECT * FROM user_challenges WHERE challenge_id = ? AND week_start = ?').get(c.id, weekStart)
+        if (!uc) {
+          getStmt('INSERT INTO user_challenges (challenge_id, progress, week_start) VALUES (?, ?, ?)').run(c.id, amount, weekStart)
+          uc = { progress: amount }
+        } else {
+          const newProgress = uc.progress + amount
+          getStmt('UPDATE user_challenges SET progress = ? WHERE id = ?').run(newProgress, uc.id)
+          uc.progress = newProgress
+        }
+        if (!uc.completed && uc.progress >= c.requirement_count) {
+          getStmt("UPDATE user_challenges SET completed = 1, completed_at = datetime('now') WHERE id = ?").run(uc.id)
+          addXp(c.xp_reward, `desafío: ${c.name}`)
+          const achievement = getStmt("SELECT * FROM achievements WHERE key = 'first_weekly_challenge'").get()
+          if (achievement) {
+            const already = getStmt('SELECT id FROM user_achievements WHERE achievement_id = ?').get(achievement.id)
+            if (!already) {
+              getStmt('INSERT INTO user_achievements (achievement_id) VALUES (?)').run(achievement.id)
+              if (achievement.xp_reward > 0) addXp(achievement.xp_reward, `logro: ${achievement.name}`)
+            }
+          }
+        }
+      }
+    } catch (e) { console.error('[ChallengeProgress]', e) }
+  }
+
+  // Challenges
+  ipcMain.handle('db:getChallenges', () => {
+    const weekStart = getWeekStart()
+    return getStmt(`SELECT c.*, COALESCE(uc.progress, 0) as progress, COALESCE(uc.completed, 0) as completed, c.requirement_count as target
+      FROM challenges c
+      LEFT JOIN user_challenges uc ON c.id = uc.challenge_id AND uc.week_start = ?
+      ORDER BY c.id`).all(weekStart)
+  })
+
+  // Weekly Report
+  ipcMain.handle('db:getWeeklyReport', () => {
+    const today = new Date().toISOString().split('T')[0]
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
+    const pomodoros = getStmt("SELECT COUNT(*) as count FROM pomodoro_sessions WHERE date(started_at) >= ? AND date(started_at) <= ?").get(weekAgo, today)
+    const tasksDone = getStmt("SELECT COUNT(*) as count FROM tasks WHERE completed = 1 AND updated_at >= ?").get(weekAgo)
+    const xp = getStmt("SELECT COALESCE(SUM(amount), 0) as total FROM xp_log WHERE date(created_at) >= ? AND date(created_at) <= ?").get(weekAgo, today)
+    const streak = getStmt("SELECT MAX(max) as max FROM streaks").get()
+    getStmt("INSERT OR REPLACE INTO weekly_reports (week_start, pomodoros, tasks_completed, xp_earned, streak_max) VALUES (?, ?, ?, ?, ?)").run(weekAgo, pomodoros.count, tasksDone.count, xp.total, streak?.max || 0)
+    return { weekStart: weekAgo, pomodoros: pomodoros.count, tasksCompleted: tasksDone.count, xpEarned: xp.total, streakMax: streak?.max || 0 }
+  })
+
+  // Global Search
+  ipcMain.handle('db:search', (_, query) => {
+    const q = `%${validate(query, 'string')}%`
+    const results = []
+    try {
+      const tasks = getStmt('SELECT id, title as name, \'tarea\' as type FROM tasks WHERE title LIKE ? OR description LIKE ? AND deleted = 0 LIMIT 10').all(q, q)
+      results.push(...tasks)
+    } catch {}
+    try {
+      const notes = getStmt('SELECT id, title as name, \'nota\' as type FROM notes WHERE title LIKE ? OR content LIKE ? AND deleted = 0 LIMIT 10').all(q, q)
+      results.push(...notes)
+    } catch {}
+    try {
+      const snippets = getStmt('SELECT id, title as name, \'snippet\' as type FROM snippets WHERE title LIKE ? OR description LIKE ? OR code LIKE ? LIMIT 10').all(q, q)
+      results.push(...snippets)
+    } catch {}
+    try {
+      const projects = getStmt('SELECT id, name, \'proyecto\' as type FROM projects WHERE name LIKE ? OR description LIKE ? AND deleted = 0 LIMIT 10').all(q, q)
+      results.push(...projects)
+    } catch {}
+    try {
+      const habits = getStmt("SELECT id, name, 'hábito' as type FROM habits WHERE name LIKE ? LIMIT 10").all(q)
+      results.push(...habits)
+    } catch {}
+    try {
+      const logs = getStmt("SELECT id, date as name, 'diario' as type FROM daily_logs WHERE content LIKE ? OR focus LIKE ? LIMIT 10").all(q, q)
+      results.push(...logs)
+    } catch {}
+    return results
+  })
+
+  // Dashboard
+  ipcMain.handle('db:getDashboard', () => {
+    const today = new Date().toISOString().split('T')[0]
+    const pomodorosToday = getStmt("SELECT COUNT(*) as count FROM pomodoro_sessions WHERE date(started_at) = ?").get(today)
+    const tasksToday = getStmt("SELECT COUNT(*) as count FROM tasks WHERE updated_at >= ? AND completed = 1 AND deleted = 0").get(today)
+    const tasksPending = getStmt('SELECT COUNT(*) as count FROM tasks WHERE completed = 0 AND deleted = 0').get()
+    const upcomingTasks = getStmt("SELECT id, title, due_date FROM tasks WHERE completed = 0 AND deleted = 0 AND due_date IS NOT NULL ORDER BY due_date ASC LIMIT 5").all()
+    const xp = getStmt('SELECT COALESCE(SUM(amount), 0) as total FROM xp_log').get()
+    const totalXp = xp.total
+    const level = Math.floor(totalXp / 100) + 1
+    const streak = getStmt("SELECT * FROM streaks WHERE name = 'daily_study'").get()
+    const totalPomodoros = getStmt('SELECT COUNT(*) as count FROM pomodoro_sessions').get()
+    const totalTasks = getStmt('SELECT COUNT(*) as count FROM tasks WHERE completed = 1 AND deleted = 0').get()
+    return {
+      pomodorosToday: pomodorosToday.count,
+      tasksToday: tasksToday.count,
+      tasksPending: tasksPending.count,
+      upcomingTasks,
+      xp: { total: totalXp, level, currentXp: totalXp - ((level - 1) * 100), nextLevelXp: level * 100 },
+      streak: streak || { current: 0, max: 0 },
+      totalPomodoros: totalPomodoros.count,
+      totalTasks: totalTasks.count,
+    }
+  })
+
+  // Activity Feed
+  ipcMain.handle('db:getActivityFeed', () => {
+    const feed = []
+    const recentTasks = getStmt("SELECT id, title, 'tarea' as type, completed, updated_at as time FROM tasks WHERE deleted = 0 ORDER BY updated_at DESC LIMIT 5").all()
+    feed.push(...recentTasks.map(r => ({ ...r, text: r.completed ? 'Completaste la tarea' : 'Actualizaste la tarea' })))
+    const recentNotes = getStmt("SELECT id, title, 'nota' as type, updated_at as time FROM notes WHERE deleted = 0 ORDER BY updated_at DESC LIMIT 5").all()
+    feed.push(...recentNotes.map(r => ({ ...r, text: 'Creaste la nota' })))
+    const recentSessions = getStmt("SELECT id, duration, 'pomodoro' as type, started_at as time FROM pomodoro_sessions ORDER BY started_at DESC LIMIT 5").all()
+    feed.push(...recentSessions.map(r => ({ ...r, text: 'Completaste un pomodoro', title: `${Math.round(r.duration / 60)} min` })))
+    const recentXp = getStmt("SELECT id, amount, reason, 'xp' as type, created_at as time FROM xp_log ORDER BY created_at DESC LIMIT 5").all()
+    feed.push(...recentXp.map(r => ({ ...r, text: `+${r.amount} XP: ${r.reason}`, title: `${r.amount} XP` })))
+    feed.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+    return feed.slice(0, 10)
+  })
+
+  // Habit Stats
+  ipcMain.handle('db:getHabitStats', () => {
+    const habits = getStmt('SELECT * FROM habits').all()
+    const today = new Date().toISOString().split('T')[0]
+    return habits.map(h => {
+      const totalDays = getStmt("SELECT COUNT(DISTINCT date) as count FROM habit_logs WHERE habit_id = ? AND completed = 1").get(h.id).count
+      const thisMonth = getStmt("SELECT COUNT(*) as count FROM habit_logs WHERE habit_id = ? AND completed = 1 AND date >= date('now', '-30 days')").get(h.id).count
+      const todayDone = getStmt("SELECT COUNT(*) as count FROM habit_logs WHERE habit_id = ? AND date = ? AND completed = 1").get(h.id, today).count
+      return { ...h, totalDays, thisMonth, todayDone: todayDone > 0 }
+    })
   })
 
   // Export/Import
@@ -369,7 +810,7 @@ function registerIpcHandlers() {
     const data = {}
     for (const table of tables) {
       try {
-        data[table] = getDb().prepare(`SELECT * FROM ${table}`).all()
+        data[table] = getStmt(`SELECT * FROM ${table}`).all()
       } catch (e) {
         data[table] = []
       }
@@ -381,11 +822,11 @@ function registerIpcHandlers() {
     const tx = getDb().transaction(() => {
       for (const table of tables) {
         try {
-          getDb().prepare(`DELETE FROM ${table}`).run()
+          getStmt(`DELETE FROM ${table}`).run()
           if (data[table] && data[table].length > 0) {
             const columns = Object.keys(data[table][0]).join(', ')
             const placeholders = Object.keys(data[table][0]).map(k => `@${k}`).join(', ')
-            const stmt = getDb().prepare(`INSERT INTO ${table} (${columns}) VALUES (${placeholders})`)
+            const stmt = getStmt(`INSERT INTO ${table} (${columns}) VALUES (${placeholders})`)
             for (const row of data[table]) {
               stmt.run(row)
             }
