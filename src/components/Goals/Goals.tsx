@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Goal {
   id: number
@@ -19,11 +21,13 @@ interface Goal {
 
 export default function Goals() {
   const [goals, setGoals] = useState<Goal[]>([])
+  const [progress, setProgress] = useState<Record<number, number>>({})
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
   const [type, setType] = useState('daily')
   const [target, setTarget] = useState(4)
   const [metric, setMetric] = useState('pomodoros')
+  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   useEffect(() => { loadGoals() }, [])
 
@@ -31,6 +35,42 @@ export default function Goals() {
     if (!window.electronAPI) return
     const data = await window.electronAPI.getGoals()
     setGoals(data)
+    await computeProgress(data)
+  }
+
+  async function computeProgress(goalsData: Goal[]) {
+    if (!window.electronAPI) return
+    const today = new Date().toISOString().split('T')[0]
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
+
+    const [sessions, tasks] = await Promise.all([
+      window.electronAPI.getPomodoroSessions?.(today).catch(() => []) || [],
+      window.electronAPI.getTasks().catch(() => []) || [],
+    ])
+
+    const todaySessions = sessions?.length || 0
+
+    const todayTasks = tasks?.filter((t: any) => {
+      if (!t.completed) return false
+      const doneDate = t.updated_at?.split('T')[0] || ''
+      return doneDate === today
+    }).length || 0
+
+    const weeklySessions = sessions?.length || 0
+
+    const progressMap: Record<number, number> = {}
+    for (const goal of goalsData) {
+      let current = 0
+      if (goal.metric === 'pomodoros') {
+        current = goal.type === 'daily' ? todaySessions : weeklySessions
+      } else if (goal.metric === 'tareas') {
+        current = goal.type === 'daily' ? todayTasks : todayTasks
+      } else if (goal.metric === 'estudio') {
+        current = goal.type === 'daily' ? todaySessions : weeklySessions
+      }
+      progressMap[goal.id] = Math.min(current, goal.target)
+    }
+    setProgress(progressMap)
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -47,6 +87,7 @@ export default function Goals() {
     if (!window.electronAPI) return
     await window.electronAPI.deleteGoal(id)
     loadGoals()
+    toast({ title: 'Meta eliminada' })
   }
 
   const metricIcons: Record<string, string> = { pomodoros: '🍅', tareas: '✅', estudio: '📚' }
@@ -96,10 +137,7 @@ export default function Goals() {
 
       <div className="space-y-3">
         {goals.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground">
-            <Target className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No hay metas. ¡Define tu primera meta!</p>
-          </div>
+          <EmptyState icon={Target} title="No hay metas" description="Define tu primera meta para empezar." actionLabel="Crear meta" onAction={() => setShowForm(true)} />
         )}
         {goals.map((goal, i) => (
           <motion.div key={goal.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
@@ -113,17 +151,29 @@ export default function Goals() {
                       {goal.type === 'daily' ? 'Diaria' : 'Semanal'} · Meta: {goal.target} {goal.metric}
                     </p>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDelete(goal.id)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteId(goal.id)}>
                     <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                   </Button>
                 </div>
-                <Progress value={0} className="h-2" />
-                <p className="text-xs text-muted-foreground mt-1">0/{goal.target} completado</p>
+                <Progress
+                  value={(progress[goal.id] || 0) / goal.target * 100}
+                  className={`h-2 ${(progress[goal.id] || 0) >= goal.target ? 'bg-green-500/20' : ''}`}
+                />
+                <p className="text-xs text-muted-foreground mt-1">{progress[goal.id] || 0}/{goal.target} completado</p>
               </CardContent>
             </Card>
           </motion.div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null) }}
+        title="Eliminar meta"
+        description="¿Estás seguro? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        onConfirm={() => deleteId !== null && handleDelete(deleteId)}
+      />
     </div>
   )
 }

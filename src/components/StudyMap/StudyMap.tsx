@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
+import { safeIpc } from '@/lib/ipc'
 
 const DEFAULT_TOPICS = [
   { parent_id: null, name: 'Fundamentos de Programacion', description: 'Variables, tipos, condicionales, loops', order_position: 0 },
@@ -24,7 +25,7 @@ interface Topic {
   order_position: number
 }
 
-export default function StudyMap({ darkMode }: { darkMode: boolean }) {
+export default function StudyMap() {
   const [topics, setTopics] = useState<Topic[]>([])
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
   const [showAddForm, setShowAddForm] = useState(false)
@@ -39,16 +40,16 @@ export default function StudyMap({ darkMode }: { darkMode: boolean }) {
       setTopics(DEFAULT_TOPICS.map((t, i) => ({ ...t, id: i + 1 })))
       return
     }
-    let data = await window.electronAPI.getStudyTopics()
-    if (data.length === 0) {
+    let data = await safeIpc<Topic[]>('getStudyTopics')
+    if (data && data.length === 0) {
       for (const topic of DEFAULT_TOPICS) {
-        await window.electronAPI.createStudyTopic(topic as any)
+        await safeIpc('createStudyTopic', topic)
       }
-      data = await window.electronAPI.getStudyTopics()
+      data = await safeIpc<Topic[]>('getStudyTopics')
     }
-    setTopics(data)
+    setTopics(data ?? [])
     const exp: Record<number, boolean> = {}
-    data.forEach((t: Topic) => { exp[t.id] = true })
+    ;(data ?? []).forEach((t: Topic) => { exp[t.id] = true })
     setExpanded(exp)
   }
 
@@ -56,26 +57,11 @@ export default function StudyMap({ darkMode }: { darkMode: boolean }) {
     e.preventDefault()
     if (!formName.trim()) return
     if (window.electronAPI) {
-      await window.electronAPI.createStudyTopic({
+      await safeIpc('createStudyTopic', {
         name: formName, description: formDesc,
         parent_id: formParent ? Number(formParent) : null,
         order_position: topics.length,
-      } as any)
-    }
-    setFormName(''); setFormDesc(''); setFormParent('')
-    setShowAddForm(false)
-    loadTopics()
-    toast({ title: 'Tema creado', description: `"${formName}" agregado.` })
-  }
-
-  async function handleCreateClick() {
-    if (!formName.trim()) return
-    if (window.electronAPI) {
-      await window.electronAPI.createStudyTopic({
-        name: formName, description: formDesc,
-        parent_id: formParent ? Number(formParent) : null,
-        order_position: topics.length,
-      } as any)
+      })
     }
     setFormName(''); setFormDesc(''); setFormParent('')
     setShowAddForm(false)
@@ -84,7 +70,7 @@ export default function StudyMap({ darkMode }: { darkMode: boolean }) {
   }
 
   async function handleDelete(id: number) {
-    if (window.electronAPI) await window.electronAPI.deleteStudyTopic(id)
+    if (window.electronAPI) await safeIpc('deleteStudyTopic', id)
     loadTopics()
   }
 

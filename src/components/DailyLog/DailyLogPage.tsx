@@ -6,11 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
 import ReactMarkdown from 'react-markdown'
+import { safeIpc } from '@/lib/ipc'
+import type { DailyLog } from '@/types'
 
 export default function DailyLogPage() {
-  const [logs, setLogs] = useState<any[]>([])
+  const [logs, setLogs] = useState<DailyLog[]>([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
-  const [currentLog, setCurrentLog] = useState<any>(null)
+  const [currentLog, setCurrentLog] = useState<DailyLog | null>(null)
   const [content, setContent] = useState('')
   const [focus, setFocus] = useState('')
   const [blockers, setBlockers] = useState('')
@@ -23,13 +25,13 @@ export default function DailyLogPage() {
 
   async function loadLogs() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getDailyLogs()
-    setLogs(data)
+    const data = await safeIpc<DailyLog[]>('getDailyLogs')
+    setLogs(data ?? [])
   }
 
   async function loadLogForDate(date: string) {
     if (!window.electronAPI) return
-    const log = await window.electronAPI.getDailyLog(date)
+    const log = await safeIpc<DailyLog>('getDailyLog', date)
     setCurrentLog(log)
     if (log) {
       setContent(log.content)
@@ -48,9 +50,9 @@ export default function DailyLogPage() {
     if (!window.electronAPI) return
     setSaving(true)
     if (currentLog) {
-      await window.electronAPI.updateDailyLog(currentLog.id, { content, focus, blockers, tomorrow_plan: tomorrowPlan } as any)
+      await safeIpc('updateDailyLog', currentLog.id, { content, focus, blockers, tomorrow_plan: tomorrowPlan })
     } else {
-      await window.electronAPI.createDailyLog({ date: selectedDate, content, focus, blockers, tomorrow_plan: tomorrowPlan } as any)
+      await safeIpc('createDailyLog', { date: selectedDate, content, focus, blockers, tomorrow_plan: tomorrowPlan })
     }
     loadLogs()
     loadLogForDate(selectedDate)
