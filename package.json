@@ -51,7 +51,8 @@
     "react-syntax-highlighter": "^16.1.1",
     "recharts": "^3.8.1",
     "tailwind-merge": "^3.6.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",
@@ -65,6 +66,7 @@
     "electron": "^42.4.0",
     "electron-builder": "^26.15.3",
     "highlight.js": "^11.11.1",
+    "jsdom": "^29.1.1",
     "mousetrap": "^1.6.5",
     "postcss": "^8.5.15",
     "react-router-dom": "^7.17.0",
@@ -72,6 +74,7 @@
     "tailwindcss": "^3.4.19",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
+    "vitest": "^4.1.10",
     "wait-on": "^9.0.10"
   }
 }
