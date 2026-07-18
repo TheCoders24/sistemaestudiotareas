@@ -36,6 +36,9 @@ out/
 *.zip
 *.tar.gz
 
+# Old release artifacts
+release_new/
+
 # Empty dirs (embedded git repos)
 sistemadeestudio/
 sistemaestudiotareas/
