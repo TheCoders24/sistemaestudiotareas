@@ -1,6 +1,7 @@
-require('v8-compile-cache')
-const { app, BrowserWindow, ipcMain, Notification } = require('electron')
+const { app, BrowserWindow, ipcMain, Notification, dialog, shell } = require('electron')
 const path = require('path')
+const fs = require('fs')
+const crypto = require('crypto')
 const { initDatabase, deferDbInit, getDb, closeDatabase, getDbPath } = require('./database')
 
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256 --optimize-for-size')
@@ -111,7 +112,7 @@ function doAutoBackup() {
     const fs = require('fs')
     const backupDir = path.join(app.getPath('userData'), 'backups')
     if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true })
-    const tables = ['settings','projects','tasks','kanban_cards','pomodoro_sessions','study_topics','study_progress','notes','goals','goal_progress','streaks','daily_logs','snippets','habits','habit_logs','tags','xp_log','achievements','user_achievements','challenges','user_challenges','weekly_reports','subtasks','entity_links']
+    const tables = ['settings','projects','tasks','kanban_cards','pomodoro_sessions','study_topics','study_progress','study_files','notes','goals','goal_progress','streaks','daily_logs','snippets','habits','habit_logs','tags','xp_log','achievements','user_achievements','challenges','user_challenges','weekly_reports','subtasks','entity_links']
     const data = {}
     for (const t of tables) { try { data[t] = getStmt(`SELECT * FROM ${t}`).all() } catch { data[t] = [] } }
     fs.writeFileSync(path.join(backupDir, `backup-${today}.json`), JSON.stringify(data, null, 2))
@@ -377,15 +378,80 @@ function registerIpcHandlers() {
     getStmt('DELETE FROM study_topics WHERE id = ?').run(id)
     return true
   })
-  ipcMain.handle('db:toggleStudyProgress', (_, topicId, date) => {
-    const existing = getStmt('SELECT * FROM study_progress WHERE topic_id = ? AND date = ?').get(topicId, date)
-    if (existing) {
-      getStmt('DELETE FROM study_progress WHERE id = ?').run(existing.id)
-      return false
+  ipcMain.handle('db:setStudyLevel', (_, topicId, level) => {
+    getStmt("UPDATE study_topics SET study_level = ?, study_level_updated_at = datetime('now') WHERE id = ?").run(level, topicId)
+    return true
+  })
+  ipcMain.handle('db:getStudyStats', () => {
+    const rows = getStmt('SELECT study_level, COUNT(*) as count FROM study_topics GROUP BY study_level').all()
+    const total = getStmt('SELECT COUNT(*) as total FROM study_topics').get()
+    return { levels: rows, total: total.total }
+  })
+  ipcMain.handle('db:moveStudyTopic', (_, id, direction) => {
+    const current = getStmt('SELECT id, order_position, parent_id FROM study_topics WHERE id = ?').get(id)
+    if (!current) return false
+    const pid = current.parent_id
+    let other
+    if (direction === 'up') {
+      other = getStmt('SELECT id, order_position FROM study_topics WHERE (parent_id = ? OR (parent_id IS NULL AND ? IS NULL)) AND order_position < ? ORDER BY order_position DESC LIMIT 1').all(pid, pid, current.order_position)
     } else {
-      getStmt('INSERT INTO study_progress (topic_id, date) VALUES (?, ?)').run(topicId, date)
+      other = getStmt('SELECT id, order_position FROM study_topics WHERE (parent_id = ? OR (parent_id IS NULL AND ? IS NULL)) AND order_position > ? ORDER BY order_position ASC LIMIT 1').all(pid, pid, current.order_position)
+    }
+    if (!other || other.length === 0) return false
+    const swap = other[0]
+    getStmt('UPDATE study_topics SET order_position = ? WHERE id = ?').run(swap.order_position, current.id)
+    getStmt('UPDATE study_topics SET order_position = ? WHERE id = ?').run(current.order_position, swap.id)
+    return true
+  })
+
+  // Study Files
+  const FILES_DIR = path.join(app.getPath('userData'), 'study_files')
+  if (!fs.existsSync(FILES_DIR)) fs.mkdirSync(FILES_DIR, { recursive: true })
+
+  ipcMain.handle('study:pickAndUploadFile', async (_, topicId) => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Seleccionar archivo',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Documentos', extensions: ['pdf', 'doc', 'docx', 'txt', 'md', 'ppt', 'pptx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'mp4', 'webm'] },
+        { name: 'Todos los archivos', extensions: ['*'] },
+      ],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    const filePath = result.filePaths[0]
+    const originalName = path.basename(filePath)
+    const ext = path.extname(filePath)
+    const storedName = crypto.randomUUID() + ext
+    const stats = fs.statSync(filePath)
+    const mimeType = { '.pdf': 'application/pdf', '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.txt': 'text/plain', '.md': 'text/markdown', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm', '.ppt': 'application/vnd.ms-powerpoint', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.xls': 'application/vnd.ms-excel', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }[ext.toLowerCase()] || 'application/octet-stream'
+    const destPath = path.join(FILES_DIR, storedName)
+    fs.copyFileSync(filePath, destPath)
+    getStmt('INSERT INTO study_files (topic_id, original_name, stored_name, file_size, mime_type) VALUES (?, ?, ?, ?, ?)').run(topicId, originalName, storedName, stats.size, mimeType)
+    return getStmt('SELECT * FROM study_files WHERE stored_name = ?').get(storedName)
+  })
+
+  ipcMain.handle('study:getTopicFiles', (_, topicId) => {
+    return getStmt('SELECT * FROM study_files WHERE topic_id = ? ORDER BY created_at DESC').all(topicId)
+  })
+
+  ipcMain.handle('study:deleteFile', (_, fileId) => {
+    const file = getStmt('SELECT * FROM study_files WHERE id = ?').get(fileId)
+    if (!file) return false
+    const filePath = path.join(FILES_DIR, file.stored_name)
+    try { fs.unlinkSync(filePath) } catch {}
+    getStmt('DELETE FROM study_files WHERE id = ?').run(fileId)
+    return true
+  })
+
+  ipcMain.handle('study:openFile', (_, fileId) => {
+    const file = getStmt('SELECT * FROM study_files WHERE id = ?').get(fileId)
+    if (!file) return false
+    const filePath = path.join(FILES_DIR, file.stored_name)
+    if (fs.existsSync(filePath)) {
+      shell.openPath(filePath)
       return true
     }
+    return false
   })
 
   // Notes
@@ -671,9 +737,9 @@ function registerIpcHandlers() {
     return true
   })
   // Auto-clean trash older than 30 days
-  getStmt("DELETE FROM tasks WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run()
-  getStmt("DELETE FROM notes WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run()
-  getStmt("DELETE FROM projects WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run()
+  try { getStmt("DELETE FROM tasks WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run() } catch {}
+  try { getStmt("DELETE FROM notes WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run() } catch {}
+  try { getStmt("DELETE FROM projects WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run() } catch {}
 
   // Entity Links
   ipcMain.handle('db:linkEntities', (_, fromType, fromId, toType, toId) => {
@@ -920,7 +986,7 @@ function registerIpcHandlers() {
 
   // Export/Import
   ipcMain.handle('db:exportData', () => {
-    const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags']
+    const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'study_files', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags']
     const data = {}
     for (const table of tables) {
       try {
@@ -932,7 +998,7 @@ function registerIpcHandlers() {
     return data
   })
   ipcMain.handle('db:importData', (_, data) => {
-    const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags']
+    const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'study_files', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags']
     const tx = getDb().transaction(() => {
       for (const table of tables) {
         try {
@@ -948,6 +1014,43 @@ function registerIpcHandlers() {
         } catch (e) {
           console.error(`Error importing ${table}:`, e)
         }
+      }
+    })
+    tx()
+    return true
+  })
+
+  // Backups (auto-backup files from userData)
+  ipcMain.handle('db:listBackups', () => {
+    const fs = require('fs')
+    const backupDir = path.join(app.getPath('userData'), 'backups')
+    if (!fs.existsSync(backupDir)) return []
+    return fs.readdirSync(backupDir)
+      .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
+      .map(f => {
+        const stat = fs.statSync(path.join(backupDir, f))
+        const date = f.replace('backup-', '').replace('.json', '')
+        return { date, filename: f, size: stat.size }
+      })
+      .sort((a, b) => b.date.localeCompare(a.date))
+  })
+  ipcMain.handle('db:restoreBackup', (_, filename) => {
+    const fs = require('fs')
+    const backupPath = path.join(app.getPath('userData'), 'backups', filename)
+    if (!fs.existsSync(backupPath)) throw new Error('Backup not found')
+    const data = JSON.parse(fs.readFileSync(backupPath, 'utf-8'))
+    const tables = ['settings','projects','tasks','kanban_cards','pomodoro_sessions','study_topics','study_progress','study_files','notes','goals','goal_progress','streaks','daily_logs','snippets','habits','habit_logs','tags','xp_log','achievements','user_achievements','challenges','user_challenges','weekly_reports','subtasks','entity_links']
+    const tx = getDb().transaction(() => {
+      for (const table of tables) {
+        try {
+          getStmt(`DELETE FROM ${table}`).run()
+          if (data[table] && data[table].length > 0) {
+            const columns = Object.keys(data[table][0]).join(', ')
+            const placeholders = Object.keys(data[table][0]).map(k => `@${k}`).join(', ')
+            const stmt = getStmt(`INSERT INTO ${table} (${columns}) VALUES (${placeholders})`)
+            for (const row of data[table]) stmt.run(row)
+          }
+        } catch (e) { console.error(`Error restoring ${table}:`, e) }
       }
     })
     tx()

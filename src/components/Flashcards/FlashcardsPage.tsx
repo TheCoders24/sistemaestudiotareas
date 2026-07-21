@@ -16,10 +16,13 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
+import { InfoBox } from '@/components/ui/info-box'
+import { useTranslate } from '@/lib/translate'
 interface FlashcardDeck { id: number; name: string; description: string; card_count: number; created_at: string }
 interface Flashcard { id: number; deck_id: number; front: string; back: string; hint: string; difficulty: number; ease_factor: number; ease: number; repetitions: number; interval: number; reviews: number; next_review: string; created_at: string }
 
 export default function FlashcardsPage() {
+  const t = useTranslate()
   const [decks, setDecks] = useState<FlashcardDeck[]>([])
   const [selectedDeck, setSelectedDeck] = useState<number | null>(null)
   const [cards, setCards] = useState<Flashcard[]>([])
@@ -289,7 +292,7 @@ export default function FlashcardsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Brain className="h-6 w-6 text-indigo-500" /> Flashcards
+            <Brain className="h-6 w-6 text-indigo-500" /> {t('flashcards.title')}
           </h1>
           {allDueCount > 0 && (
             <p className="text-sm text-muted-foreground mt-1">
@@ -297,6 +300,11 @@ export default function FlashcardsPage() {
             </p>
           )}
         </div>
+        <InfoBox title={t('flashcards.title')} storageKey="tutorial_flashcards" className="mb-4">
+          <p>Tarjetas de estudio con repaso espaciado. Crea mazos con preguntas y respuestas, y el sistema te las muestra cuando las necesitas repasar.
+            Califica cada tarjeta como <strong>Fácil</strong>, <strong>Medio</strong> o <strong>Difícil</strong> y el algoritmo programa la próxima revisión.
+          </p>
+        </InfoBox>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={importDeck}>
             <Upload className="h-4 w-4 mr-1" /> Importar

@@ -2,7 +2,7 @@ const Database = require('better-sqlite3')
 const path = require('path')
 const { app } = require('electron')
 
-const SCHEMA_VERSION = 6
+const SCHEMA_VERSION = 8
 const SCHEMA_KEY = 'db_schema_version'
 
 let db
@@ -110,6 +110,7 @@ function initDatabase() {
       parent_id INTEGER,
       name TEXT NOT NULL,
       description TEXT DEFAULT '',
+      resource_url TEXT DEFAULT '',
       order_position INTEGER DEFAULT 0,
       FOREIGN KEY (parent_id) REFERENCES study_topics(id) ON DELETE CASCADE
     );
@@ -261,6 +262,17 @@ function initDatabase() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS study_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      topic_id INTEGER NOT NULL,
+      original_name TEXT NOT NULL,
+      stored_name TEXT NOT NULL UNIQUE,
+      file_size INTEGER DEFAULT 0,
+      mime_type TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (topic_id) REFERENCES study_topics(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS flashcard_decks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -318,6 +330,7 @@ function deferDbInit() {
     CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
     CREATE INDEX IF NOT EXISTS idx_entity_links_from ON entity_links(from_type, from_id);
     CREATE INDEX IF NOT EXISTS idx_entity_links_to ON entity_links(to_type, to_id);
+    CREATE INDEX IF NOT EXISTS idx_study_files_topic_id ON study_files(topic_id);
   `)
   const existingAchievements = db.prepare('SELECT COUNT(*) as count FROM achievements').get()
   if (existingAchievements.count === 0) {
@@ -400,6 +413,9 @@ function deferDbInit() {
       { sql: `ALTER TABLE tasks ADD COLUMN tags TEXT DEFAULT ''`, table: 'tasks', col: 'tags' },
       { sql: `CREATE TABLE IF NOT EXISTS flashcard_decks (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT DEFAULT '', created_at TEXT DEFAULT (datetime('now')))`, table: 'flashcard_decks', col: 'id' },
       { sql: `CREATE TABLE IF NOT EXISTS flashcards (id INTEGER PRIMARY KEY AUTOINCREMENT, deck_id INTEGER NOT NULL, front TEXT NOT NULL, back TEXT NOT NULL, hint TEXT DEFAULT '', difficulty INTEGER DEFAULT 0, ease_factor REAL DEFAULT 2.5, repetitions INTEGER DEFAULT 0, interval INTEGER DEFAULT 0, next_review TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (deck_id) REFERENCES flashcard_decks(id) ON DELETE CASCADE)`, table: 'flashcards', col: 'id' },
+      { sql: `ALTER TABLE study_topics ADD COLUMN study_level INTEGER DEFAULT 0`, table: 'study_topics', col: 'study_level' },
+      { sql: `ALTER TABLE study_topics ADD COLUMN study_level_updated_at TEXT`, table: 'study_topics', col: 'study_level_updated_at' },
+      { sql: `ALTER TABLE study_topics ADD COLUMN resource_url TEXT DEFAULT ''`, table: 'study_topics', col: 'resource_url' },
     ]
     const migrationTx = db.transaction(() => {
       for (const m of migrations) {

@@ -1,11 +1,21 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Timer, CheckSquare, Flame, Zap, TrendingUp, Sparkles, Trophy, Calendar, BarChart3, Activity, Clock, BookOpen } from 'lucide-react'
+import { Timer, CheckSquare, Flame, Zap, TrendingUp, Sparkles, Trophy, Calendar, BarChart3, Activity, Clock, BookOpen, BookMarked } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StatsCardSkeleton } from '@/components/ui/loading-skeleton'
+import { InfoBox } from '@/components/ui/info-box'
+import { useTranslate } from '@/lib/translate'
+
+const STUDY_LEVELS = [
+  { value: 0, label: 'Sin iniciar', color: '#6b7280' },
+  { value: 1, label: 'Diaria', color: '#6366f1' },
+  { value: 2, label: '1er Repaso', color: '#f59e0b' },
+  { value: 3, label: '2do Repaso', color: '#10b981' },
+]
 
 const QUOTES = [
   'El éxito es la suma de pequeños esfuerzos repetidos día tras día.',
@@ -43,11 +53,13 @@ function getRandomQuote() {
 }
 
 export default function Dashboard() {
+  const t = useTranslate()
   const [data, setData] = useState<any>(null)
   const [xpHistory, setXpHistory] = useState<Array<{ date: string; xp: number }>>([])
   const [xpHistory30, setXpHistory30] = useState<Array<{ date: string; xp: number }>>([])
   const [activityFeed, setActivityFeed] = useState<any[]>([])
   const [habitStats, setHabitStats] = useState<any[]>([])
+  const [studyStats, setStudyStats] = useState<{ levels: { study_level: number, count: number }[], total: number } | null>(null)
   const [greeting] = useState(getGreeting)
   const [quote] = useState(getRandomQuote)
 
@@ -58,6 +70,7 @@ export default function Dashboard() {
     window.electronAPI.getXpHistory(30).then(setXpHistory30)
     window.electronAPI.getActivityFeed().then(setActivityFeed)
     window.electronAPI.getHabitStats().then(setHabitStats)
+    window.electronAPI.getStudyStats().then(s => { if (s) setStudyStats(s) }).catch(() => {})
   }, [])
 
   if (!data) return (
@@ -80,6 +93,10 @@ export default function Dashboard() {
         </h1>
         <p className="text-sm text-muted-foreground mt-1 italic">"{quote}"</p>
       </motion.div>
+
+      <InfoBox title={t('dashboard.title')} storageKey="tutorial_dashboard" className="mb-4">
+        <p>Tu centro de control personal. Aquí ves un resumen de toda tu actividad: pomodoros de hoy, tareas pendientes, racha actual, hábitos, metas y actividad reciente. Todo lo que necesitas para saber cómo va tu día.</p>
+      </InfoBox>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -131,6 +148,48 @@ export default function Dashboard() {
           </Card>
         </motion.div>
       </div>
+
+      {studyStats && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="mb-6">
+          <Card className="overflow-hidden border-indigo-200/30 dark:border-indigo-800/30">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <BookMarked className="h-4 w-4 text-indigo-500" />
+                  <span className="text-sm font-medium">Progreso del temario</span>
+                </div>
+                <Badge variant="secondary" className="text-[10px] font-normal">
+                  {studyStats.total} tema{studyStats.total !== 1 ? 's' : ''}
+                </Badge>
+              </div>
+              {(() => {
+                const c3 = studyStats.levels.find(l => l.study_level === 3)?.count ?? 0
+                const pct = Math.round((c3 / studyStats.total) * 100)
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                      <span>{c3} de {studyStats.total} completados</span>
+                      <span className="font-semibold tabular-nums">{pct}%</span>
+                    </div>
+                    <Progress value={pct} className="h-2.5" />
+                    <div className="flex items-center gap-3 mt-2.5 text-xs flex-wrap">
+                      {STUDY_LEVELS.map(lvl => {
+                        const count = studyStats.levels.find(l => l.study_level === lvl.value)?.count ?? 0
+                        return (
+                          <span key={lvl.value} className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: lvl.color }} />
+                            {lvl.label} <span className="font-medium tabular-nums">{count}</span>
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </>
+                )
+              })()}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="md:col-span-2">

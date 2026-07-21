@@ -17,6 +17,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { UndoToast } from '@/components/ui/undo-toast'
 import { SoundProvider, useSound } from '@/hooks/useSound'
 import { TABS, KEYBOARD_SHORTCUTS } from '@/constants/tabs'
+import { useShortcutsStore } from '@/stores/shortcutsStore'
 
 const Dashboard = lazy(() => import('./components/Dashboard/Dashboard'))
 const PomodoroTimer = lazy(() => import('./components/Pomodoro/PomodoroTimer').then(m => ({ default: m.PomodoroTimer })))
@@ -53,6 +54,7 @@ function AppInner() {
   const { themeId: currentThemeId, setThemeId } = useThemeStore()
   const [searchOpen, setSearchOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const shortcuts = useShortcutsStore(s => s.shortcuts)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [quickAddTitle, setQuickAddTitle] = useState('')
   const [levelUp, setLevelUp] = useState<{ level: number } | null>(null)
@@ -140,29 +142,17 @@ function AppInner() {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
       const key = e.key.toLowerCase()
-      if (key === 'b') { e.preventDefault(); setSearchOpen(true) }
-      else if (key === '/' && !e.shiftKey) { e.preventDefault(); setShortcutsOpen(true) }
-      else if (key === 'l' && e.shiftKey) { e.preventDefault(); setDarkMode(!useAppStore.getState().darkMode) }
-      else if (key === 'a' && e.shiftKey) { e.preventDefault(); setQuickAddOpen(true) }
-      else if (key === '1') { e.preventDefault(); setActiveTab('inicio') }
-      else if (key === 'p' && !e.shiftKey) { e.preventDefault(); setActiveTab('pomodoro') }
-      else if (key === 'k' && !e.shiftKey) { e.preventDefault(); setCommandPaletteOpen(true) }
-      else if (key === 't' && !e.shiftKey) { e.preventDefault(); setActiveTab('tareas') }
-      else if (key === 'p' && e.shiftKey) { e.preventDefault(); setActiveTab('proyectos') }
-      else if (key === 'd' && !e.shiftKey) { e.preventDefault(); setActiveTab('diario') }
-      else if (key === 'c' && e.shiftKey) { e.preventDefault(); setActiveTab('calendario') }
-      else if (key === 's' && e.shiftKey) { e.preventDefault(); setActiveTab('snippets') }
-      else if (key === 'h') { e.preventDefault(); setActiveTab('habitos') }
-      else if (key === 'l' && !e.shiftKey) { e.preventDefault(); setActiveTab('logros') }
-      else if (key === 'd' && e.shiftKey) { e.preventDefault(); setActiveTab('desafios') }
-      else if (key === 'm') { e.preventDefault(); setActiveTab('mapa') }
-      else if (key === 'e') { e.preventDefault(); setActiveTab('stats') }
-      else if (key === 'n') { e.preventDefault(); setActiveTab('notas') }
-      else if (key === 'g') { e.preventDefault(); setActiveTab('metas') }
-      else if (key === 'r' && e.shiftKey) { e.preventDefault(); setActiveTab('reporte') }
-      else if (key === 't' && e.shiftKey) { e.preventDefault(); setActiveTab('papelera') }
-      else if (key === 'f' && !e.shiftKey) { e.preventDefault(); setSearchOpen(true) }
-      else if (key === 'f' && e.shiftKey) { e.preventDefault(); setFocusMode(true) }
+      const shift = e.shiftKey
+      const combo = `Ctrl${shift ? '+Shift' : ''}+${key === '/' ? '/' : key.toUpperCase()}`
+      const tabId = Object.entries(shortcuts).find(([, s]) => s === combo)?.[0]
+      if (tabId) { e.preventDefault(); setActiveTab(tabId); return }
+      if (combo === 'Ctrl+B') { e.preventDefault(); setSearchOpen(true) }
+      else if (combo === 'Ctrl+/') { e.preventDefault(); setShortcutsOpen(true) }
+      else if (combo === 'Ctrl+Shift+L') { e.preventDefault(); setDarkMode(!useAppStore.getState().darkMode) }
+      else if (combo === 'Ctrl+Shift+A') { e.preventDefault(); setQuickAddOpen(true) }
+      else if (combo === 'Ctrl+K') { e.preventDefault(); setCommandPaletteOpen(true) }
+      else if (combo === 'Ctrl+F') { e.preventDefault(); setSearchOpen(true) }
+      else if (combo === 'Ctrl+Shift+F') { e.preventDefault(); setFocusMode(true) }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
@@ -376,11 +366,11 @@ function AppInner() {
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle className="flex items-center gap-2"><Keyboard className="h-5 w-5" /> Atajos de Teclado</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="font-medium text-muted-foreground col-span-2 text-xs uppercase tracking-wider py-1">Navegación</div>
+                <div className="font-medium text-muted-foreground col-span-2 text-xs uppercase tracking-wider py-1">Navegación</div>
               {TABS.map(tab => (
                 <div key={tab.id} className="flex items-center justify-between px-2 py-1 rounded hover:bg-accent">
                   <span>{tab.label}</span>
-                  <kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px] font-mono">{KEYBOARD_SHORTCUTS[tab.id]}</kbd>
+                  <kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px] font-mono">{shortcuts[tab.id]}</kbd>
                 </div>
               ))}
               <div className="font-medium text-muted-foreground col-span-2 text-xs uppercase tracking-wider pt-3 pb-1">General</div>

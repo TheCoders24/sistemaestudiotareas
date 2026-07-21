@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
+import { InfoBox } from '@/components/ui/info-box'
+import { useTranslate } from '@/lib/translate'
 import KanbanColumn from './KanbanColumn'
 
 const COLUMNS = [
@@ -15,6 +17,7 @@ const COLUMNS = [
 ]
 
 export default function KanbanBoard() {
+  const t = useTranslate()
   const [cards, setCards] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
   const [formColumn, setFormColumn] = useState('pendiente')
@@ -87,14 +90,21 @@ export default function KanbanBoard() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <LayoutDashboard className="h-6 w-6 text-indigo-500" /> Kanban
+            <LayoutDashboard className="h-6 w-6 text-indigo-500" /> {t('kanban.title')}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Organiza tu flujo de trabajo</p>
+          <p className="text-sm text-muted-foreground mt-1">{t('kanban.desc')}</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}>
           <Plus className="h-4 w-4 mr-1" /> {showForm ? 'Cerrar' : 'Nueva Tarjeta'}
         </Button>
       </div>
+
+      <InfoBox title={t('kanban.title')} storageKey="tutorial_kanban" className="mb-4">
+        <p>Un tablero visual para organizar tu trabajo en columnas:
+          <strong>Por Hacer</strong> → <strong>En Progreso</strong> → <strong>Hecho</strong>.
+          Arrastra las tarjetas entre columnas para actualizar su estado. Añade etiquetas, prioridades y fechas límite.
+        </p>
+      </InfoBox>
 
       {showForm && (
         <form onSubmit={handleCreate} className="bg-card border rounded-lg p-4 mb-6 space-y-3">

@@ -15,6 +15,8 @@ import { toast } from '@/components/ui/use-toast'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ListSkeleton } from '@/components/ui/loading-skeleton'
 import { useUndoStore } from '@/stores/undoStore'
+import { InfoBox } from '@/components/ui/info-box'
+import { useTranslate } from '@/lib/translate'
 
 interface Subtask {
   id: number; task_id: number; title: string; completed: number; position: number
@@ -39,6 +41,7 @@ const REPEAT_OPTIONS = [
 ]
 
 export default function TaskList() {
+  const t = useTranslate()
   const { pushAction } = useUndoStore()
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -242,7 +245,7 @@ export default function TaskList() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <CheckSquare className="h-6 w-6 text-indigo-500" /> Tareas
+            <CheckSquare className="h-6 w-6 text-indigo-500" /> {t('tasks.title')}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Arrastrá para reordenar</p>
         </div>
@@ -250,6 +253,13 @@ export default function TaskList() {
           <Plus className="h-4 w-4 mr-1" /> {showForm ? 'Cerrar' : 'Nueva Tarea'}
         </Button>
       </div>
+
+      <InfoBox title={t('tasks.title')} storageKey="tutorial_tasks" className="mb-4">
+        <p>Gestiona tus tareas diarias con prioridades, fechas límite, subtareas y etiquetas.
+          Puedes repetir tareas (diario, semanal, etc.), filtrar por proyecto y arrastrar para reordenar.
+          Las tareas vencidas aparecen en rojo, las de hoy en amarillo.
+        </p>
+      </InfoBox>
 
       <AnimatePresence>
         {showForm && (

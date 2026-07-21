@@ -34,6 +34,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateStudyTopic: (id, data) => ipcRenderer.invoke('db:updateStudyTopic', id, data),
   deleteStudyTopic: (id) => ipcRenderer.invoke('db:deleteStudyTopic', id),
   toggleStudyProgress: (topicId, date) => ipcRenderer.invoke('db:toggleStudyProgress', topicId, date),
+  setStudyLevel: (topicId, level) => ipcRenderer.invoke('db:setStudyLevel', topicId, level),
+  getStudyStats: () => ipcRenderer.invoke('db:getStudyStats'),
+moveStudyTopic: (id, direction) => ipcRenderer.invoke('db:moveStudyTopic', id, direction),
+
+  // Study Files
+  pickAndUploadFile: (topicId) => ipcRenderer.invoke('study:pickAndUploadFile', topicId),
+  getTopicFiles: (topicId) => ipcRenderer.invoke('study:getTopicFiles', topicId),
+  deleteFile: (fileId) => ipcRenderer.invoke('study:deleteFile', fileId),
+  openFile: (fileId) => ipcRenderer.invoke('study:openFile', fileId),
 
   // Notes
   getNotes: () => ipcRenderer.invoke('db:getNotes'),
@@ -127,6 +136,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Export/Import
   exportData: () => ipcRenderer.invoke('db:exportData'),
   importData: (data) => ipcRenderer.invoke('db:importData', data),
+  listBackups: () => ipcRenderer.invoke('db:listBackups'),
+  restoreBackup: (filename) => ipcRenderer.invoke('db:restoreBackup', filename),
 
   // Flashcards
   getFlashcardDecks: () => ipcRenderer.invoke('db:getFlashcardDecks'),

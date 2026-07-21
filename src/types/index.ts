@@ -52,7 +52,20 @@ export interface StudyTopic {
   parent_id: number | null
   name: string
   description: string
+  resource_url: string
   order_position: number
+  study_level?: number
+  study_level_updated_at?: string
+}
+
+export interface StudyFile {
+  id: number
+  topic_id: number
+  original_name: string
+  stored_name: string
+  file_size: number
+  mime_type: string
+  created_at: string
 }
 
 export interface Note {
@@ -230,6 +243,15 @@ declare global {
       updateStudyTopic: (id: number, data: Partial<StudyTopic>) => Promise<StudyTopic>
       deleteStudyTopic: (id: number) => Promise<boolean>
       toggleStudyProgress: (topicId: number, date: string) => Promise<boolean>
+      setStudyLevel: (topicId: number, level: number) => Promise<boolean>
+      getStudyStats: () => Promise<{ levels: { study_level: number, count: number }[], total: number }>
+      moveStudyTopic: (id: number, direction: 'up' | 'down') => Promise<boolean>
+
+      // Study Files
+      pickAndUploadFile: (topicId: number) => Promise<StudyFile | null>
+      getTopicFiles: (topicId: number) => Promise<StudyFile[]>
+      deleteFile: (fileId: number) => Promise<boolean>
+      openFile: (fileId: number) => Promise<boolean>
 
       // Notes
       getNotes: () => Promise<Note[]>
@@ -258,6 +280,8 @@ declare global {
       // Export/Import
       exportData: () => Promise<Record<string, unknown[]>>
       importData: (data: Record<string, unknown[]>) => Promise<boolean>
+      listBackups: () => Promise<{ date: string, filename: string, size: number }[]>
+      restoreBackup: (filename: string) => Promise<boolean>
 
       // Projects
       getProjects: () => Promise<Project[]>
