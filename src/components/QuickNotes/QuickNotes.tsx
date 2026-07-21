@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { StickyNote, Plus, Trash2, Edit3, Keyboard, Eye, EyeOff, Pin, Search } from 'lucide-react'
+import { StickyNote, Plus, Trash2, Edit3, Eye, EyeOff, Search } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from '@/components/ui/use-toast'
+import { EmptyState } from '@/components/ui/empty-state'
+import { ListSkeleton } from '@/components/ui/loading-skeleton'
 
 interface Note {
   id: number
@@ -28,6 +30,7 @@ export default function QuickNotes() {
   const [editPreview, setEditPreview] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'recent' | 'alpha'>('recent')
+  const [loading, setLoading] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -48,6 +51,7 @@ export default function QuickNotes() {
     if (!window.electronAPI) return
     const data = await window.electronAPI.getNotes()
     setNotes(data)
+    setLoading(false)
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -140,10 +144,17 @@ export default function QuickNotes() {
       </AnimatePresence>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {displayNotes.length === 0 && (
-          <div className="col-span-full text-center py-16 text-muted-foreground">
-            <StickyNote className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>{searchQuery ? 'Sin resultados de búsqueda' : 'No hay notas. ¡Crea tu primera nota!'}</p>
+        {loading ? (
+          <div className="col-span-full"><ListSkeleton rows={3} /></div>
+        ) : displayNotes.length === 0 && (
+          <div className="col-span-full">
+            {searchQuery ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <p>Sin resultados de búsqueda</p>
+              </div>
+            ) : (
+              <EmptyState icon={StickyNote} title="No hay notas" description="Creá tu primera nota rápida." actionLabel="Nueva nota" onAction={() => setShowCreate(true)} />
+            )}
           </div>
         )}
         {displayNotes.map(note => {

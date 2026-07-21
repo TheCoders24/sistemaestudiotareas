@@ -3,14 +3,13 @@ import { History } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
-import { safeIpc } from '@/lib/ipc'
-import type { ActivityLogEntry } from '@/types'
-
 export default function ActivityLog() {
-  const [logs, setLogs] = useState<ActivityLogEntry[]>([])
+  const [logs, setLogs] = useState<any[]>([])
 
   useEffect(() => {
-    safeIpc<ActivityLogEntry[]>('getActivityLog', 200).then((l) => { if (l) setLogs(l) })
+    if (window.electronAPI) {
+      window.electronAPI.getActivityFeed().then(setLogs)
+    }
   }, [])
 
   const actionColors: Record<string, string> = {

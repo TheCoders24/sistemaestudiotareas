@@ -1,15 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { X, Play, Pause, RotateCcw, Timer, Bell } from 'lucide-react'
+import { X, Play, Pause, RotateCcw, VolumeX, CloudRain, Waves, Wind, Music } from 'lucide-react'
 
 const POMODORO = 25 * 60
 const SHORT_BREAK = 5 * 60
-const LONG_BREAK = 15 * 60
 
 export function FocusMode() {
   const [timeLeft, setTimeLeft] = useState(POMODORO)
   const [running, setRunning] = useState(false)
   const [mode, setMode] = useState<'focus' | 'break'>('focus')
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [ambient, setAmbient] = useState<'none' | 'rain' | 'waves' | 'wind' | 'brown'>('none')
+  const [volume, setVolume] = useState(0.3)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null)
+  const gainRef = useRef<GainNode | null>(null)
 
   useEffect(() => {
     if (running) {
@@ -52,6 +56,62 @@ export function FocusMode() {
     setTimeLeft(newMode === 'focus' ? POMODORO : SHORT_BREAK)
     if (intervalRef.current) clearInterval(intervalRef.current)
   }, [])
+
+  function getNoiseBuffer(ctx: AudioContext, type: string, duration: number) {
+    const sampleRate = ctx.sampleRate
+    const length = sampleRate * duration
+    const buffer = ctx.createBuffer(1, length, sampleRate)
+    const data = buffer.getChannelData(0)
+    
+    if (type === 'rain') {
+      let last = 0
+      for (let i = 0; i < length; i++) {
+        last = (last + (Math.random() - 0.5) * 0.02) * 0.98
+        data[i] = last * 0.3
+      }
+    } else if (type === 'waves') {
+      for (let i = 0; i < length; i++) {
+        const t = i / sampleRate
+        data[i] = (Math.sin(t * 0.3) * 0.5 + Math.sin(t * 0.7) * 0.3 + Math.random() * 0.1) * 0.4
+      }
+    } else if (type === 'wind') {
+      for (let i = 0; i < length; i++) {
+        const t = i / sampleRate
+        data[i] = (Math.sin(t * 0.1 + Math.sin(t * 0.05) * 5) * 0.3 + (Math.random() - 0.5) * 0.08)
+      }
+    } else {
+      for (let i = 0; i < length; i++) {
+        data[i] = (Math.random() - 0.5) * 0.3
+      }
+    }
+    return buffer
+  }
+
+  function startAmbient(type: string) {
+    stopAmbient()
+    const ctx = new AudioContext()
+    const buffer = getNoiseBuffer(ctx, type, 4)
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+    source.loop = true
+    const gain = ctx.createGain()
+    gain.gain.value = volume
+    source.connect(gain).connect(ctx.destination)
+    source.start()
+    audioCtxRef.current = ctx
+    sourceRef.current = source
+    gainRef.current = gain
+    setAmbient(type as any)
+  }
+
+  function stopAmbient() {
+    sourceRef.current?.stop()
+    audioCtxRef.current?.close()
+    sourceRef.current = null
+    audioCtxRef.current = null
+    gainRef.current = null
+    setAmbient('none')
+  }
 
   const mins = Math.floor(timeLeft / 60)
   const secs = timeLeft % 60
@@ -98,6 +158,21 @@ export function FocusMode() {
           className="w-20 h-20 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
           <RotateCcw className="h-7 w-7 text-white/70" />
         </button>
+      </div>
+
+      <div className="flex items-center gap-2 mt-6">
+        {ambient !== 'none' && (
+          <div className="flex items-center gap-1">
+            <button onClick={stopAmbient} className="p-1 hover:text-white/80"><VolumeX className="w-4 h-4" /></button>
+            <input type="range" min="0" max="1" step="0.05" value={volume}
+              onChange={(e) => { const v = parseFloat(e.target.value); setVolume(v); if (gainRef.current) gainRef.current.gain.value = v }}
+              className="w-20 h-1 accent-indigo-500" />
+          </div>
+        )}
+        <button onClick={() => startAmbient('rain')} className={`p-2 rounded-full transition-colors ${ambient === 'rain' ? 'bg-indigo-500/30 text-indigo-300' : 'text-white/60 hover:text-white/80 hover:bg-white/10'}`} title="Lluvia"><CloudRain className="w-4 h-4" /></button>
+        <button onClick={() => startAmbient('waves')} className={`p-2 rounded-full transition-colors ${ambient === 'waves' ? 'bg-indigo-500/30 text-indigo-300' : 'text-white/60 hover:text-white/80 hover:bg-white/10'}`} title="Olas"><Waves className="w-4 h-4" /></button>
+        <button onClick={() => startAmbient('wind')} className={`p-2 rounded-full transition-colors ${ambient === 'wind' ? 'bg-indigo-500/30 text-indigo-300' : 'text-white/60 hover:text-white/80 hover:bg-white/10'}`} title="Viento"><Wind className="w-4 h-4" /></button>
+        <button onClick={() => startAmbient('brown')} className={`p-2 rounded-full transition-colors ${ambient === 'brown' ? 'bg-indigo-500/30 text-indigo-300' : 'text-white/60 hover:text-white/80 hover:bg-white/10'}`} title="Ruido marrón"><Music className="w-4 h-4" /></button>
       </div>
 
       <p className="text-white/30 text-sm mt-8">Presioná ESC para salir del modo focus</p>

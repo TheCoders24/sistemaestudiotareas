@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
+import { usePomodoroStore } from '@/stores/pomodoroStore'
 
 const POMODORO = 25 * 60
 const SHORT_BREAK = 5 * 60
@@ -25,7 +26,7 @@ export function PomodoroTimer({ onComplete }: Props) {
   const [mode, setMode] = useState<'pomodoro' | 'short' | 'long'>('pomodoro')
   const [timeLeft, setTimeLeft] = useState(POMODORO)
   const [running, setRunning] = useState(false)
-  const [sessions, setSessions] = useState(0)
+  const sessions = usePomodoroStore(s => s.pomodoroCount)
   const [todayCount, setTodayCount] = useState(0)
   const [linkTaskId, setLinkTaskId] = useState<number | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
@@ -76,12 +77,12 @@ export function PomodoroTimer({ onComplete }: Props) {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [running])
 
-  useEffect(() => {
-    if (completedRef.current) {
-      completedRef.current = false
-      handleComplete()
-    }
-  }, [timeLeft])
+  function switchMode(newMode: 'pomodoro' | 'short' | 'long') {
+    setMode(newMode)
+    setTimeLeft(MODES[newMode].duration)
+    setRunning(false)
+    if (intervalRef.current) clearInterval(intervalRef.current)
+  }
 
   function handleComplete() {
     setRunning(false)
@@ -101,7 +102,7 @@ export function PomodoroTimer({ onComplete }: Props) {
       } as any)
       window.electronAPI.showNotification('🍅 Pomodoro Completado', '¡Buen trabajo! Tómate un descanso.')
       toast({ title: '🍅 Pomodoro completado', description: '¡Buen trabajo!' })
-      setSessions(s => s + 1)
+      usePomodoroStore.setState(s => ({ pomodoroCount: s.pomodoroCount + 1, totalPomodoros: s.totalPomodoros + 1 }))
       setTodayCount(c => c + 1)
       if (onComplete) onComplete()
 
@@ -113,12 +114,12 @@ export function PomodoroTimer({ onComplete }: Props) {
     }
   }
 
-  function switchMode(newMode: 'pomodoro' | 'short' | 'long') {
-    setMode(newMode)
-    setTimeLeft(MODES[newMode].duration)
-    setRunning(false)
-    if (intervalRef.current) clearInterval(intervalRef.current)
-  }
+  useEffect(() => {
+    if (completedRef.current) {
+      completedRef.current = false
+      handleComplete()
+    }
+  }, [timeLeft])
 
   function toggleRunning() {
     if (timeLeft === 0) setTimeLeft(MODES[mode].duration)
@@ -140,8 +141,6 @@ export function PomodoroTimer({ onComplete }: Props) {
   const progress = 1 - timeLeft / MODES[mode].duration
   const circumference = 2 * Math.PI * 120
   const strokeDashoffset = circumference * (1 - progress)
-  const ModeIcon = MODES[mode].icon
-
   return (
     <div className="max-w-md mx-auto text-center">
       <div className="flex items-center justify-center gap-2 mb-2">

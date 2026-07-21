@@ -1,18 +1,22 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { toast } from '@/components/ui/use-toast'
+import { useThemeStore } from '@/stores/themeStore'
+import { useAppStore } from '@/stores/appStore'
+import { useUndoStore } from '@/stores/undoStore'
 import {
-  Clock, LayoutDashboard, CheckSquare, BookOpen, BarChart3,
-  StickyNote, Target, FolderKanban, NotebookPen, Code2, Activity,
-  Menu, Sun, Moon, Zap, Loader, Search, Keyboard, Sparkles, Plus, Trophy,
-  CalendarDays, Trash2, Swords
+  Zap, Menu, Sun, Moon, Search, Keyboard, Plus, Loader, X
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { UndoToast } from '@/components/ui/undo-toast'
 import { SoundProvider, useSound } from '@/hooks/useSound'
+import { TABS, KEYBOARD_SHORTCUTS } from '@/constants/tabs'
 
 const Dashboard = lazy(() => import('./components/Dashboard/Dashboard'))
 const PomodoroTimer = lazy(() => import('./components/Pomodoro/PomodoroTimer').then(m => ({ default: m.PomodoroTimer })))
@@ -22,7 +26,7 @@ const StudyMap = lazy(() => import('./components/StudyMap/StudyMap'))
 const Statistics = lazy(() => import('./components/Statistics/Statistics'))
 const QuickNotes = lazy(() => import('./components/QuickNotes/QuickNotes'))
 const Goals = lazy(() => import('./components/Goals/Goals'))
-const Sidebar = lazy(() => import('./components/Sidebar/Sidebar'))
+const SidebarNav = lazy(() => import('./components/Sidebar/Sidebar'))
 const Settings = lazy(() => import('./components/Settings/Settings'))
 const ProjectsPage = lazy(() => import('./components/Projects/ProjectsPage'))
 const DailyLogPage = lazy(() => import('./components/DailyLog/DailyLogPage'))
@@ -35,47 +39,27 @@ const TrashPage = lazy(() => import('./components/Trash/TrashPage'))
 const ChallengesPage = lazy(() => import('./components/Challenges/ChallengesPage'))
 const FocusModePage = lazy(() => import('./components/FocusMode/FocusMode').then(m => ({ default: m.FocusMode })))
 const WeeklyReviewPage = lazy(() => import('./components/WeeklyReview/WeeklyReviewPage'))
-
-const TABS = [
-  { id: 'inicio', label: 'Inicio', icon: Sparkles },
-  { id: 'pomodoro', label: 'Pomodoro', icon: Clock },
-  { id: 'kanban', label: 'Kanban', icon: LayoutDashboard },
-  { id: 'tareas', label: 'Tareas', icon: CheckSquare },
-  { id: 'proyectos', label: 'Proyectos', icon: FolderKanban },
-  { id: 'diario', label: 'Diario', icon: NotebookPen },
-  { id: 'calendario', label: 'Calendario', icon: CalendarDays },
-  { id: 'snippets', label: 'Snippets', icon: Code2 },
-  { id: 'habitos', label: 'Hábitos', icon: Activity },
-  { id: 'logros', label: 'Logros', icon: Trophy },
-  { id: 'desafios', label: 'Desafíos', icon: Swords },
-  { id: 'mapa', label: 'Estudio', icon: BookOpen },
-  { id: 'stats', label: 'Stats', icon: BarChart3 },
-  { id: 'notas', label: 'Notas', icon: StickyNote },
-  { id: 'metas', label: 'Metas', icon: Target },
-  { id: 'reporte', label: 'Reporte', icon: BarChart3 },
-  { id: 'papelera', label: 'Papelera', icon: Trash2 },
-]
-
-const KEYBOARD_SHORTCUTS: Record<string, string> = {
-  inicio: 'Ctrl+1', pomodoro: 'Ctrl+P', kanban: 'Ctrl+K', tareas: 'Ctrl+T',
-  proyectos: 'Ctrl+Shift+P', diario: 'Ctrl+D', calendario: 'Ctrl+Shift+C',
-  snippets: 'Ctrl+Shift+S', habitos: 'Ctrl+H', logros: 'Ctrl+L',
-  desafios: 'Ctrl+Shift+D', mapa: 'Ctrl+M', stats: 'Ctrl+E',
-  notas: 'Ctrl+N', metas: 'Ctrl+G', reporte: 'Ctrl+Shift+R', papelera: 'Ctrl+Shift+T',
-}
+const HeaderPomodoro = lazy(() => import('./components/HeaderPomodoro/HeaderPomodoro').then(m => ({ default: m.HeaderPomodoro })))
+const CommandPalette = lazy(() => import('./components/CommandPalette/CommandPalette'))
+const WelcomeWizard = lazy(() => import('./components/WelcomeWizard/WelcomeWizard').then(m => ({ default: m.WelcomeWizard })))
 
 function AppInner() {
-  const [activeTab, setActiveTab] = useState('inicio')
-  const [darkMode, setDarkMode] = useState(true)
-  const [streak, setStreak] = useState({ current: 0, max: 0 })
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const {
+    activeTab, setActiveTab, sidebarOpen, toggleSidebar, setSidebarOpen,
+    darkMode, setDarkMode, setStreak, focusMode, setFocusMode,
+    userName, setUserName, fontSize, setFontSize, language, setLanguage,
+    denseMode, setDenseMode, firstRun, setFirstRun
+  } = useAppStore()
+  const { themeId: currentThemeId, setThemeId } = useThemeStore()
   const [searchOpen, setSearchOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [quickAddTitle, setQuickAddTitle] = useState('')
   const [levelUp, setLevelUp] = useState<{ level: number } | null>(null)
+  const { pushAction } = useUndoStore()
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; title: string } | null>(null)
-  const [focusMode, setFocusMode] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [welcomeOpen, setWelcomeOpen] = useState(firstRun)
   const { soundEnabled, playSound, createConfetti } = useSound()
 
   useEffect(() => {
@@ -93,9 +77,33 @@ function AppInner() {
   }, [darkMode])
 
   useEffect(() => {
+    document.documentElement.classList.remove('text-sm', 'text-base', 'text-lg')
+    document.documentElement.classList.add(`text-${fontSize}`)
+  }, [fontSize])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dense-mode', denseMode)
+  }, [denseMode])
+
+  useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.getSetting('theme').then(val => {
         if (val !== null) setDarkMode(val === 'dark')
+      })
+      window.electronAPI.getSetting('theme_color').then((val: string | null) => {
+        if (val) setThemeId(val)
+      })
+      window.electronAPI.getSetting('user_name').then((val: string | null) => {
+        if (val) setUserName(val)
+      })
+      window.electronAPI.getSetting('font_size').then((val: string | null) => {
+        if (val) setFontSize(val as 'sm' | 'base' | 'lg')
+      })
+      window.electronAPI.getSetting('language').then((val: string | null) => {
+        if (val) setLanguage(val as 'es' | 'en')
+      })
+      window.electronAPI.getSetting('dense_mode').then((val: string | null) => {
+        if (val) setDenseMode(val === 'true')
       })
       window.electronAPI.getStreak('daily_study').then(s => {
         if (s) setStreak(s)
@@ -108,17 +116,37 @@ function AppInner() {
   }, [darkMode])
 
   useEffect(() => {
+    if (window.electronAPI && currentThemeId) window.electronAPI.setSetting('theme_color', currentThemeId)
+  }, [currentThemeId])
+
+  useEffect(() => {
+    if (window.electronAPI && userName) window.electronAPI.setSetting('user_name', userName)
+  }, [userName])
+
+  useEffect(() => {
+    if (window.electronAPI) window.electronAPI.setSetting('font_size', fontSize)
+  }, [fontSize])
+
+  useEffect(() => {
+    if (window.electronAPI) window.electronAPI.setSetting('language', language)
+  }, [language])
+
+  useEffect(() => {
+    if (window.electronAPI) window.electronAPI.setSetting('dense_mode', String(denseMode))
+  }, [denseMode])
+
+  useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
       const key = e.key.toLowerCase()
       if (key === 'b') { e.preventDefault(); setSearchOpen(true) }
       else if (key === '/' && !e.shiftKey) { e.preventDefault(); setShortcutsOpen(true) }
-      else if (key === 'l' && e.shiftKey) { e.preventDefault(); setDarkMode(p => !p) }
+      else if (key === 'l' && e.shiftKey) { e.preventDefault(); setDarkMode(!useAppStore.getState().darkMode) }
       else if (key === 'a' && e.shiftKey) { e.preventDefault(); setQuickAddOpen(true) }
       else if (key === '1') { e.preventDefault(); setActiveTab('inicio') }
       else if (key === 'p' && !e.shiftKey) { e.preventDefault(); setActiveTab('pomodoro') }
-      else if (key === 'k') { e.preventDefault(); setActiveTab('kanban') }
+      else if (key === 'k' && !e.shiftKey) { e.preventDefault(); setCommandPaletteOpen(true) }
       else if (key === 't' && !e.shiftKey) { e.preventDefault(); setActiveTab('tareas') }
       else if (key === 'p' && e.shiftKey) { e.preventDefault(); setActiveTab('proyectos') }
       else if (key === 'd' && !e.shiftKey) { e.preventDefault(); setActiveTab('diario') }
@@ -133,10 +161,25 @@ function AppInner() {
       else if (key === 'g') { e.preventDefault(); setActiveTab('metas') }
       else if (key === 'r' && e.shiftKey) { e.preventDefault(); setActiveTab('reporte') }
       else if (key === 't' && e.shiftKey) { e.preventDefault(); setActiveTab('papelera') }
+      else if (key === 'f' && !e.shiftKey) { e.preventDefault(); setSearchOpen(true) }
       else if (key === 'f' && e.shiftKey) { e.preventDefault(); setFocusMode(true) }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
+  }, [])
+
+  useEffect(() => {
+    if (!window.electronAPI) return
+    const interval = setInterval(async () => {
+      try {
+        const data = await window.electronAPI.exportData()
+        localStorage.setItem('auto_backup', JSON.stringify({
+          data,
+          timestamp: new Date().toISOString(),
+        }))
+      } catch {}
+    }, 30 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [])
 
   const handleStreakUpdate = useCallback(() => {
@@ -170,49 +213,57 @@ function AppInner() {
     if (soundEnabled) playSound('complete')
   }
 
+  function handleWelcomeComplete() {
+    setFirstRun(false)
+    setWelcomeOpen(false)
+  }
+
+  const sidebarContent = (
+    <Suspense fallback={<div className="animate-pulse bg-muted h-full rounded" />}>
+      <SidebarNav
+        activeTab={activeTab}
+        onNavigate={(tab) => { setActiveTab(tab); setSidebarOpen(false) }}
+        onClose={() => setSidebarOpen(false)}
+        userName={userName}
+        fontSize={fontSize}
+        denseMode={denseMode}
+      />
+    </Suspense>
+  )
+
   return (
     <TooltipProvider>
       <div className="h-screen flex flex-col bg-background text-foreground">
-        <header className="flex items-center h-14 px-4 border-b bg-card shrink-0 gap-2">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="shrink-0">
+        <header className="flex items-center h-14 px-4 border-b bg-card shrink-0 gap-2 z-40">
+          <div className="md:hidden">
+            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="shrink-0">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-72">
+                {sidebarContent}
+              </SheetContent>
+            </Sheet>
+          </div>
+          <Button variant="ghost" size="icon" onClick={toggleSidebar} className="shrink-0 hidden md:inline-flex">
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-1.5 mr-4">
+          <button onClick={() => setActiveTab('inicio')} className="flex items-center gap-1.5 mr-4 hover:opacity-80 transition-opacity">
             <Zap className="h-5 w-5 text-indigo-500" />
             <span className="font-bold text-base">EstudioApp</span>
-          </div>
-          <div className="flex-1 flex gap-1 overflow-x-auto">
-            {TABS.map(tab => {
-              const Icon = tab.icon
-              const isActive = activeTab === tab.id
-              return (
-                <Tooltip key={tab.id}>
-                  <TooltipTrigger asChild>
-                    <Button variant={isActive ? 'default' : 'ghost'} size="sm"
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`text-xs gap-1.5 ${isActive ? '' : 'text-muted-foreground'}`}>
-                      <Icon className="h-4 w-4" />
-                      <span className="hidden lg:inline">{tab.label}</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom"><span>{tab.label} ({KEYBOARD_SHORTCUTS[tab.id]})</span></TooltipContent>
-                </Tooltip>
-              )
-            })}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
+          </button>
+          <div className="flex-1" />
+          <div className="flex items-center gap-1 shrink-0">
             <Tooltip><TooltipTrigger asChild>
               <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)}>
                 <Search className="h-5 w-5" />
               </Button>
             </TooltipTrigger><TooltipContent side="bottom">Buscar (Ctrl+B)</TooltipContent></Tooltip>
-            {streak.current > 0 && (
-              <Tooltip><TooltipTrigger asChild>
-                <span className="text-sm text-orange-500 font-medium flex items-center gap-1">
-                  <Zap className="h-4 w-4" /> {streak.current}
-                </span>
-              </TooltipTrigger><TooltipContent><span>Racha actual: {streak.current} días (máx: {streak.max})</span></TooltipContent></Tooltip>
-            )}
+            <Suspense fallback={null}>
+              <HeaderPomodoro onOpenPomodoro={() => setActiveTab('pomodoro')} />
+            </Suspense>
             <Tooltip><TooltipTrigger asChild>
               <Button variant="ghost" size="icon" onClick={() => setFocusMode(true)} className="text-indigo-400">
                 <Zap className="h-5 w-5" />
@@ -231,37 +282,37 @@ function AppInner() {
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          {sidebarOpen && (
-            <aside className="w-60 shrink-0 border-r bg-card overflow-y-auto p-4 hidden md:block">
-              <Suspense fallback={<div className="animate-pulse bg-muted h-32 rounded" />}><Sidebar darkMode={darkMode} /></Suspense>
-            </aside>
-          )}
+          <aside className="w-60 shrink-0 border-r bg-card overflow-hidden hidden md:flex flex-col" style={sidebarOpen ? {} : { display: 'none' }}>
+            {sidebarContent}
+          </aside>
           <main className="flex-1 overflow-y-auto p-6">
             <div key={activeTab} className="animate-fade-slide-in">
               <Suspense fallback={<div className="flex items-center justify-center h-64 text-muted-foreground"><Loader className="h-6 w-6 animate-spin" /></div>}>
-                {activeTab === 'inicio' && <Dashboard />}
-                {activeTab === 'pomodoro' && <PomodoroTimer onComplete={handleStreakUpdate} />}
-                {activeTab === 'kanban' && <KanbanBoard />}
-                {activeTab === 'tareas' && <TaskList />}
-                {activeTab === 'proyectos' && <ProjectsPage />}
-                {activeTab === 'diario' && <DailyLogPage />}
-                {activeTab === 'calendario' && <CalendarView />}
-                {activeTab === 'snippets' && <SnippetsPage />}
-                {activeTab === 'habitos' && <HabitsPage />}
-                {activeTab === 'logros' && <AchievementsGallery />}
-                {activeTab === 'desafios' && <ChallengesPage />}
-                {activeTab === 'mapa' && <StudyMap darkMode={darkMode} />}
-                {activeTab === 'stats' && <Statistics />}
-                {activeTab === 'notas' && <QuickNotes />}
-                {activeTab === 'metas' && <Goals />}
-                {activeTab === 'reporte' && <WeeklyReviewPage />}
-                {activeTab === 'papelera' && <TrashPage />}
+                {activeTab === 'inicio' && <ErrorBoundary name="Dashboard"><Dashboard /></ErrorBoundary>}
+                {activeTab === 'pomodoro' && <ErrorBoundary name="Pomodoro"><PomodoroTimer onComplete={handleStreakUpdate} /></ErrorBoundary>}
+                {activeTab === 'kanban' && <ErrorBoundary name="Kanban"><KanbanBoard /></ErrorBoundary>}
+                {activeTab === 'tareas' && <ErrorBoundary name="Tareas"><TaskList /></ErrorBoundary>}
+                {activeTab === 'proyectos' && <ErrorBoundary name="Proyectos"><ProjectsPage /></ErrorBoundary>}
+                {activeTab === 'diario' && <ErrorBoundary name="Diario"><DailyLogPage /></ErrorBoundary>}
+                {activeTab === 'calendario' && <ErrorBoundary name="Calendario"><CalendarView /></ErrorBoundary>}
+                {activeTab === 'snippets' && <ErrorBoundary name="Snippets"><SnippetsPage /></ErrorBoundary>}
+                {activeTab === 'habitos' && <ErrorBoundary name="Hábitos"><HabitsPage /></ErrorBoundary>}
+                {activeTab === 'logros' && <ErrorBoundary name="Logros"><AchievementsGallery /></ErrorBoundary>}
+                {activeTab === 'desafios' && <ErrorBoundary name="Desafíos"><ChallengesPage /></ErrorBoundary>}
+                {activeTab === 'mapa' && <ErrorBoundary name="Estudio"><StudyMap /></ErrorBoundary>}
+                {activeTab === 'stats' && <ErrorBoundary name="Stats"><Statistics /></ErrorBoundary>}
+                {activeTab === 'notas' && <ErrorBoundary name="Notas"><QuickNotes /></ErrorBoundary>}
+                {activeTab === 'metas' && <ErrorBoundary name="Metas"><Goals /></ErrorBoundary>}
+                {activeTab === 'reporte' && <ErrorBoundary name="Reporte"><WeeklyReviewPage /></ErrorBoundary>}
+                {activeTab === 'papelera' && <ErrorBoundary name="Papelera"><TrashPage /></ErrorBoundary>}
               </Suspense>
             </div>
           </main>
         </div>
 
         <Toaster />
+
+        <UndoToast />
 
         <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
           <DialogContent className="sm:max-w-md">
@@ -283,7 +334,7 @@ function AppInner() {
         <Dialog open={confirmDelete !== null} onOpenChange={() => setConfirmDelete(null)}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-red-500"><Trash2 className="h-5 w-5" /> Confirmar eliminación</DialogTitle>
+              <DialogTitle className="flex items-center gap-2 text-red-500"><X className="h-5 w-5" /> Confirmar eliminación</DialogTitle>
               <DialogDescription>¿Estás seguro de que querés eliminar "{confirmDelete?.title}"? Se moverá a la papelera y se eliminará automáticamente a los 30 días.</DialogDescription>
             </DialogHeader>
             <div className="flex justify-end gap-2">
@@ -292,6 +343,15 @@ function AppInner() {
                 if (confirmDelete && window.electronAPI) {
                   await window.electronAPI.softDeleteItem(confirmDelete.type, confirmDelete.id)
                   toast({ title: 'Elemento movido a la papelera' })
+                  const { type, id, title } = confirmDelete
+                  pushAction({
+                    label: `"${title}" eliminada`,
+                    onUndo: async () => {
+                      if (window.electronAPI) {
+                        await window.electronAPI.restoreItem(type, id)
+                      }
+                    },
+                  })
                   setConfirmDelete(null)
                 }
               }}>Eliminar</Button>
@@ -337,6 +397,9 @@ function AppInner() {
                 <span>Focus Mode</span><kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px] font-mono">Ctrl+Shift+F</kbd>
               </div>
               <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-accent">
+                <span>Paleta de comandos</span><kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px] font-mono">Ctrl+K</kbd>
+              </div>
+              <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-accent">
                 <span>Este menú</span><kbd className="px-1.5 py-0.5 rounded border bg-muted text-[10px] font-mono">Ctrl+/</kbd>
               </div>
             </div>
@@ -349,6 +412,39 @@ function AppInner() {
           <FocusModePage />
         </Suspense>
       )}
+
+      <Suspense fallback={null}>
+        <CommandPalette
+          open={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          onNavigate={setActiveTab}
+          onAction={(actionId) => {
+            setCommandPaletteOpen(false)
+            switch (actionId) {
+              case 'new-task': setQuickAddOpen(true); break
+              case 'new-note': setActiveTab('notas'); break
+              case 'focus-mode': setFocusMode(true); break
+              case 'toggle-dark': setDarkMode(!useAppStore.getState().darkMode); break
+            }
+          }}
+        />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <WelcomeWizard
+          open={welcomeOpen}
+          onOpenChange={setWelcomeOpen}
+          userName={userName}
+          onChangeUserName={setUserName}
+          language={language}
+          onChangeLanguage={setLanguage}
+          fontSize={fontSize}
+          onChangeFontSize={setFontSize}
+          denseMode={denseMode}
+          onChangeDenseMode={setDenseMode}
+          onComplete={handleWelcomeComplete}
+        />
+      </Suspense>
     </TooltipProvider>
   )
 }

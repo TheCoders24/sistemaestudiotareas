@@ -6,6 +6,7 @@ export interface Task {
   priority: string
   due_date: string | null
   reminder: string | null
+  tags?: string
   project_id: number | null
   repeat: string | null
   position: number
@@ -185,6 +186,15 @@ export interface DashboardData {
   totalTasks: number
 }
 
+export interface FlashcardDeck {
+  id: number; name: string; description: string; card_count: number; created_at: string
+}
+export interface Flashcard {
+  id: number; deck_id: number; front: string; back: string; hint: string;
+  difficulty: number; ease_factor: number; repetitions: number;
+  interval: number; next_review: string; created_at: string
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -199,6 +209,9 @@ declare global {
       deleteTask: (id: number) => Promise<boolean>
       toggleTask: (id: number) => Promise<Task>
       reorderTasks: (orderedIds: number[]) => Promise<boolean>
+      addTagToTask: (taskId: number, tag: string) => Promise<boolean>
+      removeTagFromTask: (taskId: number, tag: string) => Promise<boolean>
+      getTasksByTag: (tag: string) => Promise<Task[]>
 
       // Kanban
       getKanbanCards: () => Promise<KanbanCard[]>
@@ -310,6 +323,18 @@ declare global {
       getDashboard: () => Promise<DashboardData>
       getActivityFeed: () => Promise<any[]>
       getHabitStats: () => Promise<any[]>
+
+      // Flashcards
+      getFlashcardDecks: () => Promise<FlashcardDeck[]>
+      createFlashcardDeck: (data: { name: string; description?: string }) => Promise<FlashcardDeck>
+      deleteFlashcardDeck: (id: number) => Promise<boolean>
+      getFlashcards: (deckId: number) => Promise<Flashcard[]>
+      createFlashcard: (data: { deck_id: number; front: string; back: string; hint?: string }) => Promise<Flashcard>
+      deleteFlashcard: (id: number) => Promise<boolean>
+      getDueFlashcards: (deckId: number) => Promise<Flashcard[]>
+      reviewFlashcard: (data: { id: number; ease: number }) => Promise<Flashcard>
+      getFlashcardStats: (deckId: number) => Promise<{ total: number; due: number; reviewed: number }>
+      getRetentionStats: () => Promise<{ total: number; easy: number; hard: number; retentionRate: number }>
     }
     __confirmDelete?: (type: string, id: number, title: string) => void
     __exitFocusMode?: () => void

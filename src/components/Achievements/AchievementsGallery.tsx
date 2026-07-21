@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Trophy, Lock, Timer, CheckSquare, StickyNote, Flame, Zap } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/ui/empty-state'
 
 const ICON_MAP: Record<string, typeof Trophy> = { trophy: Trophy, timer: Timer, 'check-circle': CheckSquare, 'check-square': CheckSquare, 'sticky-note': StickyNote, flame: Flame, zap: Zap }
 
@@ -30,6 +31,9 @@ export default function AchievementsGallery() {
         </p>
       </motion.div>
 
+      {achievements.length === 0 ? (
+        <EmptyState icon={Trophy} title="Sin logros aún" description="Completá tareas y pomodoros para desbloquear logros." />
+      ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {achievements.map((a, i) => {
           const Icon = ICON_MAP[a.icon] || Trophy
@@ -62,6 +66,7 @@ export default function AchievementsGallery() {
           )
         })}
       </div>
+      )}
     </div>
   )
 }

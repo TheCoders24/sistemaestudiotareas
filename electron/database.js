@@ -2,7 +2,7 @@ const Database = require('better-sqlite3')
 const path = require('path')
 const { app } = require('electron')
 
-const SCHEMA_VERSION = 4
+const SCHEMA_VERSION = 6
 const SCHEMA_KEY = 'db_schema_version'
 
 let db
@@ -21,8 +21,6 @@ function initDatabase() {
   db.pragma('synchronous = NORMAL')
   db.pragma('cache_size = -8000')
   db.pragma('temp_store = MEMORY')
-
-  const currentVersion = db.prepare("SELECT value FROM settings WHERE key = ?").get(SCHEMA_KEY)
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
@@ -51,6 +49,7 @@ function initDatabase() {
       priority TEXT DEFAULT 'media',
       due_date TEXT,
       reminder TEXT,
+      tags TEXT DEFAULT '',
       project_id INTEGER,
       repeat TEXT,
       deleted INTEGER DEFAULT 0,
@@ -261,9 +260,35 @@ function initDatabase() {
       streak_max INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS flashcard_decks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS flashcards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      deck_id INTEGER NOT NULL,
+      front TEXT NOT NULL,
+      back TEXT NOT NULL,
+      hint TEXT DEFAULT '',
+      difficulty INTEGER DEFAULT 0,
+      ease_factor REAL DEFAULT 2.5,
+      repetitions INTEGER DEFAULT 0,
+      interval INTEGER DEFAULT 0,
+      next_review TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (deck_id) REFERENCES flashcard_decks(id) ON DELETE CASCADE
+    );
   `)
 
-  // Database indexes for performance
+  return db
+}
+
+function deferDbInit() {
+  if (!db) return
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed);
@@ -294,8 +319,6 @@ function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_entity_links_from ON entity_links(from_type, from_id);
     CREATE INDEX IF NOT EXISTS idx_entity_links_to ON entity_links(to_type, to_id);
   `)
-
-  // Seed achievements
   const existingAchievements = db.prepare('SELECT COUNT(*) as count FROM achievements').get()
   if (existingAchievements.count === 0) {
     const achievementSeeds = [
@@ -319,8 +342,6 @@ function initDatabase() {
     const stmt = db.prepare('INSERT INTO achievements (key, name, description, icon, xp_reward) VALUES (?, ?, ?, ?, ?)')
     for (const a of achievementSeeds) stmt.run(...a)
   }
-
-  // Seed weekly challenges
   const existingChallenges = db.prepare('SELECT COUNT(*) as count FROM challenges').get()
   if (existingChallenges.count === 0) {
     const challengeSeeds = [
@@ -333,8 +354,7 @@ function initDatabase() {
     const stmt = db.prepare('INSERT INTO challenges (key, name, description, icon, requirement_type, requirement_count, period, xp_reward) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     for (const c of challengeSeeds) stmt.run(...c)
   }
-
-  // Only run migrations if schema version is outdated
+  const currentVersion = db.prepare("SELECT value FROM settings WHERE key = ?").get(SCHEMA_KEY)
   if (!currentVersion || Number(currentVersion.value) < SCHEMA_VERSION) {
     const migrationLog = []
     const columnsCache = {}
@@ -377,37 +397,27 @@ function initDatabase() {
       { sql: `ALTER TABLE projects ADD COLUMN color TEXT DEFAULT '#6366f1'`, table: 'projects', col: 'color' },
       { sql: `ALTER TABLE projects ADD COLUMN tech_stack TEXT DEFAULT ''`, table: 'projects', col: 'tech_stack' },
       { sql: `ALTER TABLE projects ADD COLUMN repo_url TEXT DEFAULT ''`, table: 'projects', col: 'repo_url' },
+      { sql: `ALTER TABLE tasks ADD COLUMN tags TEXT DEFAULT ''`, table: 'tasks', col: 'tags' },
+      { sql: `CREATE TABLE IF NOT EXISTS flashcard_decks (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT DEFAULT '', created_at TEXT DEFAULT (datetime('now')))`, table: 'flashcard_decks', col: 'id' },
+      { sql: `CREATE TABLE IF NOT EXISTS flashcards (id INTEGER PRIMARY KEY AUTOINCREMENT, deck_id INTEGER NOT NULL, front TEXT NOT NULL, back TEXT NOT NULL, hint TEXT DEFAULT '', difficulty INTEGER DEFAULT 0, ease_factor REAL DEFAULT 2.5, repetitions INTEGER DEFAULT 0, interval INTEGER DEFAULT 0, next_review TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (deck_id) REFERENCES flashcard_decks(id) ON DELETE CASCADE)`, table: 'flashcards', col: 'id' },
     ]
     const migrationTx = db.transaction(() => {
       for (const m of migrations) {
         if (!hasColumn(m.table, m.col)) {
-          try {
-            db.exec(m.sql)
-            migrationLog.push(`OK: ${m.sql}`)
-          } catch (e) {
-            // ignore
-          }
+          try { db.exec(m.sql); migrationLog.push(`OK: ${m.sql}`) } catch {}
         }
       }
     })
     migrationTx()
-    // Handle old column name in daily_logs (migrate tomorrowPlan -> tomorrow_plan)
     try {
       const cols = db.prepare("PRAGMA table_info('daily_logs')").all()
       const hasNew = cols.some((c) => c.name === 'tomorrow_plan')
       const hasOld = cols.some((c) => c.name === 'tomorrowPlan')
-      if (!hasNew && hasOld) {
-        db.exec(`ALTER TABLE daily_logs RENAME COLUMN tomorrowPlan TO tomorrow_plan`)
-        migrationLog.push('OK: Renamed tomorrowPlan -> tomorrow_plan in daily_logs')
-      }
+      if (!hasNew && hasOld) { db.exec('ALTER TABLE daily_logs RENAME COLUMN tomorrowPlan TO tomorrow_plan'); migrationLog.push('OK: Renamed tomorrowPlan -> tomorrow_plan in daily_logs') }
     } catch {}
-    if (migrationLog.length > 0) {
-      console.log('[DB Migration] Applied:', migrationLog.join('; '))
-    }
+    if (migrationLog.length > 0) console.log('[DB Migration] Applied:', migrationLog.join('; '))
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(SCHEMA_KEY, String(SCHEMA_VERSION))
   }
-
-  return db
 }
 
 function getDb() {
@@ -418,4 +428,4 @@ function closeDatabase() {
   if (db) db.close()
 }
 
-module.exports = { initDatabase, getDb, closeDatabase, getDbPath }
+module.exports = { initDatabase, deferDbInit, getDb, closeDatabase, getDbPath }

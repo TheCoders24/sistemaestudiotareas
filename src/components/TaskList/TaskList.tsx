@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckSquare, Plus, Trash2, Calendar, Bell, ChevronDown, ChevronRight, GripVertical, ListChecks, FolderKanban, Repeat, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/components/ui/use-toast'
+import { EmptyState } from '@/components/ui/empty-state'
+import { ListSkeleton } from '@/components/ui/loading-skeleton'
+import { useUndoStore } from '@/stores/undoStore'
 
 interface Subtask {
   id: number; task_id: number; title: string; completed: number; position: number
@@ -20,6 +23,7 @@ interface Subtask {
 interface Task {
   id: number; title: string; description: string; completed: number
   priority: string; due_date: string | null; reminder: string | null
+  tags?: string
   project_id: number | null; repeat: string | null; position: number
   created_at: string; subtasks?: Subtask[]
 }
@@ -35,6 +39,7 @@ const REPEAT_OPTIONS = [
 ]
 
 export default function TaskList() {
+  const { pushAction } = useUndoStore()
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [newTitle, setNewTitle] = useState('')
@@ -47,16 +52,20 @@ export default function TaskList() {
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState('all')
   const [projectFilter, setProjectFilter] = useState<string>('all')
+  const [tagFilter, setTagFilter] = useState('all')
+  const [tagInput, setTagInput] = useState('')
+  const [newTags, setNewTags] = useState<string[]>([])
   const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set())
   const [dragId, setDragId] = useState<number | null>(null)
   const [dragOverId, setDragOverId] = useState<number | null>(null)
   const [editingSubtask, setEditingSubtask] = useState<{ taskId: number; title: string } | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => { loadTasks(); loadProjects() }, [])
 
   const taskCounts = useMemo(() => {
     let pending = 0, done = 0
-    for (const t of tasks) { t.completed ? done++ : pending++ }
+    for (const t of tasks) { if (t.completed) done++; else pending++ }
     return { total: tasks.length, pending, done }
   }, [tasks])
 
@@ -64,6 +73,7 @@ export default function TaskList() {
     if (!window.electronAPI) return
     const data = await window.electronAPI.getTasksWithSubtasks?.() || []
     setTasks(data)
+    setLoading(false)
   }
 
   async function loadProjects() {
@@ -78,9 +88,10 @@ export default function TaskList() {
       title: newTitle, description: newDesc, priority: newPriority,
       due_date: newDueDate || null, reminder: newReminder || null,
       project_id: newProjectId ? Number(newProjectId) : null,
-      repeat: newRepeat || null,
+      repeat: newRepeat || null, tags: newTags.join(',') || null,
     } as any)
     setNewTitle(''); setNewDesc(''); setNewDueDate(''); setNewReminder(''); setNewProjectId(''); setNewRepeat('')
+    setNewTags([]); setTagInput('')
     setShowForm(false)
     loadTasks()
     toast({ title: 'Tarea creada', description: `"${newTitle}" agregada.` })
@@ -93,11 +104,22 @@ export default function TaskList() {
     if (task?.repeat && task.completed) {
       await window.electronAPI.createTask({
         title: task.title, description: task.description, priority: task.priority,
-        project_id: task.project_id, repeat: task.repeat,
+        project_id: task.project_id, repeat: task.repeat, tags: task.tags,
       } as any)
       toast({ title: 'Tarea recurrente renovada' })
     }
     loadTasks()
+    if (task) {
+      pushAction({
+        label: `"${task.title}" ${task.completed ? 'descompletada' : 'completada'}`,
+        onUndo: async () => {
+          if (window.electronAPI) {
+            await window.electronAPI.toggleTask(id)
+            loadTasks()
+          }
+        },
+      })
+    }
   }
 
   async function handleDelete(id: number) {
@@ -108,6 +130,17 @@ export default function TaskList() {
     } else {
       await window.electronAPI.softDeleteItem('task', id)
       loadTasks()
+      if (task) {
+        pushAction({
+          label: `"${task.title}" eliminada`,
+          onUndo: async () => {
+            if (window.electronAPI) {
+              await window.electronAPI.restoreItem('task', id)
+              loadTasks()
+            }
+          },
+        })
+      }
     }
   }
 
@@ -127,6 +160,24 @@ export default function TaskList() {
   async function handleDeleteSubtask(id: number) {
     if (!window.electronAPI) return
     await window.electronAPI.deleteSubtask(id)
+    loadTasks()
+  }
+
+  function handleAddTag() {
+    const t = tagInput.trim()
+    if (t && !newTags.includes(t)) {
+      setNewTags([...newTags, t])
+    }
+    setTagInput('')
+  }
+
+  function handleRemoveNewTag(tag: string) {
+    setNewTags(newTags.filter(t => t !== tag))
+  }
+
+  async function handleRemoveTagFromTask(taskId: number, tag: string) {
+    if (!window.electronAPI) return
+    await window.electronAPI.removeTagFromTask(taskId, tag)
     loadTasks()
   }
 
@@ -153,18 +204,29 @@ export default function TaskList() {
   const toggleExpand = (id: number) => {
     setExpandedTasks(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
   }
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    for (const t of tasks) {
+      if (t.tags) {
+        t.tags.split(',').map(s => s.trim()).filter(Boolean).forEach(tag => set.add(tag))
+      }
+    }
+    return Array.from(set).sort()
+  }, [tasks])
 
   const filtered = useMemo(() => {
     let result = tasks
     if (filter === 'pending') result = result.filter(t => !t.completed)
     else if (filter === 'done') result = result.filter(t => t.completed)
     if (projectFilter !== 'all') result = result.filter(t => t.project_id === Number(projectFilter))
+    if (tagFilter !== 'all') result = result.filter(t => t.tags && t.tags.split(',').map(s => s.trim()).includes(tagFilter))
     return result
-  }, [tasks, filter, projectFilter])
+  }, [tasks, filter, projectFilter, tagFilter])
 
   const priorityColor: Record<string, string> = {
     baja: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
@@ -239,6 +301,24 @@ export default function TaskList() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div>
+                  <div className="flex gap-2">
+                    <Input value={tagInput} onChange={e => setTagInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag() }}}
+                      placeholder="Agregar etiqueta" className="flex-1" />
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddTag}>+</Button>
+                  </div>
+                  {newTags.length > 0 && (
+                    <div className="flex gap-1 flex-wrap mt-1">
+                      {newTags.map(tag => (
+                        <Badge key={tag} variant="secondary" className="text-[10px] gap-1">
+                          {tag}
+                          <button type="button" onClick={() => handleRemoveNewTag(tag)} className="hover:text-destructive">&times;</button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <Button type="submit" className="w-full">✓ Crear Tarea</Button>
               </CardContent>
             </Card>
@@ -263,17 +343,27 @@ export default function TaskList() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={tagFilter} onValueChange={setTagFilter}>
+          <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue placeholder="Todas las etiquetas" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las etiquetas</SelectItem>
+            {allTags.map(tag => (
+              <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-1">
+        {loading ? (
+          <ListSkeleton rows={4} />
+        ) : (
+          <>
         {filtered.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
-            <CheckSquare className="h-10 w-10 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">No hay tareas</p>
-          </div>
+          <EmptyState icon={CheckSquare} title="No hay tareas" description="Creá tu primera tarea para empezar." actionLabel="Nueva tarea" onAction={() => setShowForm(true)} />
         )}
         <AnimatePresence>
-          {filtered.map((task, idx) => {
+          {filtered.map((task) => {
             const project = getProject(task.project_id)
             const subtasks = task.subtasks || []
             const subtasksDone = subtasks.filter(s => s.completed).length
@@ -320,6 +410,13 @@ export default function TaskList() {
                               <TooltipContent side="top"><span>Repite: {task.repeat}</span></TooltipContent>
                             </Tooltip>
                           )}
+                          {task.tags && task.tags.split(',').map(t => t.trim()).filter(Boolean).map(tag => (
+                            <Badge key={tag} variant="secondary" className="text-[10px] gap-1">
+                              {tag}
+                              <button onClick={(e) => { e.stopPropagation(); handleRemoveTagFromTask(task.id, tag) }}
+                                className="hover:text-destructive">&times;</button>
+                            </Badge>
+                          ))}
                         </div>
                         {task.description && (
                           <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>
@@ -382,12 +479,14 @@ export default function TaskList() {
             )
           })}
         </AnimatePresence>
+          </>
+        )}
       </div>
 
       <Dialog open={editingSubtask !== null} onOpenChange={() => setEditingSubtask(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><ListChecks className="h-5 w-5" /> Agregar subtarea</DialogTitle></DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); editingSubtask && handleAddSubtask(editingSubtask.taskId) }} className="flex gap-2">
+          <form onSubmit={e => { e.preventDefault(); if (editingSubtask) handleAddSubtask(editingSubtask.taskId) }} className="flex gap-2">
             <Input
               value={editingSubtask?.title || ''}
               onChange={e => setEditingSubtask(prev => prev ? { ...prev, title: e.target.value } : null)}

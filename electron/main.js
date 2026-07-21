@@ -1,9 +1,11 @@
+require('v8-compile-cache')
 const { app, BrowserWindow, ipcMain, Notification } = require('electron')
 const path = require('path')
-const { initDatabase, getDb, closeDatabase } = require('./database')
+const { initDatabase, deferDbInit, getDb, closeDatabase, getDbPath } = require('./database')
 
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256 --optimize-for-size')
 app.commandLine.appendSwitch('no-proxy-server')
+app.commandLine.appendSwitch('enable-features', 'V8CompileHints')
 
 let mainWindow
 let boundsSaveTimeout
@@ -35,6 +37,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
+    setTimeout(deferDbInit, 100)
     if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev')) {
       mainWindow.webContents.openDevTools()
     }
@@ -241,7 +244,7 @@ function registerIpcHandlers() {
   })
   ipcMain.handle('db:reorderTasks', (_, orderedIds) => {
     const tx = getDb().transaction(() => {
-      orderedIds.forEach((id: number, index: number) => {
+      orderedIds.forEach((id, index) => {
         getStmt('UPDATE tasks SET position = ?, updated_at = datetime(\'now\') WHERE id = ?').run(index, id)
       })
     })
@@ -251,7 +254,8 @@ function registerIpcHandlers() {
   ipcMain.handle('db:createTask', (_, task) => {
     task.project_id = task.project_id ?? null
     task.repeat = task.repeat || null
-    const stmt = getStmt('INSERT INTO tasks (title, description, priority, due_date, reminder, project_id, repeat) VALUES (@title, @description, @priority, @due_date, @reminder, @project_id, @repeat)')
+    task.tags = task.tags || ''
+    const stmt = getStmt('INSERT INTO tasks (title, description, priority, due_date, reminder, project_id, repeat, tags) VALUES (@title, @description, @priority, @due_date, @reminder, @project_id, @repeat, @tags)')
     const result = stmt.run(task)
     return getStmt('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid)
   })
@@ -268,7 +272,7 @@ function registerIpcHandlers() {
   ipcMain.handle('db:getTasksWithSubtasks', () => {
     const tasks = getStmt('SELECT * FROM tasks WHERE deleted = 0 ORDER BY position ASC, created_at DESC').all()
     const subtasks = getStmt('SELECT * FROM subtasks ORDER BY position ASC').all()
-    const map: Record<number, any[]> = {}
+    const map = {}
     for (const s of subtasks) {
       if (!map[s.task_id]) map[s.task_id] = []
       map[s.task_id].push(s)
@@ -283,6 +287,32 @@ function registerIpcHandlers() {
       updateChallengeProgress('task', 1)
     }
     return getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
+  })
+
+  // Tags
+  ipcMain.handle('db:addTagToTask', (_, taskId, tag) => {
+    if (!taskId || !tag) return false
+    const task = getStmt('SELECT tags FROM tasks WHERE id = ?').get(taskId)
+    if (!task) return false
+    const tags = task.tags ? task.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+    if (!tags.includes(tag)) {
+      tags.push(tag)
+      getStmt('UPDATE tasks SET tags = ?, updated_at = datetime(\'now\') WHERE id = ?').run(tags.join(','), taskId)
+    }
+    return true
+  })
+  ipcMain.handle('db:removeTagFromTask', (_, taskId, tag) => {
+    if (!taskId || !tag) return false
+    const task = getStmt('SELECT tags FROM tasks WHERE id = ?').get(taskId)
+    if (!task) return false
+    const tags = task.tags ? task.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+    const filtered = tags.filter(t => t !== tag)
+    getStmt('UPDATE tasks SET tags = ?, updated_at = datetime(\'now\') WHERE id = ?').run(filtered.join(','), taskId)
+    return true
+  })
+  ipcMain.handle('db:getTasksByTag', (_, tag) => {
+    if (!tag) return []
+    return getStmt("SELECT * FROM tasks WHERE deleted = 0 AND ',' || tags || ',' LIKE '%,' || ? || ',%' ORDER BY position ASC, created_at DESC").all(tag)
   })
 
   // Kanban
@@ -707,6 +737,90 @@ function registerIpcHandlers() {
       FROM challenges c
       LEFT JOIN user_challenges uc ON c.id = uc.challenge_id AND uc.week_start = ?
       ORDER BY c.id`).all(weekStart)
+  })
+
+  // Flashcards
+  ipcMain.handle('db:getFlashcardDecks', () => {
+    return getDb().prepare('SELECT d.*, (SELECT COUNT(*) FROM flashcards f WHERE f.deck_id = d.id) as card_count FROM flashcard_decks d ORDER BY d.created_at DESC').all()
+  })
+
+  ipcMain.handle('db:createFlashcardDeck', (_, { name, description }) => {
+    if (!name || typeof name !== 'string') throw new Error('Invalid deck name')
+    const stmt = getDb().prepare('INSERT INTO flashcard_decks (name, description) VALUES (?, ?)')
+    const result = stmt.run(name, description || '')
+    return { id: result.lastInsertRowid, name, description, card_count: 0 }
+  })
+
+  ipcMain.handle('db:deleteFlashcardDeck', (_, id) => {
+    if (!id || typeof id !== 'number') throw new Error('Invalid id')
+    getDb().prepare('DELETE FROM flashcard_decks WHERE id = ?').run(id)
+    return true
+  })
+
+  ipcMain.handle('db:getFlashcards', (_, deckId) => {
+    if (!deckId || typeof deckId !== 'number') throw new Error('Invalid deckId')
+    return getDb().prepare('SELECT * FROM flashcards WHERE deck_id = ? ORDER BY next_review ASC').all(deckId)
+  })
+
+  ipcMain.handle('db:createFlashcard', (_, { deck_id, front, back, hint }) => {
+    if (!deck_id || !front || !back) throw new Error('Missing required fields')
+    const stmt = getDb().prepare('INSERT INTO flashcards (deck_id, front, back, hint) VALUES (?, ?, ?, ?)')
+    const result = stmt.run(deck_id, front, back, hint || '')
+    return { id: result.lastInsertRowid, deck_id, front, back, hint: hint || '' }
+  })
+
+  ipcMain.handle('db:deleteFlashcard', (_, id) => {
+    if (!id || typeof id !== 'number') throw new Error('Invalid id')
+    getDb().prepare('DELETE FROM flashcards WHERE id = ?').run(id)
+    return true
+  })
+
+  ipcMain.handle('db:getDueFlashcards', (_, deckId) => {
+    if (!deckId || typeof deckId !== 'number') throw new Error('Invalid deckId')
+    return getDb().prepare("SELECT * FROM flashcards WHERE deck_id = ? AND next_review <= datetime('now') ORDER BY next_review ASC").all(deckId)
+  })
+
+  ipcMain.handle('db:reviewFlashcard', (_, { id, ease }) => {
+    if (!id || typeof id !== 'number') throw new Error('Invalid id')
+    if (![0, 1, 2, 3].includes(ease)) throw new Error('Invalid ease value (0-3)')
+    const card = getDb().prepare('SELECT * FROM flashcards WHERE id = ?').get(id)
+    if (!card) throw new Error('Flashcard not found')
+
+    let { repetitions, interval, ease_factor } = card
+    const qualityMap = [0, 1, 2, 3]
+    const q = qualityMap[ease]
+
+    if (q >= 2) {
+      repetitions += 1
+      if (repetitions === 1) interval = 1
+      else if (repetitions === 2) interval = 6
+      else interval = Math.round(interval * ease_factor)
+    } else {
+      repetitions = 0
+      interval = 1
+    }
+
+    ease_factor = Math.max(1.3, ease_factor + (0.1 - (3 - q) * (0.08 + (3 - q) * 0.02)))
+
+    getDb().prepare('UPDATE flashcards SET repetitions = ?, interval = ?, ease_factor = ?, next_review = datetime("now", "+" || ? || " days") WHERE id = ?')
+      .run(repetitions, interval, ease_factor, interval, id)
+    return { ...card, repetitions, interval, ease_factor }
+  })
+
+  ipcMain.handle('db:getFlashcardStats', (_, deckId) => {
+    if (!deckId || typeof deckId !== 'number') throw new Error('Invalid deckId')
+    const total = getDb().prepare('SELECT COUNT(*) as c FROM flashcards WHERE deck_id = ?').get(deckId).c
+    const due = getDb().prepare("SELECT COUNT(*) as c FROM flashcards WHERE deck_id = ? AND next_review <= datetime('now')").get(deckId).c
+    const reviewed = getDb().prepare('SELECT COUNT(*) as c FROM flashcards WHERE deck_id = ? AND repetitions > 0').get(deckId).c
+    return { total, due, reviewed }
+  })
+
+  ipcMain.handle('db:getRetentionStats', () => {
+    const total = getDb().prepare('SELECT COUNT(*) as c FROM flashcards').get().c
+    const easy = getDb().prepare("SELECT COUNT(*) as c FROM flashcards WHERE ease_factor >= 2.5 AND repetitions > 0").get().c
+    const hard = getDb().prepare("SELECT COUNT(*) as c FROM flashcards WHERE ease_factor < 2.0 AND repetitions > 0").get().c
+    const retentionRate = total > 0 ? Math.round((easy / total) * 100) : 0
+    return { total, easy, hard, retentionRate }
   })
 
   // Weekly Report

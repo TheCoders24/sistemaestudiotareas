@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Zap, CheckCircle, Clock, Target } from 'lucide-react'
+import { Zap, CheckCircle, Target, Swords } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export default function ChallengesPage() {
   const [challenges, setChallenges] = useState<any[]>([])
@@ -14,12 +15,6 @@ export default function ChallengesPage() {
     }
   }, [])
 
-  const weekStart = (() => {
-    const d = new Date()
-    const day = d.getDay()
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-    return new Date(d.setDate(diff)).toISOString().split('T')[0]
-  })()
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -31,6 +26,9 @@ export default function ChallengesPage() {
         <p className="text-sm text-muted-foreground mt-1">Completá desafíos para ganar XP extra esta semana</p>
       </motion.div>
 
+      {challenges.length === 0 ? (
+        <EmptyState icon={Swords} title="Sin desafíos" description="Creá un desafío personal para motivarte." actionLabel="Crear desafío" />
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {challenges.map((c: any, i: number) => {
           const pct = c.target > 0 ? Math.min((c.progress / c.target) * 100, 100) : 0
@@ -63,6 +61,7 @@ export default function ChallengesPage() {
           )
         })}
       </div>
+      )}
     </div>
   )
 }

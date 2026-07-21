@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Timer, CheckSquare, Flame, Zap, TrendingUp, Target, Sparkles, Trophy, ListChecks, Calendar, BarChart3, Activity, Clock, BookOpen } from 'lucide-react'
+import { Timer, CheckSquare, Flame, Zap, TrendingUp, Sparkles, Trophy, Calendar, BarChart3, Activity, Clock, BookOpen } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatsCardSkeleton } from '@/components/ui/loading-skeleton'
 
 const QUOTES = [
   'El éxito es la suma de pequeños esfuerzos repetidos día tras día.',
@@ -29,21 +31,25 @@ const ACTIVITY_COLORS: Record<string, string> = {
   xp: 'text-yellow-500',
 }
 
+function getGreeting() {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Buenos días'
+  if (hour < 18) return 'Buenas tardes'
+  return 'Buenas noches'
+}
+
+function getRandomQuote() {
+  return QUOTES[Math.floor(Math.random() * QUOTES.length)]
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<any>(null)
   const [xpHistory, setXpHistory] = useState<Array<{ date: string; xp: number }>>([])
   const [xpHistory30, setXpHistory30] = useState<Array<{ date: string; xp: number }>>([])
   const [activityFeed, setActivityFeed] = useState<any[]>([])
   const [habitStats, setHabitStats] = useState<any[]>([])
-  const [greeting, setGreeting] = useState('')
-  const quoteRef = useRef(QUOTES[Math.floor(Math.random() * QUOTES.length)])
-
-  useEffect(() => {
-    const hour = new Date().getHours()
-    if (hour < 12) setGreeting('Buenos días')
-    else if (hour < 18) setGreeting('Buenas tardes')
-    else setGreeting('Buenas noches')
-  }, [])
+  const [greeting] = useState(getGreeting)
+  const [quote] = useState(getRandomQuote)
 
   useEffect(() => {
     if (!window.electronAPI) return
@@ -55,9 +61,8 @@ export default function Dashboard() {
   }, [])
 
   if (!data) return (
-    <div className="max-w-4xl mx-auto text-center py-16 text-muted-foreground">
-      <Sparkles className="h-12 w-12 mx-auto mb-3 opacity-30 animate-pulse" />
-      <p>Cargando...</p>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+      <StatsCardSkeleton /><StatsCardSkeleton /><StatsCardSkeleton /><StatsCardSkeleton />
     </div>
   )
 
@@ -73,7 +78,7 @@ export default function Dashboard() {
           <Sparkles className="h-6 w-6 text-indigo-500" />
           {greeting}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1 italic">"{quoteRef.current}"</p>
+        <p className="text-sm text-muted-foreground mt-1 italic">"{quote}"</p>
       </motion.div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -203,7 +208,7 @@ export default function Dashboard() {
                 <span className="text-sm font-medium">Hábitos hoy</span>
               </div>
               {habitStats.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-4 text-center">Sin hábitos creados</p>
+                <EmptyState icon={Activity} title="Sin hábitos" description="Creá un hábito desde la pestaña Hábitos para empezar." />
               ) : (
                 <div className="space-y-2">
                   {habitStats.slice(0, 5).map((h: any) => (
@@ -229,7 +234,7 @@ export default function Dashboard() {
                 <span className="text-sm font-medium">Actividad reciente</span>
               </div>
               {activityFeed.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-4 text-center">Sin actividad aún</p>
+                <EmptyState icon={Activity} title="Sin actividad aún" description="Completá tu primer pomodoro o tarea para ver actividad aquí." />
               ) : (
                 <div className="space-y-1.5">
                   {activityFeed.slice(0, 6).map((item: any, i: number) => {

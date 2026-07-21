@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Plus, LayoutDashboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
 import KanbanColumn from './KanbanColumn'
-import KanbanCard from './KanbanCard'
 
 const COLUMNS = [
   { id: 'pendiente', label: 'Por Hacer', color: 'border-t-gray-500' },
@@ -71,7 +69,7 @@ export default function KanbanBoard() {
     if (!activeCard) return
 
     let targetColumn = String(over.id)
-    let targetPosition = 0
+    const targetPosition = 0
 
     const overCard = cards.find((c: any) => c.id === Number(over.id))
     if (overCard) {
@@ -127,7 +125,7 @@ export default function KanbanBoard() {
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e) => setActiveId(e.active.id as number)} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {COLUMNS.map(column => (
-            <KanbanColumn key={column.id} column={column} cards={cardsByColumn[column.id] || []} onDelete={handleDelete} />
+            <KanbanColumn key={column.id} column={column} cards={cardsByColumn[column.id] || []} onDelete={handleDelete} onView={() => {}} />
           ))}
         </div>
         <DragOverlay>

@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Trash2, Activity, Flame, CheckCircle2, Circle, Edit3, BarChart3 } from 'lucide-react'
+import { Plus, Trash2, Activity, Flame, CheckCircle2, Edit3, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/components/ui/use-toast'
+import { EmptyState } from '@/components/ui/empty-state'
+import { CardSkeleton } from '@/components/ui/loading-skeleton'
 
 const ICONS = [
   { value: 'check', label: '✓' },
@@ -27,6 +29,7 @@ const dayStr = (offset: number) => new Date(Date.now() - offset * 86400000).toIS
 export default function HabitsPage() {
   const [habits, setHabits] = useState<any[]>([])
   const [habitLogs, setHabitLogs] = useState<Record<number, any[]>>({})
+  const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [editHabit, setEditHabit] = useState<any | null>(null)
   const [name, setName] = useState('')
@@ -45,6 +48,7 @@ export default function HabitsPage() {
       allLogs[h.id] = await window.electronAPI.getHabitLogs(h.id)
     }))
     setHabitLogs(allLogs)
+    setLoading(false)
   }
 
   function openCreate() {
@@ -174,13 +178,12 @@ export default function HabitsPage() {
       </Dialog>
 
       <div className="space-y-4">
-        {habits.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground">
-            <Activity className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No hay hábitos. ¡Crea tu primer hábito!</p>
-          </div>
-        )}
-        {habits.map((habit, i) => (
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>
+        ) : habits.length === 0 ? (
+          <EmptyState icon={Activity} title="No hay hábitos" description="Creá un hábito para hacer seguimiento diario." actionLabel="Crear hábito" onAction={openCreate} />
+        ) : (
+        habits.map((habit, i) => (
           <motion.div
             key={habit.id}
             initial={{ opacity: 0, x: -20 }}
@@ -241,7 +244,7 @@ export default function HabitsPage() {
               </CardContent>
             </Card>
           </motion.div>
-        ))}
+        )))}
       </div>
     </div>
   )

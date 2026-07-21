@@ -3,9 +3,7 @@ import { Plus, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { TagBadge } from '@/components/ui/tag-badge'
-import { safeIpc } from '@/lib/ipc'
-import type { Tag as TagType } from '@/types'
+interface TagType { id: number; name: string; color: string }
 
 interface TagPickerProps {
   selectedIds: number[]
@@ -18,7 +16,7 @@ export function TagPicker({ selectedIds, onChange }: TagPickerProps) {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    safeIpc<TagType[]>('getTags').then((tags) => { if (tags) setTags(tags) })
+    if (window.electronAPI) { (window.electronAPI as any).getTags().then(setTags) }
   }, [])
 
   const toggle = useCallback((id: number) => {
@@ -29,7 +27,7 @@ export function TagPicker({ selectedIds, onChange }: TagPickerProps) {
   const createAndAdd = useCallback(async () => {
     const name = newName.trim()
     if (!name) return
-    const tag = await safeIpc<TagType>('createTag', { name } as Partial<TagType>)
+    const tag = await ((window.electronAPI as any).createTag({ name }) as Promise<TagType>)
     if (tag) {
       setTags((prev) => [...prev, tag])
       onChange([...selectedIds, tag.id])

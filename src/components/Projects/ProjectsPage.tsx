@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Plus, Trash2, ExternalLink, FolderKanban, GitBranch,
-  MoreHorizontal, Circle
+  Circle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,12 +19,6 @@ import { safeIpc } from '@/lib/ipc'
 import type { Project } from '@/types'
 
 const STATUS_OPTIONS = ['activo', 'en pausa', 'completado', 'archivado']
-const STATUS_COLORS: Record<string, string> = {
-  activo: 'bg-green-500/20 text-green-400 border-green-500/30',
-  'en pausa': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  completado: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  archivado: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
-}
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])

@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteTask: (id) => ipcRenderer.invoke('db:deleteTask', id),
   toggleTask: (id) => ipcRenderer.invoke('db:toggleTask', id),
   reorderTasks: (orderedIds) => ipcRenderer.invoke('db:reorderTasks', orderedIds),
+  addTagToTask: (taskId, tag) => ipcRenderer.invoke('db:addTagToTask', taskId, tag),
+  removeTagFromTask: (taskId, tag) => ipcRenderer.invoke('db:removeTagFromTask', taskId, tag),
+  getTasksByTag: (tag) => ipcRenderer.invoke('db:getTasksByTag', tag),
 
   // Kanban
   getKanbanCards: () => ipcRenderer.invoke('db:getKanbanCards'),
@@ -124,4 +127,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Export/Import
   exportData: () => ipcRenderer.invoke('db:exportData'),
   importData: (data) => ipcRenderer.invoke('db:importData', data),
+
+  // Flashcards
+  getFlashcardDecks: () => ipcRenderer.invoke('db:getFlashcardDecks'),
+  createFlashcardDeck: (data) => ipcRenderer.invoke('db:createFlashcardDeck', data),
+  deleteFlashcardDeck: (id) => ipcRenderer.invoke('db:deleteFlashcardDeck', id),
+  getFlashcards: (deckId) => ipcRenderer.invoke('db:getFlashcards', deckId),
+  createFlashcard: (data) => ipcRenderer.invoke('db:createFlashcard', data),
+  deleteFlashcard: (id) => ipcRenderer.invoke('db:deleteFlashcard', id),
+  getDueFlashcards: (deckId) => ipcRenderer.invoke('db:getDueFlashcards', deckId),
+  reviewFlashcard: (id, ease) => ipcRenderer.invoke('db:reviewFlashcard', { id, ease }),
+  getFlashcardStats: (deckId) => ipcRenderer.invoke('db:getFlashcardStats', deckId),
+  getRetentionStats: () => ipcRenderer.invoke('db:getRetentionStats'),
 })

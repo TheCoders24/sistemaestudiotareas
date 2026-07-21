@@ -54,7 +54,7 @@ export function useAutoBackup() {
     if (!window.electronAPI) return
     try {
       const data = await window.electronAPI.exportData()
-      const p = await window.electronAPI.saveBackupDialog(data)
+      const p = await (window.electronAPI as any).saveBackupDialog(data)
       if (p) {
         const now = new Date().toISOString()
         setConfig((prev) => ({ ...prev, lastBackup: now }))

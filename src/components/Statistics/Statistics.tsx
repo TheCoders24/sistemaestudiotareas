@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts'
-import { BarChart3, Timer, CheckSquare, TrendingUp, Zap, Activity, Clock, Flame } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
+import { BarChart3, Timer, CheckSquare, TrendingUp, Zap, Activity, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CardSkeleton, StatsCardSkeleton } from '@/components/ui/loading-skeleton'
 
 const CUSTOM_TOOLTIP = {
   contentStyle: {
@@ -20,6 +21,12 @@ export default function Statistics() {
   const [xpHistory, setXpHistory] = useState<Array<{ date: string; xp: number }>>([])
   const [habitStats, setHabitStats] = useState<any[]>([])
 
+  async function loadStats() {
+    if (!window.electronAPI) return
+    const data = await window.electronAPI.getStats(period)
+    setStats(data)
+  }
+
   useEffect(() => { loadStats() }, [period])
 
   useEffect(() => {
@@ -29,23 +36,10 @@ export default function Statistics() {
     }
   }, [])
 
-  async function loadStats() {
-    if (!window.electronAPI) return
-    const data = await window.electronAPI.getStats(period)
-    setStats(data)
-  }
-
-  if (!stats) return (
-    <div className="max-w-4xl mx-auto text-center py-16 text-muted-foreground">
-      <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-30 animate-pulse" />
-      <p>Cargando estadísticas...</p>
-    </div>
-  )
-
-  const pomodoroChartData = (stats.dailyPomodoros || []).map((d: any) => ({
+  const pomodoroChartData = stats ? (stats.dailyPomodoros || []).map((d: any) => ({
     date: d.date.slice(5),
     pomodoros: d.count,
-  }))
+  })) : []
 
   const days = period === 'week' ? 7 : 30
   const xpChartData = useMemo(() => {
@@ -62,12 +56,23 @@ export default function Statistics() {
     }))
   }, [habitStats])
 
-  const completionRate = stats.tasksTotal.count > 0
+  const completionRate = stats && stats.tasksTotal.count > 0
     ? Math.round((stats.tasksCompleted.count / stats.tasksTotal.count) * 100)
     : 0
 
   return (
     <div className="max-w-5xl mx-auto">
+      {!stats ? (
+        <div className="py-8">
+          <div className="grid grid-cols-4 gap-4 mb-8">
+            <StatsCardSkeleton /><StatsCardSkeleton /><StatsCardSkeleton /><StatsCardSkeleton />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CardSkeleton /><CardSkeleton />
+          </div>
+        </div>
+      ) : (
+        <>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -236,6 +241,8 @@ export default function Statistics() {
           </Card>
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }

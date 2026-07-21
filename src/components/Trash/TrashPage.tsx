@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Trash2, RotateCcw, Trash, FileText, CheckSquare, FolderKanban, AlertTriangle } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
+import { Trash2, RotateCcw, Trash, FileText, CheckSquare, FolderKanban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { toast } from '@/components/ui/use-toast'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export default function TrashPage() {
   const [tasks, setTasks] = useState<any[]>([])
@@ -70,10 +68,7 @@ export default function TrashPage() {
       </motion.div>
 
       {total === 0 && (
-        <div className="text-center py-16 text-muted-foreground">
-          <Trash2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p>La papelera está vacía</p>
-        </div>
+        <EmptyState icon={Trash2} title="Papelera vacía" description="Los elementos eliminados aparecerán aquí y se borrarán automáticamente a los 30 días." />
       )}
 
       {tasks.length > 0 && (

@@ -17,8 +17,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx vitest run
+      - run: npm run typecheck
+      - run: npm run lint
 
-  build:
+  build-win:
     needs: test
     runs-on: windows-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -37,3 +39,43 @@ jobs:
         with:
           name: portable-exe
           path: release/*.exe
+
+  build-mac:
+    needs: test
+    runs-on: macos-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:vite
+      - run: npx electron-builder --mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: release/*.dmg
+
+  build-linux:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:vite
+      - run: npx electron-builder --linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: release/*.AppImage

@@ -73,6 +73,10 @@ html, body, #root {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
+html.text-sm { font-size: 14px; }
+html.text-base { font-size: 16px; }
+html.text-lg { font-size: 18px; }
+
 ::-webkit-scrollbar {
   width: 6px;
 }

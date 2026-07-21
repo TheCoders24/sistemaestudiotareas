@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { BarChart3, Timer, CheckSquare, Zap, Flame, TrendingUp, Award } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,15 +13,18 @@ export default function WeeklyReviewPage() {
     }
   }, [])
 
+  const weekLabel = useMemo(() => {
+    if (!report) return ''
+    const daysSince = Math.ceil((Date.now() - new Date(report.weekStart).getTime()) / 86400000)
+    return `Últimos ${Math.min(daysSince, 7)} días`
+  }, [report])
+
   if (!report) return (
     <div className="max-w-3xl mx-auto text-center py-16 text-muted-foreground">
       <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-30" />
       <p>Cargando reporte semanal...</p>
     </div>
   )
-
-  const daysSince = Math.ceil((Date.now() - new Date(report.weekStart).getTime()) / 86400000)
-  const weekLabel = `Últimos ${Math.min(daysSince, 7)} días`
 
   return (
     <div className="max-w-3xl mx-auto">

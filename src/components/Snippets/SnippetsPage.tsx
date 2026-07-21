@@ -45,7 +45,7 @@ export default function SnippetsPage() {
     if (!title.trim() || !code.trim()) return
     const snippet = await safeIpc<any>('createSnippet', { title, code, language, description })
     if (snippet && tagIds.length > 0) {
-      await safeIpc('setSnippetTags', snippet.id, tagIds)
+      await (window.electronAPI as any).setSnippetTags(snippet.id, tagIds)
     }
     setTitle(''); setCode(''); setDescription(''); setTagIds([])
     setOpen(false)

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Target, Plus, Trash2, CalendarDays, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -41,8 +41,6 @@ export default function Goals() {
   async function computeProgress(goalsData: Goal[]) {
     if (!window.electronAPI) return
     const today = new Date().toISOString().split('T')[0]
-    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
-
     const [sessions, tasks] = await Promise.all([
       window.electronAPI.getPomodoroSessions?.(today).catch(() => []) || [],
       window.electronAPI.getTasks().catch(() => []) || [],
@@ -89,8 +87,6 @@ export default function Goals() {
     loadGoals()
     toast({ title: 'Meta eliminada' })
   }
-
-  const metricIcons: Record<string, string> = { pomodoros: '🍅', tareas: '✅', estudio: '📚' }
 
   return (
     <div className="max-w-3xl mx-auto">

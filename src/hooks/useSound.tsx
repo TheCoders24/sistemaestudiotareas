@@ -54,7 +54,7 @@ export function SoundProvider({ children }: { children: ReactNode }) {
         setTimeout(() => { osc.frequency.value = 880; gain.gain.value = 0 }, 150)
       }
       setTimeout(() => ctx.close(), 500)
-    } catch {}
+    } catch { /* silent */ }
   }, [])
 
   const createConfetti = useCallback(() => {
@@ -82,7 +82,7 @@ export function SoundProvider({ children }: { children: ReactNode }) {
         })
         if (++frames > 120) { clearInterval(interval); canvas.remove() }
       }, 16)
-    } catch {}
+    } catch { /* silent */ }
   }, [])
 
   return (

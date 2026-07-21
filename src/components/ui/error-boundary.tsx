@@ -5,6 +5,7 @@ import { Button } from './button'
 interface Props {
   children: React.ReactNode
   fallback?: React.ReactNode
+  name?: string
 }
 
 interface State {
@@ -34,7 +35,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
       return (
         <div className="flex flex-col items-center justify-center min-h-[300px] p-8 text-center">
           <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-          <h2 className="text-lg font-semibold mb-2">Algo salió mal</h2>
+          <h2 className="text-lg font-semibold mb-2">
+            {this.props.name ? `Error en ${this.props.name}` : 'Algo salió mal'}
+          </h2>
           <p className="text-sm text-muted-foreground mb-4 max-w-md">
             {this.state.error?.message || 'Ocurrió un error inesperado.'}
           </p>

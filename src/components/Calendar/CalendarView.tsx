@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Calendar, CheckSquare, Flame, BookOpen } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { CardSkeleton } from '@/components/ui/loading-skeleton'
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const DAYS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
@@ -11,23 +12,22 @@ const DAYS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
 export default function CalendarView() {
   const [date, setDate] = useState(new Date())
   const [tasks, setTasks] = useState<any[]>([])
-  const [habits, setHabits] = useState<any[]>([])
-  const [habitLogs, setHabitLogs] = useState<any[]>([])
+  const [habitLogs] = useState<any[]>([])
   const [dailyLogs, setDailyLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   const year = date.getFullYear()
   const month = date.getMonth()
 
   useEffect(() => {
     if (!window.electronAPI) return
-    window.electronAPI.getTasks().then(setTasks)
-    window.electronAPI.getHabits().then(setHabits)
-    window.electronAPI.getDailyLogs().then(setDailyLogs)
-    const allLogs: any[] = []
-    window.electronAPI.getHabits().then(h => {
-      Promise.all(h.map((hab: any) => window.electronAPI.getHabitLogs(hab.id))).then(logs => {
-        setHabitLogs(logs.flat())
-      })
+    Promise.all([
+      window.electronAPI.getTasks(),
+      window.electronAPI.getDailyLogs()
+    ]).then(([tasks, logs]) => {
+      setTasks(tasks)
+      setDailyLogs(logs)
+      setLoading(false)
     })
   }, [])
 
@@ -70,6 +70,9 @@ export default function CalendarView() {
         </div>
       </motion.div>
 
+      {loading ? (
+        <CardSkeleton />
+      ) : (
       <Card>
         <CardContent className="p-4">
           <div className="grid grid-cols-7 gap-1 mb-2">
@@ -99,6 +102,7 @@ export default function CalendarView() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
         <span className="flex items-center gap-1"><Badge className="h-2 w-2 p-0 rounded-full bg-blue-500" /> Tareas</span>

@@ -1,7 +1,4 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Activity } from 'lucide-react'
-
 export default function HabitHeatmap({ habitId, color }: { habitId: number; color: string }) {
   const [logs, setLogs] = useState<any[]>([])
   const today = new Date()
