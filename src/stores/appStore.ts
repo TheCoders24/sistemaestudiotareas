@@ -9,6 +9,9 @@ interface AppState {
   activeTab: string
   sidebarOpen: boolean
   darkMode: boolean
+  autoDarkMode: boolean
+  autoDarkStart: string
+  autoDarkEnd: string
   streak: StreakData
   focusMode: boolean
   userName: string
@@ -20,6 +23,9 @@ interface AppState {
   toggleSidebar: () => void
   setSidebarOpen: (open: boolean) => void
   setDarkMode: (dark: boolean) => void
+  setAutoDarkMode: (val: boolean) => void
+  setAutoDarkStart: (val: string) => void
+  setAutoDarkEnd: (val: string) => void
   setStreak: (streak: StreakData) => void
   setFocusMode: (focus: boolean) => void
   setUserName: (name: string) => void
@@ -33,6 +39,9 @@ export const useAppStore = create<AppState>((set) => ({
   activeTab: 'inicio',
   sidebarOpen: true,
   darkMode: true,
+  autoDarkMode: false,
+  autoDarkStart: '20:00',
+  autoDarkEnd: '07:00',
   streak: { current: 0, max: 0 },
   focusMode: false,
   userName: '',
@@ -44,6 +53,9 @@ export const useAppStore = create<AppState>((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setDarkMode: (dark) => set({ darkMode: dark }),
+  setAutoDarkMode: (val) => set({ autoDarkMode: val }),
+  setAutoDarkStart: (val) => set({ autoDarkStart: val }),
+  setAutoDarkEnd: (val) => set({ autoDarkEnd: val }),
   setStreak: (streak) => set({ streak }),
   setFocusMode: (focus) => set({ focusMode: focus }),
   setUserName: (name) => set({ userName: name }),

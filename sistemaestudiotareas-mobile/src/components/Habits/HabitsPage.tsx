@@ -207,16 +207,16 @@ export default function HabitsPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(habit)}>
+                    <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => openEdit(habit)}>
                       <Edit3 className="h-4 w-4 text-muted-foreground" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(habit.id)}>
+                    <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => handleDelete(habit.id)}>
                       <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                     </Button>
                   </div>
                 </div>
 
-                <div className="flex gap-0.5">
+                <div className="flex gap-0.5 overflow-x-auto pb-1">
                   {last30Days.map(date => {
                     const completed = isCompleted(habit.id, date)
                     const isToday = date === todayStr()
@@ -225,7 +225,7 @@ export default function HabitsPage() {
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => toggleHabit(habit.id, date)}
-                            className={`w-[14px] h-[14px] rounded-[3px] transition-colors ${
+                            className={`min-w-[18px] w-[18px] h-[18px] sm:min-w-[14px] sm:w-[14px] sm:h-[14px] rounded-[3px] transition-colors ${
                               isToday ? 'ring-1 ring-ring' : ''
                             } ${
                               completed

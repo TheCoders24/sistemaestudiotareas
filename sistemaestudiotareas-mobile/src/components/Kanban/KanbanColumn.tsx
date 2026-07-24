@@ -24,7 +24,7 @@ export default function KanbanColumn({ column, cards, onDelete, onView, onArchiv
   return (
     <div
       ref={setNodeRef}
-      className={`bg-card/50 border rounded-lg min-w-[280px] w-[280px] flex-shrink-0 border-t-4 ${column.color} ${
+      className={`bg-card/50 border rounded-lg min-w-[260px] w-[85vw] sm:w-[280px] flex-shrink-0 border-t-4 ${column.color} ${
         isOver ? 'ring-2 ring-indigo-500' : ''
       }`}
     >

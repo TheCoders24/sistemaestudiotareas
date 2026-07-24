@@ -276,7 +276,7 @@ export default function TaskList() {
                 <Textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Descripción (opcional)" className="min-h-[60px]" />
                 <div className="flex gap-3 flex-wrap">
                   <Select value={newPriority} onValueChange={setNewPriority}>
-                    <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full sm:w-[140px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="baja">Baja prioridad</SelectItem>
                       <SelectItem value="media">Media prioridad</SelectItem>
@@ -285,16 +285,16 @@ export default function TaskList() {
                   </Select>
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <Input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} className="w-[140px]" />
+                    <Input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} className="w-full sm:w-[140px]" />
                   </div>
                   <div className="flex items-center gap-2">
                     <Bell className="h-4 w-4 text-muted-foreground" />
-                    <Input type="datetime-local" value={newReminder} onChange={e => setNewReminder(e.target.value)} className="w-[180px]" />
+                    <Input type="datetime-local" value={newReminder} onChange={e => setNewReminder(e.target.value)} className="w-full sm:w-[180px]" />
                   </div>
                 </div>
                 <div className="flex gap-3 flex-wrap">
                   <Select value={newProjectId} onValueChange={setNewProjectId}>
-                    <SelectTrigger className="w-[160px]"><FolderKanban className="h-3.5 w-3.5 mr-1" /><SelectValue placeholder="Sin proyecto" /></SelectTrigger>
+                    <SelectTrigger className="w-full sm:w-[160px]"><FolderKanban className="h-3.5 w-3.5 mr-1" /><SelectValue placeholder="Sin proyecto" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Sin proyecto</SelectItem>
                       {projects.map(p => (
@@ -303,7 +303,7 @@ export default function TaskList() {
                     </SelectContent>
                   </Select>
                   <Select value={newRepeat} onValueChange={setNewRepeat}>
-                    <SelectTrigger className="w-[160px]"><Repeat className="h-3.5 w-3.5 mr-1" /><SelectValue placeholder="No repetir" /></SelectTrigger>
+                    <SelectTrigger className="w-full sm:w-[160px]"><Repeat className="h-3.5 w-3.5 mr-1" /><SelectValue placeholder="No repetir" /></SelectTrigger>
                     <SelectContent>
                       {REPEAT_OPTIONS.map(opt => (
                         <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
@@ -345,7 +345,7 @@ export default function TaskList() {
           </TabsList>
         </Tabs>
         <Select value={projectFilter} onValueChange={setProjectFilter}>
-          <SelectTrigger className="w-[150px] h-9 text-xs"><FolderKanban className="h-3.5 w-3.5 mr-1" /><SelectValue placeholder="Todos" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[150px] h-9 text-xs"><FolderKanban className="h-3.5 w-3.5 mr-1" /><SelectValue placeholder="Todos" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los proyectos</SelectItem>
             {projects.map(p => (
@@ -354,7 +354,7 @@ export default function TaskList() {
           </SelectContent>
         </Select>
         <Select value={tagFilter} onValueChange={setTagFilter}>
-          <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue placeholder="Todas las etiquetas" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[160px] h-9 text-xs"><SelectValue placeholder="Todas las etiquetas" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las etiquetas</SelectItem>
             {allTags.map(tag => (
@@ -445,13 +445,13 @@ export default function TaskList() {
                             {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                        <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7 sm:opacity-0 sm:group-hover:opacity-100"
                           onClick={() => setEditingSubtask({ taskId: task.id, title: '' })}>
-                          <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
+                          <ListChecks className="h-4 w-4 text-muted-foreground" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                        <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7 sm:opacity-0 sm:group-hover:opacity-100"
                           onClick={() => handleDelete(task.id)}>
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                         </Button>
                       </div>
                     </div>
@@ -474,9 +474,9 @@ export default function TaskList() {
                               <span className={`text-xs flex-1 ${sub.completed ? 'line-through text-muted-foreground' : ''}`}>
                                 {sub.title}
                               </span>
-                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover/sub:opacity-100"
+                              <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-5 sm:w-5 sm:opacity-0 sm:group-hover/sub:opacity-100"
                                 onClick={() => handleDeleteSubtask(sub.id)}>
-                                <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                               </Button>
                             </div>
                           ))}

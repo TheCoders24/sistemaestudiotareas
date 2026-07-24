@@ -307,7 +307,8 @@ declare global {
       updateHabit: (id: number, data: Partial<Habit>) => Promise<Habit>
       deleteHabit: (id: number) => Promise<boolean>
       getHabitLogs: (habitId: number) => Promise<HabitLog[]>
-      toggleHabitLog: (habitId: number, date: string) => Promise<boolean>
+      toggleHabitLog: (habitId: number, date: string) => Promise<HabitLog>
+      getAllHabitLogs: () => Promise<HabitLog[]>
 
       // Search
       search: (query: string) => Promise<Array<{ id: number; name: string; type: string }>>
@@ -359,6 +360,9 @@ declare global {
       reviewFlashcard: (data: { id: number; ease: number }) => Promise<Flashcard>
       getFlashcardStats: (deckId: number) => Promise<{ total: number; due: number; reviewed: number }>
       getRetentionStats: () => Promise<{ total: number; easy: number; hard: number; retentionRate: number }>
+      checkForUpdates?: () => Promise<void>
+      installUpdate?: () => Promise<void>
+      onUpdateStatus?: (callback: (data: { status: string; percent?: number }) => void) => void
     }
     __confirmDelete?: (type: string, id: number, title: string) => void
     __exitFocusMode?: () => void

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { toast } from '@/components/ui/use-toast'
 import { useThemeStore } from '@/stores/themeStore'
@@ -47,7 +47,9 @@ const WelcomeWizard = lazy(() => import('./components/WelcomeWizard/WelcomeWizar
 function AppInner() {
   const {
     activeTab, setActiveTab, sidebarOpen, toggleSidebar, setSidebarOpen,
-    darkMode, setDarkMode, setStreak, focusMode, setFocusMode,
+    darkMode, setDarkMode, autoDarkMode, autoDarkStart, autoDarkEnd,
+    setAutoDarkMode, setAutoDarkStart, setAutoDarkEnd,
+    setStreak, focusMode, setFocusMode,
     userName, setUserName, fontSize, setFontSize, language, setLanguage,
     denseMode, setDenseMode, firstRun, setFirstRun
   } = useAppStore()
@@ -55,6 +57,8 @@ function AppInner() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const shortcuts = useShortcutsStore(s => s.shortcuts)
+  const shortcutsRef = useRef(shortcuts)
+  useEffect(() => { shortcutsRef.current = shortcuts }, [shortcuts])
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [quickAddTitle, setQuickAddTitle] = useState('')
   const [levelUp, setLevelUp] = useState<{ level: number } | null>(null)
@@ -66,13 +70,23 @@ function AppInner() {
 
   useEffect(() => {
     (window as any).__confirmDelete = (type: string, id: number, title: string) => setConfirmDelete({ type, id, title })
-    return () => { delete (window as any).__confirmDelete }
-  }, [])
+    ;(window as any).__setActiveTab = setActiveTab
+    ;(window as any).__quickAdd = (type: string) => { setQuickAddOpen(true) }
+    return () => { delete (window as any).__confirmDelete; delete (window as any).__setActiveTab; delete (window as any).__quickAdd }
+  }, [setActiveTab])
 
   useEffect(() => {
     (window as any).__exitFocusMode = () => setFocusMode(false)
     return () => { delete (window as any).__exitFocusMode }
   }, [])
+
+  useEffect(() => {
+    ;(window as any).__reminderNotification = (title: string) => {
+      toast({ title: `⏰ ${title}`, description: 'Es hora de revisar esta tarea' })
+      if (soundEnabled) playSound('complete')
+    }
+    return () => { delete (window as any).__reminderNotification }
+  }, [soundEnabled, playSound])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -107,15 +121,46 @@ function AppInner() {
       window.electronAPI.getSetting('dense_mode').then((val: string | null) => {
         if (val) setDenseMode(val === 'true')
       })
+      window.electronAPI.getSetting('auto_dark_mode').then((val: string | null) => {
+        if (val) setAutoDarkMode(val === 'true')
+      })
+      window.electronAPI.getSetting('auto_dark_start').then((val: string | null) => {
+        if (val) setAutoDarkStart(val)
+      })
+      window.electronAPI.getSetting('auto_dark_end').then((val: string | null) => {
+        if (val) setAutoDarkEnd(val)
+      })
       window.electronAPI.getStreak('daily_study').then(s => {
         if (s) setStreak(s)
       })
+      if (window.electronAPI.onUpdateStatus) {
+        window.electronAPI.onUpdateStatus((data: any) => {
+          if (data.status === 'available') toast({ title: 'Actualización disponible', description: 'Descargando en segundo plano...' })
+          if (data.status === 'downloaded') toast({ title: 'Actualización lista', description: 'Reinicia la app para aplicar la actualización.' })
+        })
+      }
     }
   }, [])
 
   useEffect(() => {
     if (window.electronAPI) window.electronAPI.setSetting('theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
+
+  useEffect(() => {
+    if (!autoDarkMode) return
+    function isInRange(now: string, start: string, end: string): boolean {
+      if (start <= end) return now >= start && now < end
+      return now >= start || now < end
+    }
+    function check() {
+      const now = new Date()
+      const current = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      setDarkMode(isInRange(current, autoDarkStart, autoDarkEnd))
+    }
+    check()
+    const id = setInterval(check, 60000)
+    return () => clearInterval(id)
+  }, [autoDarkMode, autoDarkStart, autoDarkEnd, setDarkMode])
 
   useEffect(() => {
     if (window.electronAPI && currentThemeId) window.electronAPI.setSetting('theme_color', currentThemeId)
@@ -144,7 +189,7 @@ function AppInner() {
       const key = e.key.toLowerCase()
       const shift = e.shiftKey
       const combo = `Ctrl${shift ? '+Shift' : ''}+${key === '/' ? '/' : key.toUpperCase()}`
-      const tabId = Object.entries(shortcuts).find(([, s]) => s === combo)?.[0]
+      const tabId = Object.entries(shortcutsRef.current).find(([, s]) => s === combo)?.[0]
       if (tabId) { e.preventDefault(); setActiveTab(tabId); return }
       if (combo === 'Ctrl+B') { e.preventDefault(); setSearchOpen(true) }
       else if (combo === 'Ctrl+/') { e.preventDefault(); setShortcutsOpen(true) }
@@ -196,11 +241,15 @@ function AppInner() {
 
   async function handleQuickAdd() {
     if (!quickAddTitle.trim() || !window.electronAPI) return
-    await window.electronAPI.createTask({ title: quickAddTitle, description: '', priority: 'media', repeat: null } as any)
-    setQuickAddTitle('')
-    setQuickAddOpen(false)
-    toast({ title: 'Tarea creada', description: `"${quickAddTitle}" agregada.` })
-    if (soundEnabled) playSound('complete')
+    try {
+      await window.electronAPI.createTask({ title: quickAddTitle, description: '', priority: 'media', repeat: null } as any)
+      setQuickAddTitle('')
+      setQuickAddOpen(false)
+      toast({ title: 'Tarea creada', description: `"${quickAddTitle}" agregada.` })
+      if (soundEnabled) playSound('complete')
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo crear la tarea', variant: 'destructive' })
+    }
   }
 
   function handleWelcomeComplete() {
@@ -228,7 +277,7 @@ function AppInner() {
           <div className="md:hidden">
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="shrink-0">
+                <Button variant="ghost" size="icon" className="shrink-0" aria-label="Abrir menú">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
@@ -237,7 +286,7 @@ function AppInner() {
               </SheetContent>
             </Sheet>
           </div>
-          <Button variant="ghost" size="icon" onClick={toggleSidebar} className="shrink-0 hidden md:inline-flex">
+          <Button variant="ghost" size="icon" onClick={toggleSidebar} className="shrink-0 hidden md:inline-flex" aria-label="Toggle sidebar">
             <Menu className="h-5 w-5" />
           </Button>
           <button onClick={() => setActiveTab('inicio')} className="flex items-center gap-1.5 mr-4 hover:opacity-80 transition-opacity">
@@ -247,7 +296,7 @@ function AppInner() {
           <div className="flex-1" />
           <div className="flex items-center gap-1 shrink-0">
             <Tooltip><TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)}>
+              <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} aria-label="Buscar">
                 <Search className="h-5 w-5" />
               </Button>
             </TooltipTrigger><TooltipContent side="bottom">Buscar (Ctrl+B)</TooltipContent></Tooltip>
@@ -255,15 +304,15 @@ function AppInner() {
               <HeaderPomodoro onOpenPomodoro={() => setActiveTab('pomodoro')} />
             </Suspense>
             <Tooltip><TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => setFocusMode(true)} className="text-indigo-400">
+              <Button variant="ghost" size="icon" onClick={() => setFocusMode(true)} className="text-indigo-400" aria-label="Modo enfoque">
                 <Zap className="h-5 w-5" />
               </Button>
             </TooltipTrigger><TooltipContent side="bottom">Focus Mode (Ctrl+Shift+F)</TooltipContent></Tooltip>
-            <Button variant="ghost" size="icon" onClick={() => setDarkMode(!darkMode)}>
+            <Button variant="ghost" size="icon" onClick={() => setDarkMode(!darkMode)} aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
               {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
             <Tooltip><TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => setShortcutsOpen(true)}>
+              <Button variant="ghost" size="icon" onClick={() => setShortcutsOpen(true)} aria-label="Atajos de teclado">
                 <Keyboard className="h-5 w-5" />
               </Button>
             </TooltipTrigger><TooltipContent side="bottom">Atajos (Ctrl+/)</TooltipContent></Tooltip>

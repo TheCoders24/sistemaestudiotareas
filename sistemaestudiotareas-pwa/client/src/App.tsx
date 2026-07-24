@@ -66,8 +66,10 @@ function AppInner() {
 
   useEffect(() => {
     (window as any).__confirmDelete = (type: string, id: number, title: string) => setConfirmDelete({ type, id, title })
-    return () => { delete (window as any).__confirmDelete }
-  }, [])
+    ;(window as any).__setActiveTab = setActiveTab
+    ;(window as any).__quickAdd = (type: string) => { setQuickAddOpen(true) }
+    return () => { delete (window as any).__confirmDelete; delete (window as any).__setActiveTab; delete (window as any).__quickAdd }
+  }, [setActiveTab])
 
   useEffect(() => {
     (window as any).__exitFocusMode = () => setFocusMode(false)

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Timer, CheckSquare, Flame, Zap, TrendingUp, Sparkles, Trophy, Calendar, BarChart3, Activity, Clock, BookOpen, BookMarked } from 'lucide-react'
+import { Timer, CheckSquare, Flame, Zap, TrendingUp, Sparkles, Trophy, Calendar, BarChart3, Activity, Clock, BookOpen, BookMarked, Plus, Play, PenLine } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -144,6 +144,41 @@ export default function Dashboard() {
               </div>
               <span className="text-2xl font-bold">{data.xp.total} XP</span>
               <Progress value={xpProgress} className="h-1.5 mt-1" />
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.23 }}>
+          <Card className="h-full">
+            <CardContent className="py-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap className="h-4 w-4 text-yellow-500" />
+                <span className="text-sm font-medium">Acciones Rápidas</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <button onClick={() => (window as any).__quickAdd?.('task')}
+                  className="flex items-center gap-2 text-xs p-2.5 rounded-lg bg-accent/50 hover:bg-accent transition-colors text-left">
+                  <Plus className="h-3.5 w-3.5 text-green-500" />
+                  <span>Nueva tarea</span>
+                </button>
+                <button onClick={() => (window as any).__setActiveTab?.('pomodoro')}
+                  className="flex items-center gap-2 text-xs p-2.5 rounded-lg bg-accent/50 hover:bg-accent transition-colors text-left">
+                  <Play className="h-3.5 w-3.5 text-red-500" />
+                  <span>Iniciar pomodoro</span>
+                </button>
+                <button onClick={() => (window as any).__setActiveTab?.('notas')}
+                  className="flex items-center gap-2 text-xs p-2.5 rounded-lg bg-accent/50 hover:bg-accent transition-colors text-left">
+                  <PenLine className="h-3.5 w-3.5 text-blue-500" />
+                  <span>Escribir nota</span>
+                </button>
+                <button onClick={() => (window as any).__setActiveTab?.('diario')}
+                  className="flex items-center gap-2 text-xs p-2.5 rounded-lg bg-accent/50 hover:bg-accent transition-colors text-left">
+                  <BookOpen className="h-3.5 w-3.5 text-purple-500" />
+                  <span>Escribir en el diario</span>
+                </button>
+              </div>
             </CardContent>
           </Card>
         </motion.div>

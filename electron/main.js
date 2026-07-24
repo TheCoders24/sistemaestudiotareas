@@ -16,6 +16,29 @@ function getStmt(sql) {
   return stmts[sql]
 }
 
+const ALLOWED_COLUMNS = {
+  tasks: ['title', 'description', 'completed', 'priority', 'due_date', 'reminder', 'project_id', 'repeat', 'tags', 'position'],
+  kanban_cards: ['title', 'description', 'column_type', 'position', 'priority', 'tags', 'due_date', 'project_id', 'deleted'],
+  notes: ['title', 'content', 'project_id', 'deleted'],
+  projects: ['name', 'description', 'status', 'tech_stack', 'repo_url', 'color', 'deleted'],
+  study_topics: ['parent_id', 'name', 'description', 'resource_url', 'order_position', 'study_level', 'study_level_updated_at'],
+  snippets: ['title', 'code', 'language', 'description', 'tags', 'project_id', 'deleted'],
+  habits: ['name', 'icon', 'color', 'frequency', 'deleted'],
+  daily_logs: ['content', 'focus', 'blockers', 'tomorrow_plan'],
+  goals: ['title', 'type', 'target', 'metric', 'deleted'],
+}
+
+function safeUpdate(table, id, data) {
+  const allowed = ALLOWED_COLUMNS[table]
+  if (!allowed) throw new Error(`Unknown table: ${table}`)
+  const keys = Object.keys(data).filter(k => allowed.includes(k) && k !== 'id')
+  if (keys.length === 0) return
+  const sets = keys.map(k => `${k} = @${k}`).join(', ')
+  const filtered = { id }
+  for (const k of keys) filtered[k] = data[k]
+  getStmt(`UPDATE ${table} SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(filtered)
+}
+
 function createWindow() {
   const savedBounds = loadWindowBounds()
 
@@ -86,6 +109,27 @@ app.whenReady().then(() => {
   initDatabase()
   createWindow()
   registerIpcHandlers()
+
+  // Auto-updater
+  try {
+    const { autoUpdater } = require('electron-updater')
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.on('update-available', () => {
+      if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'available' })
+    })
+    autoUpdater.on('download-progress', (progress) => {
+      if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloading', percent: Math.round(progress.percent) })
+    })
+    autoUpdater.on('update-downloaded', () => {
+      if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloaded' })
+    })
+    autoUpdater.on('error', () => {})
+    ipcMain.handle('updater:check', () => { autoUpdater.checkForUpdates().catch(() => {}) })
+    ipcMain.handle('updater:install', () => { autoUpdater.quitAndInstall() })
+    // Check on startup (delayed)
+    setTimeout(() => { autoUpdater.checkForUpdates().catch(() => {}) }, 5000)
+  } catch {}
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -261,9 +305,7 @@ function registerIpcHandlers() {
     return getStmt('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateTask', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getStmt(`UPDATE tasks SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    safeUpdate('tasks', id, data)
     return getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteTask', (_, id) => {
@@ -318,7 +360,7 @@ function registerIpcHandlers() {
 
   // Kanban
   ipcMain.handle('db:getKanbanCards', () => {
-    return getStmt('SELECT * FROM kanban_cards ORDER BY position ASC').all()
+    return getStmt('SELECT * FROM kanban_cards WHERE deleted = 0 ORDER BY position ASC').all()
   })
   ipcMain.handle('db:createKanbanCard', (_, card) => {
     const maxPos = getStmt('SELECT COALESCE(MAX(position), -1) + 1 as pos FROM kanban_cards WHERE column_type = ?').get(card.column_type)
@@ -329,13 +371,11 @@ function registerIpcHandlers() {
     return getStmt('SELECT * FROM kanban_cards WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateKanbanCard', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getStmt(`UPDATE kanban_cards SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    safeUpdate('kanban_cards', id, data)
     return getStmt('SELECT * FROM kanban_cards WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteKanbanCard', (_, id) => {
-    getStmt('DELETE FROM kanban_cards WHERE id = ?').run(id)
+    getStmt('UPDATE kanban_cards SET deleted = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id)
     return true
   })
   ipcMain.handle('db:moveKanbanCard', (_, id, column, position) => {
@@ -369,9 +409,7 @@ function registerIpcHandlers() {
     return getStmt('SELECT * FROM study_topics WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateStudyTopic', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getStmt(`UPDATE study_topics SET ${sets} WHERE id = @id`).run(data)
+    safeUpdate('study_topics', id, data)
     return getStmt('SELECT * FROM study_topics WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteStudyTopic', (_, id) => {
@@ -467,9 +505,7 @@ function registerIpcHandlers() {
     return getStmt('SELECT * FROM notes WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateNote', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getStmt(`UPDATE notes SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    safeUpdate('notes', id, data)
     return getStmt('SELECT * FROM notes WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteNote', (_, id) => {
@@ -479,7 +515,7 @@ function registerIpcHandlers() {
 
   // Goals
   ipcMain.handle('db:getGoals', () => {
-    return getStmt('SELECT * FROM goals ORDER BY created_at DESC').all()
+    return getStmt('SELECT * FROM goals WHERE deleted = 0 ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createGoal', (_, goal) => {
     const stmt = getStmt('INSERT INTO goals (title, type, target, metric) VALUES (@title, @type, @target, @metric)')
@@ -487,13 +523,11 @@ function registerIpcHandlers() {
     return getStmt('SELECT * FROM goals WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateGoal', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getStmt(`UPDATE goals SET ${sets} WHERE id = @id`).run(data)
+    safeUpdate('goals', id, data)
     return getStmt('SELECT * FROM goals WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteGoal', (_, id) => {
-    getStmt('DELETE FROM goals WHERE id = ?').run(id)
+    getStmt('UPDATE goals SET deleted = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id)
     return true
   })
   ipcMain.handle('db:getGoalProgress', (_, goalId, today) => {
@@ -575,7 +609,20 @@ function registerIpcHandlers() {
       "SELECT date(started_at) as date, COUNT(*) as count FROM pomodoro_sessions WHERE date(started_at) >= ? GROUP BY date(started_at) ORDER BY date"
     ).all(period === 'week' ? new Date(Date.now() - 7*86400000).toISOString().split('T')[0] : new Date(Date.now() - 30*86400000).toISOString().split('T')[0])
 
-    return { pomodoroCount, tasksCompleted, tasksTotal, dailyPomodoros }
+    const pomodorosByProject = getStmt(
+      `SELECT COALESCE(p.name, 'Sin proyecto') as name, COUNT(*) as count
+       FROM pomodoro_sessions ps
+       LEFT JOIN projects p ON ps.project_id = p.id
+       WHERE date(ps.started_at) >= ?
+       GROUP BY ps.project_id ORDER BY count DESC`
+    ).all(period === 'week' ? new Date(Date.now() - 7*86400000).toISOString().split('T')[0] : new Date(Date.now() - 30*86400000).toISOString().split('T')[0])
+
+    const tasksByPriority = getStmt(
+      `SELECT priority, COUNT(*) as count FROM tasks
+       WHERE completed = 1 AND updated_at >= ? GROUP BY priority`
+    ).all(period === 'week' ? new Date(Date.now() - 7*86400000).toISOString().split('T')[0] : new Date(Date.now() - 30*86400000).toISOString().split('T')[0])
+
+    return { pomodoroCount, tasksCompleted, tasksTotal, dailyPomodoros, pomodorosByProject, tasksByPriority }
   })
 
   // Notifications
@@ -600,9 +647,7 @@ function registerIpcHandlers() {
     return getStmt('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateProject', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getStmt(`UPDATE projects SET ${sets}, updated_at = datetime('now') WHERE id = @id`).run(data)
+    safeUpdate('projects', id, data)
     return getStmt('SELECT * FROM projects WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteProject', (_, id) => {
@@ -623,9 +668,7 @@ function registerIpcHandlers() {
     return getStmt('SELECT * FROM daily_logs WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateDailyLog', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getStmt(`UPDATE daily_logs SET ${sets} WHERE id = @id`).run(data)
+    safeUpdate('daily_logs', id, data)
     return getStmt('SELECT * FROM daily_logs WHERE id = ?').get(id)
   })
 
@@ -642,9 +685,7 @@ function registerIpcHandlers() {
     return getStmt('SELECT * FROM snippets WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateSnippet', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getStmt(`UPDATE snippets SET ${sets} WHERE id = @id`).run(data)
+    safeUpdate('snippets', id, data)
     return getStmt('SELECT * FROM snippets WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteSnippet', (_, id) => {
@@ -654,7 +695,7 @@ function registerIpcHandlers() {
 
   // Habits
   ipcMain.handle('db:getHabits', () => {
-    return getStmt('SELECT * FROM habits ORDER BY created_at DESC').all()
+    return getStmt('SELECT * FROM habits WHERE deleted = 0 ORDER BY created_at DESC').all()
   })
   ipcMain.handle('db:createHabit', (_, habit) => {
     const stmt = getStmt('INSERT INTO habits (name, icon, color, frequency) VALUES (@name, @icon, @color, @frequency)')
@@ -662,17 +703,18 @@ function registerIpcHandlers() {
     return getStmt('SELECT * FROM habits WHERE id = ?').get(result.lastInsertRowid)
   })
   ipcMain.handle('db:updateHabit', (_, id, data) => {
-    const sets = Object.keys(data).map(k => `${k} = @${k}`).join(', ')
-    data.id = id
-    getStmt(`UPDATE habits SET ${sets} WHERE id = @id`).run(data)
+    safeUpdate('habits', id, data)
     return getStmt('SELECT * FROM habits WHERE id = ?').get(id)
   })
   ipcMain.handle('db:deleteHabit', (_, id) => {
-    getStmt('DELETE FROM habits WHERE id = ?').run(id)
+    getStmt('UPDATE habits SET deleted = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id)
     return true
   })
   ipcMain.handle('db:getHabitLogs', (_, habitId) => {
     return getStmt('SELECT * FROM habit_logs WHERE habit_id = ? ORDER BY date DESC').all(habitId)
+  })
+  ipcMain.handle('db:getAllHabitLogs', () => {
+    return getStmt('SELECT * FROM habit_logs ORDER BY date DESC').all()
   })
   ipcMain.handle('db:toggleHabitLog', (_, habitId, date) => {
     const existing = getStmt('SELECT * FROM habit_logs WHERE habit_id = ? AND date = ?').get(habitId, date)
@@ -716,16 +758,20 @@ function registerIpcHandlers() {
     const tasks = getStmt("SELECT id, title, updated_at FROM tasks WHERE deleted = 1 ORDER BY updated_at DESC").all()
     const notes = getStmt("SELECT id, title, updated_at FROM notes WHERE deleted = 1 ORDER BY updated_at DESC").all()
     const projects = getStmt("SELECT id, name as title, updated_at FROM projects WHERE deleted = 1 ORDER BY updated_at DESC").all()
-    return { tasks, notes, projects }
+    const kanbanCards = getStmt("SELECT id, title, updated_at FROM kanban_cards WHERE deleted = 1 ORDER BY updated_at DESC").all()
+    const habits = getStmt("SELECT id, name as title, updated_at FROM habits WHERE deleted = 1 ORDER BY updated_at DESC").all()
+    const goals = getStmt("SELECT id, title, updated_at FROM goals WHERE deleted = 1 ORDER BY updated_at DESC").all()
+    const snippets = getStmt("SELECT id, title, updated_at FROM snippets WHERE deleted = 1 ORDER BY updated_at DESC").all()
+    return { tasks, notes, projects, kanbanCards, habits, goals, snippets }
   })
   ipcMain.handle('db:restoreItem', (_, type, id) => {
-    const tables = { task: 'tasks', note: 'notes', project: 'projects' }
+    const tables = { task: 'tasks', note: 'notes', project: 'projects', kanban: 'kanban_cards', habit: 'habits', goal: 'goals', snippet: 'snippets' }
     const table = tables[type]
     if (table) getStmt(`UPDATE ${table} SET deleted = 0, updated_at = datetime('now') WHERE id = ?`).run(id)
     return true
   })
   ipcMain.handle('db:deleteItemPermanent', (_, type, id) => {
-    const tables = { task: 'tasks', note: 'notes', project: 'projects' }
+    const tables = { task: 'tasks', note: 'notes', project: 'projects', kanban: 'kanban_cards', habit: 'habits', goal: 'goals', snippet: 'snippets' }
     const table = tables[type]
     if (table) getStmt(`DELETE FROM ${table} WHERE id = ?`).run(id)
     return true
@@ -734,12 +780,20 @@ function registerIpcHandlers() {
     getStmt("DELETE FROM tasks WHERE deleted = 1").run()
     getStmt("DELETE FROM notes WHERE deleted = 1").run()
     getStmt("DELETE FROM projects WHERE deleted = 1").run()
+    getStmt("DELETE FROM kanban_cards WHERE deleted = 1").run()
+    getStmt("DELETE FROM habits WHERE deleted = 1").run()
+    getStmt("DELETE FROM goals WHERE deleted = 1").run()
+    getStmt("DELETE FROM snippets WHERE deleted = 1").run()
     return true
   })
   // Auto-clean trash older than 30 days
   try { getStmt("DELETE FROM tasks WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run() } catch {}
   try { getStmt("DELETE FROM notes WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run() } catch {}
   try { getStmt("DELETE FROM projects WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run() } catch {}
+  try { getStmt("DELETE FROM kanban_cards WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run() } catch {}
+  try { getStmt("DELETE FROM habits WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run() } catch {}
+  try { getStmt("DELETE FROM goals WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run() } catch {}
+  try { getStmt("DELETE FROM snippets WHERE deleted = 1 AND updated_at < datetime('now', '-30 days')").run() } catch {}
 
   // Entity Links
   ipcMain.handle('db:linkEntities', (_, fromType, fromId, toType, toId) => {
@@ -922,7 +976,7 @@ function registerIpcHandlers() {
       results.push(...projects)
     } catch {}
     try {
-      const habits = getStmt("SELECT id, name, 'hábito' as type FROM habits WHERE name LIKE ? LIMIT 10").all(q)
+      const habits = getStmt("SELECT id, name, 'hábito' as type FROM habits WHERE name LIKE ? AND deleted = 0 LIMIT 10").all(q)
       results.push(...habits)
     } catch {}
     try {
@@ -974,7 +1028,7 @@ function registerIpcHandlers() {
 
   // Habit Stats
   ipcMain.handle('db:getHabitStats', () => {
-    const habits = getStmt('SELECT * FROM habits').all()
+    const habits = getStmt('SELECT * FROM habits WHERE deleted = 0').all()
     const today = new Date().toISOString().split('T')[0]
     return habits.map(h => {
       const totalDays = getStmt("SELECT COUNT(DISTINCT date) as count FROM habit_logs WHERE habit_id = ? AND completed = 1").get(h.id).count

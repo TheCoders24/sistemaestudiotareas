@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { toast } from '@/components/ui/use-toast'
 import { EmptyState } from '@/components/ui/empty-state'
 import { CardSkeleton } from '@/components/ui/loading-skeleton'
+import { useUndoStore } from '@/stores/undoStore'
 
 const ICONS = [
   { value: 'check', label: '✓' },
@@ -66,28 +67,56 @@ export default function HabitsPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !window.electronAPI) return
-    if (editHabit) {
-      await window.electronAPI.updateHabit(editHabit.id, { name, icon, color, frequency })
-      toast({ title: 'Hábito actualizado' })
-    } else {
-      await window.electronAPI.createHabit({ name, icon, color, frequency } as any)
-      toast({ title: 'Hábito creado', description: `"${name}" agregado.` })
+    try {
+      if (editHabit) {
+        await window.electronAPI.updateHabit(editHabit.id, { name, icon, color, frequency })
+        toast({ title: 'Hábito actualizado' })
+      } else {
+        await window.electronAPI.createHabit({ name, icon, color, frequency } as any)
+        toast({ title: 'Hábito creado', description: `"${name}" agregado.` })
+      }
+      setName(''); setOpen(false)
+      loadHabits()
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo guardar el hábito', variant: 'destructive' })
     }
-    setName(''); setOpen(false)
-    loadHabits()
   }
 
   async function handleDelete(id: number) {
     if (!window.electronAPI) return
-    await window.electronAPI.deleteHabit(id)
-    loadHabits()
-    toast({ title: 'Hábito eliminado' })
+    const habit = habits.find(h => h.id === id)
+    if (window.__confirmDelete) {
+      window.__confirmDelete('habit', id, habit?.name || '')
+    } else {
+      try {
+        await window.electronAPI.softDeleteItem('habit', id)
+        loadHabits()
+        if (habit) {
+          const { pushAction } = useUndoStore.getState()
+          pushAction({
+            label: `"${habit.name}" eliminado`,
+            onUndo: async () => {
+              if (window.electronAPI) {
+                await window.electronAPI.restoreItem('habit', id)
+                loadHabits()
+              }
+            },
+          })
+        }
+      } catch {
+        toast({ title: 'Error', description: 'No se pudo eliminar el hábito', variant: 'destructive' })
+      }
+    }
   }
 
   async function toggleHabit(habitId: number, date: string) {
     if (!window.electronAPI) return
-    await window.electronAPI.toggleHabitLog(habitId, date)
-    loadHabits()
+    try {
+      await window.electronAPI.toggleHabitLog(habitId, date)
+      loadHabits()
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo registrar el hábito', variant: 'destructive' })
+    }
   }
 
   const last30Days = useMemo(() => {

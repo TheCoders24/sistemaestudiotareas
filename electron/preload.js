@@ -91,6 +91,7 @@ moveStudyTopic: (id, direction) => ipcRenderer.invoke('db:moveStudyTopic', id, d
   updateHabit: (id, data) => ipcRenderer.invoke('db:updateHabit', id, data),
   deleteHabit: (id) => ipcRenderer.invoke('db:deleteHabit', id),
   getHabitLogs: (habitId) => ipcRenderer.invoke('db:getHabitLogs', habitId),
+  getAllHabitLogs: () => ipcRenderer.invoke('db:getAllHabitLogs'),
   toggleHabitLog: (habitId, date) => ipcRenderer.invoke('db:toggleHabitLog', habitId, date),
 
   // Search
@@ -150,4 +151,9 @@ moveStudyTopic: (id, direction) => ipcRenderer.invoke('db:moveStudyTopic', id, d
   reviewFlashcard: (id, ease) => ipcRenderer.invoke('db:reviewFlashcard', { id, ease }),
   getFlashcardStats: (deckId) => ipcRenderer.invoke('db:getFlashcardStats', deckId),
   getRetentionStats: () => ipcRenderer.invoke('db:getRetentionStats'),
+
+  // Updater
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
+  onUpdateStatus: (callback) => ipcRenderer.on('updater:status', (_, data) => callback(data)),
 })

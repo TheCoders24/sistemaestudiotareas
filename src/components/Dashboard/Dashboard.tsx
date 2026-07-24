@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Timer, CheckSquare, Flame, Zap, TrendingUp, Sparkles, Trophy, Calendar, BarChart3, Activity, Clock, BookOpen, BookMarked } from 'lucide-react'
+import { Timer, CheckSquare, Flame, Zap, TrendingUp, Sparkles, Trophy, Calendar, BarChart3, Activity, Clock, BookOpen, BookMarked, Plus, Play, PenLine } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -60,6 +60,7 @@ export default function Dashboard() {
   const [activityFeed, setActivityFeed] = useState<any[]>([])
   const [habitStats, setHabitStats] = useState<any[]>([])
   const [studyStats, setStudyStats] = useState<{ levels: { study_level: number, count: number }[], total: number } | null>(null)
+  const [weeklyReport, setWeeklyReport] = useState<any>(null)
   const [greeting] = useState(getGreeting)
   const [quote] = useState(getRandomQuote)
 
@@ -71,6 +72,7 @@ export default function Dashboard() {
     window.electronAPI.getActivityFeed().then(setActivityFeed)
     window.electronAPI.getHabitStats().then(setHabitStats)
     window.electronAPI.getStudyStats().then(s => { if (s) setStudyStats(s) }).catch(() => {})
+    window.electronAPI.getWeeklyReport().then(setWeeklyReport).catch(() => {})
   }, [])
 
   if (!data) return (
@@ -147,6 +149,80 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </motion.div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.23 }}>
+          <Card className="h-full">
+            <CardContent className="py-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap className="h-4 w-4 text-yellow-500" />
+                <span className="text-sm font-medium">Acciones Rápidas</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <button onClick={() => window.electronAPI && (window as any).__quickAdd?.('task')}
+                  className="flex items-center gap-2 text-xs p-2.5 rounded-lg bg-accent/50 hover:bg-accent transition-colors text-left">
+                  <Plus className="h-3.5 w-3.5 text-green-500" />
+                  <span>Nueva tarea</span>
+                </button>
+                <button onClick={() => { if ((window as any).__setActiveTab) (window as any).__setActiveTab('pomodoro') }}
+                  className="flex items-center gap-2 text-xs p-2.5 rounded-lg bg-accent/50 hover:bg-accent transition-colors text-left">
+                  <Play className="h-3.5 w-3.5 text-red-500" />
+                  <span>Iniciar pomodoro</span>
+                </button>
+                <button onClick={() => { if ((window as any).__setActiveTab) (window as any).__setActiveTab('notas') }}
+                  className="flex items-center gap-2 text-xs p-2.5 rounded-lg bg-accent/50 hover:bg-accent transition-colors text-left">
+                  <PenLine className="h-3.5 w-3.5 text-blue-500" />
+                  <span>Escribir nota</span>
+                </button>
+                <button onClick={() => { if ((window as any).__setActiveTab) (window as any).__setActiveTab('diario') }}
+                  className="flex items-center gap-2 text-xs p-2.5 rounded-lg bg-accent/50 hover:bg-accent transition-colors text-left">
+                  <BookOpen className="h-3.5 w-3.5 text-purple-500" />
+                  <span>Escribir en el diario</span>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {weeklyReport && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24 }} className="md:col-span-2">
+            <Card className="h-full">
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-indigo-500" />
+                    <span className="text-sm font-medium">Resumen Semanal</span>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px]">{weeklyReport.weekStart}</Badge>
+                </div>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-center gap-1">
+                      <Timer className="h-3.5 w-3.5 text-red-500" />
+                      <span className="text-lg font-bold">{weeklyReport.pomodoros}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Pomodoros</p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-center gap-1">
+                      <CheckSquare className="h-3.5 w-3.5 text-green-500" />
+                      <span className="text-lg font-bold">{weeklyReport.tasksCompleted}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Tareas hechas</p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-center gap-1">
+                      <Zap className="h-3.5 w-3.5 text-yellow-500" />
+                      <span className="text-lg font-bold">{weeklyReport.xpEarned}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">XP ganados</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </div>
 
       {studyStats && (

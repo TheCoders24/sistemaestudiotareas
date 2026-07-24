@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, Settings2, StickyNote, Target, TrendingUp, Zap } from 'lucide-react'
+import { ChevronLeft, Settings2, StickyNote, Target, TrendingUp, Zap, Timer, CheckSquare } from 'lucide-react'
 import { TABS, KEYBOARD_SHORTCUTS } from '@/constants/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -22,6 +22,7 @@ export default function Sidebar({ activeTab, onNavigate, onClose, userName = '',
   const [goalProgress, setGoalProgress] = useState<Record<number, number>>({})
   const [xp, setXp] = useState<{ level: number; currentXp: number; nextLevelXp: number; total: number } | null>(null)
   const [streak, setStreak] = useState<{ current: number; max: number } | null>(null)
+  const [dailyStats, setDailyStats] = useState<{ pomodoros: number; tasks: number } | null>(null)
 
   async function loadData() {
     if (!window.electronAPI) return
@@ -44,6 +45,9 @@ export default function Sidebar({ activeTab, onNavigate, onClose, userName = '',
     setGoalProgress(progressMap)
     if (window.electronAPI) {
       window.electronAPI.getStreak('daily_study').then(s => { if (s) setStreak(s) })
+      window.electronAPI.getDashboard().then(d => {
+        setDailyStats({ pomodoros: d.pomodorosToday, tasks: d.tasksToday })
+      }).catch(() => {})
     }
   }
 
@@ -132,6 +136,22 @@ export default function Sidebar({ activeTab, onNavigate, onClose, userName = '',
                   <span className={cn('font-semibold', denseMode ? 'text-xs' : 'text-sm')}>Sin racha activa</span>
                 </div>
                 <p className={cn('text-muted-foreground mt-0.5', denseMode ? 'text-[10px]' : 'text-xs')}>Completa un pomodoro para empezar</p>
+              </div>
+            )}
+
+            {dailyStats && (dailyStats.pomodoros > 0 || dailyStats.tasks > 0) && (
+              <div className={cn('rounded-lg bg-accent/50 border border-border', denseMode ? 'p-2' : 'p-3')}>
+                <div className={cn('font-medium mb-1.5', denseMode ? 'text-[10px]' : 'text-xs', 'text-muted-foreground')}>Hoy</div>
+                <div className="flex gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <Timer className={cn('text-red-500', denseMode ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
+                    <span className={cn('font-semibold', denseMode ? 'text-[11px]' : 'text-sm')}>{dailyStats.pomodoros}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <CheckSquare className={cn('text-green-500', denseMode ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
+                    <span className={cn('font-semibold', denseMode ? 'text-[11px]' : 'text-sm')}>{dailyStats.tasks}</span>
+                  </div>
+                </div>
               </div>
             )}
 

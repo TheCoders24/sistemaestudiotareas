@@ -238,7 +238,7 @@ export default function StudyMap() {
                   <button
                     onClick={() => handleSetLevel(topic.id, lvl.value)}
                     className={`
-                      w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold
+                      w-7 h-7 sm:w-7 sm:h-7 min-w-[36px] min-h-[36px] rounded-full flex items-center justify-center text-[10px] font-bold
                       transition-all duration-200
                       ${isAnimating && isActive ? 'scale-125 ring-2 ring-offset-2' : ''}
                       ${isActive
@@ -327,7 +327,7 @@ export default function StudyMap() {
                   value={resourceInput}
                   onChange={e => setResourceInput(e.target.value)}
                   placeholder="https://..."
-                  className="h-7 w-40 text-xs"
+                  className="h-9 sm:h-7 w-40 text-xs"
                   autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') handleSaveResource(topic.id); if (e.key === 'Escape') setEditingResource(null) }}
                 />
@@ -356,7 +356,7 @@ export default function StudyMap() {
             {!isFirst && (
               <button
                 onClick={(e) => { e.stopPropagation(); handleMove(topic.id, 'up') }}
-                className="p-1 rounded-md text-muted-foreground/30 hover:text-muted-foreground/60 hover:bg-accent opacity-0 group-hover:opacity-100 transition-all"
+                className="p-1.5 rounded-md text-muted-foreground/30 hover:text-muted-foreground/60 hover:bg-accent sm:opacity-0 sm:group-hover:opacity-100 transition-all"
                 aria-label="Mover arriba"
               >
                 <ArrowUp className="h-3.5 w-3.5" />
@@ -365,7 +365,7 @@ export default function StudyMap() {
             {!isLast && (
               <button
                 onClick={(e) => { e.stopPropagation(); handleMove(topic.id, 'down') }}
-                className="p-1 rounded-md text-muted-foreground/30 hover:text-muted-foreground/60 hover:bg-accent opacity-0 group-hover:opacity-100 transition-all"
+                className="p-1.5 rounded-md text-muted-foreground/30 hover:text-muted-foreground/60 hover:bg-accent sm:opacity-0 sm:group-hover:opacity-100 transition-all"
                 aria-label="Mover abajo"
               >
                 <ArrowDown className="h-3.5 w-3.5" />

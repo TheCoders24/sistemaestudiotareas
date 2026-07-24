@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Settings2, Download, Upload, Eye, Volume2, VolumeX, Palette, Timer, Keyboard, RotateCcw, HardDrive, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -13,6 +13,7 @@ import { THEMES, useThemeStore } from '@/stores/themeStore'
 import { useShortcutsStore } from '@/stores/shortcutsStore'
 import { TABS } from '@/constants/tabs'
 import { useTranslate } from '@/lib/translate'
+import { useAppStore } from '@/stores/appStore'
 
 const POMODORO_PRESETS = [
   { id: 'default', name: 'Clásico', focus: 25, short: 5, long: 15 },
@@ -35,6 +36,7 @@ export default function Settings() {
   const [focusTime, setFocusTime] = useState(25)
   const { soundEnabled, setSoundEnabled } = useSound()
   const { themeId, setThemeId } = useThemeStore()
+  const { autoDarkMode, setAutoDarkMode, autoDarkStart, setAutoDarkStart, autoDarkEnd, setAutoDarkEnd } = useAppStore()
   const { shortcuts, setShortcut, resetDefaults } = useShortcutsStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const eyeRestTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -210,6 +212,43 @@ export default function Settings() {
                 />
               ))}
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Auto Dark Mode */}
+          <div className="bg-accent/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Palette className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-medium">{t('settings.auto_dark')}</span>
+              </div>
+              <Switch checked={autoDarkMode} onCheckedChange={(val) => {
+                setAutoDarkMode(val)
+                if (window.electronAPI) {
+                  window.electronAPI.setSetting('auto_dark_mode', val ? 'true' : 'false')
+                }
+              }} />
+            </div>
+            <p className="text-xs text-muted-foreground">{t('settings.auto_dark_desc')}</p>
+            {autoDarkMode && (
+              <div className="flex gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">{t('settings.auto_dark_start')}</label>
+                  <input type="time" value={autoDarkStart} onChange={(e) => {
+                    setAutoDarkStart(e.target.value)
+                    if (window.electronAPI) window.electronAPI.setSetting('auto_dark_start', e.target.value)
+                  }} className="w-full rounded border border-border bg-background px-2 py-1 text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">{t('settings.auto_dark_end')}</label>
+                  <input type="time" value={autoDarkEnd} onChange={(e) => {
+                    setAutoDarkEnd(e.target.value)
+                    if (window.electronAPI) window.electronAPI.setSetting('auto_dark_end', e.target.value)
+                  }} className="w-full rounded border border-border bg-background px-2 py-1 text-xs" />
+                </div>
+              </div>
+            )}
           </div>
 
           <Separator />

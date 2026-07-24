@@ -101,3 +101,21 @@ html.text-lg { font-size: 18px; }
 .animate-fade-slide-in {
   animation: fade-slide-in 0.12s ease-out;
 }
+
+@media (hover: none) and (pointer: coarse) {
+  .group:hover .sm\:opacity-0,
+  .group\/sub:hover .sm\:opacity-0 {
+    opacity: 1 !important;
+  }
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input[type="text"],
+input[type="date"],
+input[type="datetime-local"],
+textarea {
+  font-size: 16px !important;
+}

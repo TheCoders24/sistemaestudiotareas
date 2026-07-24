@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { Search, Sparkles, Clock, LayoutDashboard, CheckSquare, FolderKanban, NotebookPen, CalendarDays, Code2, Activity, Trophy, Swords, BookOpen, BarChart3, StickyNote, Target, Trash2, Plus, Zap, Sun } from 'lucide-react'
+import { Search, Sparkles, Clock, LayoutDashboard, CheckSquare, FolderKanban, NotebookPen, CalendarDays, Code2, Activity, Trophy, Swords, BookOpen, BarChart3, StickyNote, Target, Trash2, Plus, Zap, Sun, FileText, ListTodo } from 'lucide-react'
 
 interface NavCommand {
   type: 'nav'
@@ -16,7 +16,14 @@ interface ActionCommand {
   icon: React.ElementType
 }
 
-type Command = NavCommand | ActionCommand
+interface SearchResult {
+  type: 'search'
+  id: number
+  name: string
+  entityType: string
+}
+
+type Command = NavCommand | ActionCommand | SearchResult
 
 const NAV_COMMANDS: NavCommand[] = [
   { type: 'nav', id: 'inicio', label: 'Inicio', icon: Sparkles, shortcut: 'Ctrl+1' },
@@ -45,6 +52,24 @@ const ACTION_COMMANDS: ActionCommand[] = [
   { type: 'action', id: 'toggle-dark', label: 'Alternar modo oscuro', icon: Sun },
 ]
 
+const SEARCH_ICONS: Record<string, any> = {
+  tarea: ListTodo,
+  nota: StickyNote,
+  snippet: Code2,
+  proyecto: FolderKanban,
+  hábito: Activity,
+  diario: NotebookPen,
+}
+
+const SEARCH_NAV: Record<string, string> = {
+  tarea: 'tareas',
+  nota: 'notas',
+  snippet: 'snippets',
+  proyecto: 'proyectos',
+  hábito: 'habitos',
+  diario: 'diario',
+}
+
 interface CommandPaletteProps {
   open: boolean
   onClose: () => void
@@ -55,8 +80,30 @@ interface CommandPaletteProps {
 export default function CommandPalette({ open, onClose, onNavigate, onAction }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [dbResults, setDbResults] = useState<SearchResult[]>([])
+  const [searching, setSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!query.trim() || query.trim().length < 2) {
+      setDbResults([])
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      if (window.electronAPI) {
+        window.electronAPI.search(query.trim()).then((results: any[]) => {
+          setDbResults(results.map(r => ({ type: 'search' as const, id: r.id, name: r.name, entityType: r.type })))
+          setSearching(false)
+        }).catch(() => setSearching(false))
+      }
+    }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [query])
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim()
@@ -66,8 +113,8 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction }: 
     const actions = q
       ? ACTION_COMMANDS.filter(c => c.label.toLowerCase().includes(q))
       : ACTION_COMMANDS
-    return [...nav, ...actions]
-  }, [query])
+    return [...nav, ...actions, ...dbResults]
+  }, [query, dbResults])
 
   const flatItems = filtered
 
@@ -82,8 +129,11 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction }: 
   const handleSelect = useCallback((cmd: Command) => {
     if (cmd.type === 'nav') {
       onNavigate(cmd.id)
-    } else {
+    } else if (cmd.type === 'action') {
       onAction(cmd.id)
+    } else if (cmd.type === 'search') {
+      const targetTab = SEARCH_NAV[cmd.entityType]
+      if (targetTab) onNavigate(targetTab)
     }
     onClose()
   }, [onNavigate, onAction, onClose])
@@ -139,16 +189,21 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction }: 
             value={query}
             onChange={e => { setQuery(e.target.value); setSelectedIndex(0) }}
             onKeyDown={handleKeyDown}
-            placeholder="Buscar comandos..."
+            placeholder="Buscar comandos, tareas, notas..."
             className="flex-1 h-12 bg-transparent text-sm outline-none placeholder:text-muted-foreground text-foreground"
           />
         </div>
         <div ref={listRef} className="max-h-[360px] overflow-y-auto p-2 space-y-0.5">
-          {flatItems.length === 0 && (
+          {flatItems.length === 0 && !searching && (
             <p className="text-sm text-muted-foreground text-center py-8">Sin resultados</p>
           )}
+          {flatItems.length === 0 && searching && (
+            <p className="text-sm text-muted-foreground text-center py-8">Buscando...</p>
+          )}
           {flatItems.map((cmd, i) => {
-            const Icon = cmd.icon
+            const Icon = cmd.type === 'search'
+              ? (SEARCH_ICONS[cmd.entityType] || FileText)
+              : cmd.icon
             return (
               <button
                 key={`${cmd.type}-${cmd.id}`}
@@ -161,7 +216,10 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction }: 
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate">{cmd.label}</span>
+                <span className="flex-1 truncate">{'label' in cmd ? cmd.label : cmd.name}</span>
+                {cmd.type === 'search' && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/80 text-muted-foreground capitalize shrink-0">{cmd.entityType}</span>
+                )}
                 {cmd.type === 'nav' && cmd.shortcut && (
                   <kbd className="text-[10px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground font-mono shrink-0">
                     {cmd.shortcut}

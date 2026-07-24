@@ -167,8 +167,8 @@ export default function QuickNotes() {
                     <div className="space-y-2">
                       <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="text-sm font-medium" />
                       <div className="flex justify-end">
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditPreview(!editPreview)}>
-                          {editPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-6 sm:w-6" onClick={() => setEditPreview(!editPreview)}>
+                          {editPreview ? <EyeOff className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> : <Eye className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                         </Button>
                       </div>
                       {editPreview ? (
@@ -187,18 +187,18 @@ export default function QuickNotes() {
                     <>
                       <div className="flex justify-between items-start mb-2">
                         <h3 className="font-medium text-sm">{note.title}</h3>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
+                        <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-6 sm:w-6" onClick={() => {
                             setEditingId(note.id); setEditTitle(note.title); setEditContent(note.content)
                           }}>
-                            <Edit3 className="h-3.5 w-3.5" />
+                            <Edit3 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6"
+                          <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-6 sm:w-6"
                             onClick={() => setPreviewMode(prev => ({ ...prev, [note.id]: !prev[note.id] }))}>
-                            {preview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            {preview ? <EyeOff className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> : <Eye className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDelete(note.id)}>
-                            <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                          <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-6 sm:w-6" onClick={() => handleDelete(note.id)}>
+                            <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-muted-foreground hover:text-destructive" />
                           </Button>
                         </div>
                       </div>

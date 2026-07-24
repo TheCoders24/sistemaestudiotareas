@@ -1,3 +1,4 @@
+import React from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Badge } from '@/components/ui/badge'
@@ -18,7 +19,7 @@ interface Props {
   onArchive?: (id: number) => void
 }
 
-export default function KanbanColumn({ column, cards, onDelete, onView, onArchive }: Props) {
+export default React.memo(function KanbanColumn({ column, cards, onDelete, onView, onArchive }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
 
   return (
@@ -47,4 +48,4 @@ export default function KanbanColumn({ column, cards, onDelete, onView, onArchiv
       </div>
     </div>
   )
-}
+})

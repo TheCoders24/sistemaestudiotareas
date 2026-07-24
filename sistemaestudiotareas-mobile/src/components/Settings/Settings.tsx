@@ -204,7 +204,7 @@ export default function Settings() {
                 <button
                   key={th.id}
                   onClick={() => setThemeId(th.id)}
-                  className={`w-8 h-8 rounded-full transition-all ${themeId === th.id ? 'ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110' : ''}`}
+                  className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-all ${themeId === th.id ? 'ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110' : ''}`}
                   style={{ backgroundColor: th.primary }}
                   title={th.label}
                 />
@@ -261,8 +261,8 @@ export default function Settings() {
             <div className="flex items-center gap-2">
               <Keyboard className="h-4 w-4 text-orange-500" />
               <span className="text-sm font-medium">{t('settings.shortcuts')}</span>
-              <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={resetDefaults} title={t('settings.shortcuts_reset')}>
-                <RotateCcw className="h-3 w-3" />
+              <Button variant="ghost" size="icon" className="ml-auto h-9 w-9 sm:h-6 sm:w-6" onClick={resetDefaults} title={t('settings.shortcuts_reset')}>
+                <RotateCcw className="h-4 w-4 sm:h-3 sm:w-3" />
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">{t('settings.shortcuts_hint')}</p>
@@ -333,7 +333,7 @@ export default function Settings() {
                       <span className="text-xs font-medium truncate">{b.date}</span>
                       <span className="text-[10px] text-muted-foreground shrink-0">{formatSize(b.size)}</span>
                     </div>
-                    <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => setRestoreConfirm(b)}>
+                    <Button variant="outline" size="sm" className="h-8 sm:h-6 text-[10px] px-2" onClick={() => setRestoreConfirm(b)}>
                       <AlertTriangle className="h-3 w-3 mr-1" /> {t('settings.backups_restore')}
                     </Button>
                   </div>

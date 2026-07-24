@@ -79,11 +79,11 @@ export default function TrashPage() {
               <div key={`task-${t.id}`} className="flex items-center justify-between p-2 rounded bg-accent/50 text-sm">
                 <span className="truncate">{t.title}</span>
                 <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRestore('task', t.id)}>
-                    <RotateCcw className="h-3 w-3 mr-1" /> Restaurar
+                  <Button variant="ghost" size="sm" className="h-9 sm:h-7 text-xs" onClick={() => handleRestore('task', t.id)}>
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Restaurar
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('task', t.id)}>
-                    <Trash className="h-3 w-3" />
+                  <Button variant="ghost" size="sm" className="h-9 sm:h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('task', t.id)}>
+                    <Trash className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -100,11 +100,11 @@ export default function TrashPage() {
               <div key={`note-${n.id}`} className="flex items-center justify-between p-2 rounded bg-accent/50 text-sm">
                 <span className="truncate">{n.title}</span>
                 <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRestore('note', n.id)}>
-                    <RotateCcw className="h-3 w-3 mr-1" /> Restaurar
+                  <Button variant="ghost" size="sm" className="h-9 sm:h-7 text-xs" onClick={() => handleRestore('note', n.id)}>
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Restaurar
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('note', n.id)}>
-                    <Trash className="h-3 w-3" />
+                  <Button variant="ghost" size="sm" className="h-9 sm:h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('note', n.id)}>
+                    <Trash className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -121,11 +121,11 @@ export default function TrashPage() {
               <div key={`proj-${p.id}`} className="flex items-center justify-between p-2 rounded bg-accent/50 text-sm">
                 <span className="truncate">{p.name}</span>
                 <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRestore('project', p.id)}>
-                    <RotateCcw className="h-3 w-3 mr-1" /> Restaurar
+                  <Button variant="ghost" size="sm" className="h-9 sm:h-7 text-xs" onClick={() => handleRestore('project', p.id)}>
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Restaurar
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('project', p.id)}>
-                    <Trash className="h-3 w-3" />
+                  <Button variant="ghost" size="sm" className="h-9 sm:h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('project', p.id)}>
+                    <Trash className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>

@@ -56,7 +56,7 @@ export function HeaderPomodoro({ onOpenPomodoro }: HeaderPomodoroProps) {
             style={{ transition: 'stroke-dashoffset 0.3s' }}
           />
         </svg>
-        <span className="relative text-[9px] font-mono font-bold leading-none pointer-events-none select-none">
+        <span className="relative text-[11px] font-mono font-bold leading-none pointer-events-none select-none">
           {display}
         </span>
       </button>
@@ -64,19 +64,19 @@ export function HeaderPomodoro({ onOpenPomodoro }: HeaderPomodoroProps) {
       {isRunning && (
         <button
           onClick={(e) => { e.stopPropagation(); reset() }}
-          className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer"
+          className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer"
           title="Reiniciar"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
+          <RotateCcw className="w-4 h-4" />
         </button>
       )}
 
       <button
         onClick={onOpenPomodoro}
-        className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer"
+        className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer"
         title="Abrir Pomodoro"
       >
-        <Clock className="w-3.5 h-3.5" />
+        <Clock className="w-4 h-4" />
       </button>
     </div>
   )

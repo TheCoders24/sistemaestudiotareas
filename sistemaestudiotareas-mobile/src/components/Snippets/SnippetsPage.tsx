@@ -153,10 +153,10 @@ export default function SnippetsPage() {
                     )}
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopy(snippet.code, snippet.id)}>
+                    <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-8 sm:w-8" onClick={() => handleCopy(snippet.code, snippet.id)}>
                       {copiedId === snippet.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                     </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteId(snippet.id)}>
+                      <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-8 sm:w-8" onClick={() => setDeleteId(snippet.id)}>
                       <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                     </Button>
                   </div>

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/components/ui/use-toast'
 import { InfoBox } from '@/components/ui/info-box'
 import { useTranslate } from '@/lib/translate'
+import { useUndoStore } from '@/stores/undoStore'
 import KanbanColumn from './KanbanColumn'
 
 const COLUMNS = [
@@ -47,20 +48,45 @@ export default function KanbanBoard() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!formTitle.trim() || !window.electronAPI) return
-    await window.electronAPI.createKanbanCard({
-      title: formTitle, description: formDesc, column_type: formColumn,
-      priority: formPriority, tags: formTags, due_date: formDueDate || null,
-    } as any)
-    setFormTitle(''); setFormDesc(''); setFormTags(''); setFormDueDate('')
-    setShowForm(false)
-    loadCards()
-    toast({ title: 'Tarjeta creada' })
+    try {
+      await window.electronAPI.createKanbanCard({
+        title: formTitle, description: formDesc, column_type: formColumn,
+        priority: formPriority, tags: formTags, due_date: formDueDate || null,
+      } as any)
+      setFormTitle(''); setFormDesc(''); setFormTags(''); setFormDueDate('')
+      setShowForm(false)
+      loadCards()
+      toast({ title: 'Tarjeta creada' })
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo crear la tarjeta', variant: 'destructive' })
+    }
   }
 
   async function handleDelete(id: number) {
     if (!window.electronAPI) return
-    await window.electronAPI.deleteKanbanCard(id)
-    loadCards()
+    const card = cards.find(c => c.id === id)
+    if (window.__confirmDelete) {
+      window.__confirmDelete('kanban', id, card?.title || '')
+    } else {
+      try {
+        await window.electronAPI.softDeleteItem('kanban', id)
+        loadCards()
+        if (card) {
+          const { pushAction } = useUndoStore.getState()
+          pushAction({
+            label: `"${card.title}" eliminada`,
+            onUndo: async () => {
+              if (window.electronAPI) {
+                await window.electronAPI.restoreItem('kanban', id)
+                loadCards()
+              }
+            },
+          })
+        }
+      } catch {
+        toast({ title: 'Error', description: 'No se pudo eliminar la tarjeta', variant: 'destructive' })
+      }
+    }
   }
 
   async function handleDragEnd(event: any) {
@@ -72,15 +98,25 @@ export default function KanbanBoard() {
     if (!activeCard) return
 
     let targetColumn = String(over.id)
-    const targetPosition = 0
 
     const overCard = cards.find((c: any) => c.id === Number(over.id))
     if (overCard) {
       targetColumn = overCard.column_type
     }
 
+    const columnCards = cards.filter((c: any) => c.column_type === targetColumn && c.id !== activeCard.id)
+    let targetPosition = columnCards.length
+    if (overCard) {
+      const overIdx = columnCards.findIndex((c: any) => c.id === overCard.id)
+      targetPosition = overIdx >= 0 ? overIdx : columnCards.length
+    }
+
     if (window.electronAPI) {
-      await window.electronAPI.moveKanbanCard(Number(active.id), targetColumn, targetPosition)
+      try {
+        await window.electronAPI.moveKanbanCard(Number(active.id), targetColumn, targetPosition)
+      } catch {
+        toast({ title: 'Error', description: 'No se pudo mover la tarjeta', variant: 'destructive' })
+      }
     }
     loadCards()
   }

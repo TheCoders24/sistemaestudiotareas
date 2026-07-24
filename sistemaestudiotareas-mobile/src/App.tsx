@@ -66,8 +66,10 @@ function AppInner() {
 
   useEffect(() => {
     (window as any).__confirmDelete = (type: string, id: number, title: string) => setConfirmDelete({ type, id, title })
-    return () => { delete (window as any).__confirmDelete }
-  }, [])
+    ;(window as any).__setActiveTab = setActiveTab
+    ;(window as any).__quickAdd = (type: string) => { setQuickAddOpen(true) }
+    return () => { delete (window as any).__confirmDelete; delete (window as any).__setActiveTab; delete (window as any).__quickAdd }
+  }, [setActiveTab])
 
   useEffect(() => {
     (window as any).__exitFocusMode = () => setFocusMode(false)
@@ -223,8 +225,8 @@ function AppInner() {
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex flex-col bg-background text-foreground">
-        <header className="flex items-center h-14 px-4 border-b bg-card shrink-0 gap-2 z-40">
+      <div className="h-screen flex flex-col bg-background text-foreground pt-[env(safe-area-inset-top)]">
+        <header className="flex items-center h-14 px-3 sm:px-4 border-b bg-card shrink-0 gap-2 z-40">
           <div className="md:hidden">
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
               <SheetTrigger asChild>
@@ -275,7 +277,7 @@ function AppInner() {
           <aside className="w-60 shrink-0 border-r bg-card overflow-hidden hidden md:flex flex-col" style={sidebarOpen ? {} : { display: 'none' }}>
             {sidebarContent}
           </aside>
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-6 pb-[env(safe-area-inset-bottom)]">
             <div key={activeTab} className="animate-fade-slide-in">
               <Suspense fallback={<div className="flex items-center justify-center h-64 text-muted-foreground"><Loader className="h-6 w-6 animate-spin" /></div>}>
                 {activeTab === 'inicio' && <ErrorBoundary name="Dashboard"><Dashboard /></ErrorBoundary>}

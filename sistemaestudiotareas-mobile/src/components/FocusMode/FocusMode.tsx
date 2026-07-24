@@ -133,7 +133,7 @@ export function FocusMode() {
       </div>
 
       <div className="relative mb-12">
-        <svg className="w-80 h-80 -rotate-90" viewBox="0 0 340 340">
+        <svg className="w-60 h-60 sm:w-72 sm:h-72 md:w-80 md:h-80 -rotate-90" viewBox="0 0 340 340">
           <circle cx="170" cy="170" r="150" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
           <circle cx="170" cy="170" r="150" fill="none"
             stroke={mode === 'focus' ? '#ef4444' : '#22c55e'}
@@ -144,7 +144,7 @@ export function FocusMode() {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-8xl font-mono font-bold text-white tracking-wider">{timeStr}</span>
+          <span className="text-5xl sm:text-6xl md:text-8xl font-mono font-bold text-white tracking-wider">{timeStr}</span>
           <span className="text-white/40 text-lg mt-2">{mode === 'focus' ? 'ENFOQUE' : 'DESCANSO'}</span>
         </div>
       </div>

@@ -63,6 +63,8 @@ export default function TaskList() {
   const [dragOverId, setDragOverId] = useState<number | null>(null)
   const [editingSubtask, setEditingSubtask] = useState<{ taskId: number; title: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<'position' | 'priority' | 'due_date' | 'title'>('position')
 
   useEffect(() => { loadTasks(); loadProjects() }, [])
 
@@ -87,41 +89,49 @@ export default function TaskList() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!newTitle.trim() || !window.electronAPI) return
-    await window.electronAPI.createTask({
-      title: newTitle, description: newDesc, priority: newPriority,
-      due_date: newDueDate || null, reminder: newReminder || null,
-      project_id: newProjectId ? Number(newProjectId) : null,
-      repeat: newRepeat || null, tags: newTags.join(',') || null,
-    } as any)
-    setNewTitle(''); setNewDesc(''); setNewDueDate(''); setNewReminder(''); setNewProjectId(''); setNewRepeat('')
-    setNewTags([]); setTagInput('')
-    setShowForm(false)
-    loadTasks()
-    toast({ title: 'Tarea creada', description: `"${newTitle}" agregada.` })
+    try {
+      await window.electronAPI.createTask({
+        title: newTitle, description: newDesc, priority: newPriority,
+        due_date: newDueDate || null, reminder: newReminder || null,
+        project_id: newProjectId ? Number(newProjectId) : null,
+        repeat: newRepeat || null, tags: newTags.join(',') || null,
+      } as any)
+      setNewTitle(''); setNewDesc(''); setNewDueDate(''); setNewReminder(''); setNewProjectId(''); setNewRepeat('')
+      setNewTags([]); setTagInput('')
+      setShowForm(false)
+      loadTasks()
+      toast({ title: 'Tarea creada', description: `"${newTitle}" agregada.` })
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo crear la tarea', variant: 'destructive' })
+    }
   }
 
   async function handleToggle(id: number) {
     if (!window.electronAPI) return
-    const task = tasks.find(t => t.id === id)
-    await window.electronAPI.toggleTask(id)
-    if (task?.repeat && task.completed) {
-      await window.electronAPI.createTask({
-        title: task.title, description: task.description, priority: task.priority,
-        project_id: task.project_id, repeat: task.repeat, tags: task.tags,
-      } as any)
-      toast({ title: 'Tarea recurrente renovada' })
-    }
-    loadTasks()
-    if (task) {
-      pushAction({
-        label: `"${task.title}" ${task.completed ? 'descompletada' : 'completada'}`,
-        onUndo: async () => {
-          if (window.electronAPI) {
-            await window.electronAPI.toggleTask(id)
-            loadTasks()
-          }
-        },
-      })
+    try {
+      const task = tasks.find(t => t.id === id)
+      await window.electronAPI.toggleTask(id)
+      if (task?.repeat && task.completed) {
+        await window.electronAPI.createTask({
+          title: task.title, description: task.description, priority: task.priority,
+          project_id: task.project_id, repeat: task.repeat, tags: task.tags,
+        } as any)
+        toast({ title: 'Tarea recurrente renovada' })
+      }
+      loadTasks()
+      if (task) {
+        pushAction({
+          label: `"${task.title}" ${task.completed ? 'descompletada' : 'completada'}`,
+          onUndo: async () => {
+            if (window.electronAPI) {
+              await window.electronAPI.toggleTask(id)
+              loadTasks()
+            }
+          },
+        })
+      }
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo actualizar la tarea', variant: 'destructive' })
     }
   }
 
@@ -228,8 +238,25 @@ export default function TaskList() {
     else if (filter === 'done') result = result.filter(t => t.completed)
     if (projectFilter !== 'all') result = result.filter(t => t.project_id === Number(projectFilter))
     if (tagFilter !== 'all') result = result.filter(t => t.tags && t.tags.split(',').map(s => s.trim()).includes(tagFilter))
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter(t => t.title.toLowerCase().includes(q) || (t.description && t.description.toLowerCase().includes(q)))
+    }
+    if (sortBy === 'priority') {
+      const order = { alta: 0, media: 1, baja: 2 }
+      result = [...result].sort((a, b) => (order[a.priority as keyof typeof order] ?? 1) - (order[b.priority as keyof typeof order] ?? 1))
+    } else if (sortBy === 'due_date') {
+      result = [...result].sort((a, b) => {
+        if (!a.due_date && !b.due_date) return 0
+        if (!a.due_date) return 1
+        if (!b.due_date) return -1
+        return a.due_date.localeCompare(b.due_date)
+      })
+    } else if (sortBy === 'title') {
+      result = [...result].sort((a, b) => a.title.localeCompare(b.title))
+    }
     return result
-  }, [tasks, filter, projectFilter, tagFilter])
+  }, [tasks, filter, projectFilter, tagFilter, searchQuery, sortBy])
 
   const priorityColor: Record<string, string> = {
     baja: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
@@ -344,6 +371,21 @@ export default function TaskList() {
             <TabsTrigger value="done">Completadas ({taskCounts.done})</TabsTrigger>
           </TabsList>
         </Tabs>
+        <Input
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Buscar tareas..."
+          className="h-9 w-[160px] text-xs"
+        />
+        <Select value={sortBy} onValueChange={v => setSortBy(v as any)}>
+          <SelectTrigger className="w-[140px] h-9 text-xs"><SelectValue placeholder="Ordenar" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="position">Manual</SelectItem>
+            <SelectItem value="priority">Prioridad</SelectItem>
+            <SelectItem value="due_date">Fecha límite</SelectItem>
+            <SelectItem value="title">Nombre</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={projectFilter} onValueChange={setProjectFilter}>
           <SelectTrigger className="w-[150px] h-9 text-xs"><FolderKanban className="h-3.5 w-3.5 mr-1" /><SelectValue placeholder="Todos" /></SelectTrigger>
           <SelectContent>

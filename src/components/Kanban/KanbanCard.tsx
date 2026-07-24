@@ -5,6 +5,7 @@ import { GripVertical, X, Archive } from 'lucide-react'
 import { PRIORITY_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import type { KanbanCard } from '@/types'
+import React from 'react'
 
 interface Props {
   card: KanbanCard
@@ -13,7 +14,8 @@ interface Props {
   onArchive?: (id: number) => void
 }
 
-export default function KanbanCardComponent({ card, onDelete, onView, onArchive }: Props) {
+export default React.memo(KanbanCardComponent)
+function KanbanCardComponent({ card, onDelete, onView, onArchive }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
 
   const style = {

@@ -57,25 +57,37 @@ export default function QuickNotes() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!newTitle.trim() || !window.electronAPI) return
-    await window.electronAPI.createNote({ title: newTitle, content: newContent } as any)
-    setNewTitle(''); setNewContent('')
-    setShowCreate(false)
-    loadNotes()
-    toast({ title: 'Nota creada' })
+    try {
+      await window.electronAPI.createNote({ title: newTitle, content: newContent } as any)
+      setNewTitle(''); setNewContent('')
+      setShowCreate(false)
+      loadNotes()
+      toast({ title: 'Nota creada' })
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo crear la nota', variant: 'destructive' })
+    }
   }
 
   async function handleSave(id: number) {
     if (!window.electronAPI) return
-    await window.electronAPI.updateNote(id, { title: editTitle, content: editContent } as any)
-    setEditingId(null)
-    loadNotes()
-    toast({ title: 'Nota guardada' })
+    try {
+      await window.electronAPI.updateNote(id, { title: editTitle, content: editContent } as any)
+      setEditingId(null)
+      loadNotes()
+      toast({ title: 'Nota guardada' })
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo guardar la nota', variant: 'destructive' })
+    }
   }
 
   async function handleDelete(id: number) {
     if (!window.electronAPI) return
-    await window.electronAPI.deleteNote(id)
-    loadNotes()
+    try {
+      await window.electronAPI.deleteNote(id)
+      loadNotes()
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo eliminar la nota', variant: 'destructive' })
+    }
   }
 
   const displayNotes = notes

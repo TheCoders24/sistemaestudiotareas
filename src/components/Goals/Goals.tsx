@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Target, Plus, Trash2, CalendarDays, TrendingUp } from 'lucide-react'
+import { Target, Plus, Trash2, CalendarDays, TrendingUp, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { useUndoStore } from '@/stores/undoStore'
 import { EmptyState } from '@/components/ui/empty-state'
 
 interface Goal {
@@ -28,6 +29,8 @@ export default function Goals() {
   const [target, setTarget] = useState(4)
   const [metric, setMetric] = useState('pomodoros')
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const { pushAction } = useUndoStore()
+  const [predictions, setPredictions] = useState<Record<number, string>>({})
 
   useEffect(() => { loadGoals() }, [])
 
@@ -57,6 +60,7 @@ export default function Goals() {
     const weeklySessions = sessions?.length || 0
 
     const progressMap: Record<number, number> = {}
+    const predMap: Record<number, string> = {}
     for (const goal of goalsData) {
       let current = 0
       if (goal.metric === 'pomodoros') {
@@ -67,25 +71,57 @@ export default function Goals() {
         current = goal.type === 'daily' ? todaySessions : weeklySessions
       }
       progressMap[goal.id] = Math.min(current, goal.target)
+      if (goal.target > current && current > 0) {
+        const remaining = goal.target - current
+        const dailyRate = goal.type === 'daily' ? current : current / 7
+        if (dailyRate > 0) {
+          const daysNeeded = Math.ceil(remaining / dailyRate)
+          const targetDate = new Date()
+          targetDate.setDate(targetDate.getDate() + daysNeeded)
+          predMap[goal.id] = `~${daysNeeded} días (${targetDate.toLocaleDateString('es', { day: 'numeric', month: 'short' })})`
+        }
+      } else if (current >= goal.target) {
+        predMap[goal.id] = '¡Meta alcanzada!'
+      }
     }
     setProgress(progressMap)
+    setPredictions(predMap)
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim() || !window.electronAPI) return
-    await window.electronAPI.createGoal({ title, type, target: Number(target), metric } as any)
-    setTitle(''); setTarget(4)
-    setShowForm(false)
-    loadGoals()
-    toast({ title: 'Meta creada', description: `"${title}" agregada.` })
+    try {
+      await window.electronAPI.createGoal({ title, type, target: Number(target), metric } as any)
+      setTitle(''); setTarget(4)
+      setShowForm(false)
+      loadGoals()
+      toast({ title: 'Meta creada', description: `"${title}" agregada.` })
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo crear la meta', variant: 'destructive' })
+    }
   }
 
   async function handleDelete(id: number) {
     if (!window.electronAPI) return
-    await window.electronAPI.deleteGoal(id)
-    loadGoals()
-    toast({ title: 'Meta eliminada' })
+    const goal = goals.find(g => g.id === id)
+    try {
+      await window.electronAPI.softDeleteItem('goal', id)
+      loadGoals()
+      if (goal) {
+        pushAction({
+          label: `"${goal.title}" eliminada`,
+          onUndo: async () => {
+            if (window.electronAPI) {
+              await window.electronAPI.restoreItem('goal', id)
+              loadGoals()
+            }
+          },
+        })
+      }
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo eliminar la meta', variant: 'destructive' })
+    }
   }
 
   return (
@@ -155,7 +191,14 @@ export default function Goals() {
                   value={(progress[goal.id] || 0) / goal.target * 100}
                   className={`h-2 ${(progress[goal.id] || 0) >= goal.target ? 'bg-green-500/20' : ''}`}
                 />
-                <p className="text-xs text-muted-foreground mt-1">{progress[goal.id] || 0}/{goal.target} completado</p>
+                <div className="flex justify-between items-center mt-1">
+                  <p className="text-xs text-muted-foreground">{progress[goal.id] || 0}/{goal.target} completado</p>
+                  {predictions[goal.id] && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" /> {predictions[goal.id]}
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </motion.div>

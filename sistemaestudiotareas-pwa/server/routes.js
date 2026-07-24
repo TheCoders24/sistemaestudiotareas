@@ -443,8 +443,10 @@ router.get('/stats/:period', (req, res) => {
   const tasksDone = getStmt(`SELECT COUNT(*) as count FROM tasks WHERE completed = 1 AND updated_at >= ${filter}`).get()
   const tasksTotal = getStmt('SELECT COUNT(*) as count FROM tasks WHERE deleted = 0').get()
   const dailyPomodoros = getStmt(`SELECT date(started_at) as date, COUNT(*) as count FROM pomodoro_sessions WHERE started_at >= ${filter} GROUP BY date(started_at) ORDER BY date`).all()
+  const pomodorosByProject = getStmt(`SELECT COALESCE(p.name, 'Sin proyecto') as name, COUNT(*) as count FROM pomodoro_sessions ps LEFT JOIN projects p ON ps.project_id = p.id WHERE date(ps.started_at) >= ${filter} GROUP BY ps.project_id ORDER BY count DESC`).all()
+  const tasksByPriority = getStmt(`SELECT priority, COUNT(*) as count FROM tasks WHERE completed = 1 AND updated_at >= ${filter} GROUP BY priority`).all()
 
-  res.json({ pomodoroCount: pomCount, tasksCompleted: tasksDone, tasksTotal, dailyPomodoros })
+  res.json({ pomodoroCount: pomCount, tasksCompleted: tasksDone, tasksTotal, dailyPomodoros, pomodorosByProject, tasksByPriority })
 })
 
 // -- Projects --

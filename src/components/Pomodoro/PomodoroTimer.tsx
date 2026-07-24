@@ -23,9 +23,17 @@ interface Props {
 }
 
 export function PomodoroTimer({ onComplete }: Props) {
-  const [mode, setMode] = useState<'pomodoro' | 'short' | 'long'>('pomodoro')
-  const [timeLeft, setTimeLeft] = useState(POMODORO)
-  const [running, setRunning] = useState(false)
+  const saved = (() => { try { return JSON.parse(localStorage.getItem('pomodoroState') || 'null') } catch { return null } })()
+  const [mode, setMode] = useState<'pomodoro' | 'short' | 'long'>(saved?.mode || 'pomodoro')
+  const [timeLeft, setTimeLeft] = useState(() => {
+    if (saved && saved.running && saved.savedAt) {
+      const elapsed = Math.floor((Date.now() - saved.savedAt) / 1000)
+      const remaining = saved.timeLeft - elapsed
+      if (saved.mode === 'pomodoro' && remaining > 0) return remaining
+    }
+    return saved?.timeLeft ?? POMODORO
+  })
+  const [running, setRunning] = useState(saved?.running && saved?.timeLeft > 0 ? false : false)
   const sessions = usePomodoroStore(s => s.pomodoroCount)
   const [todayCount, setTodayCount] = useState(0)
   const [linkTaskId, setLinkTaskId] = useState<number | null>(null)
@@ -49,6 +57,12 @@ export function PomodoroTimer({ onComplete }: Props) {
   useEffect(() => {
     sessionsRef.current = sessions
   }, [sessions])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('pomodoroState', JSON.stringify({ mode, timeLeft, running, savedAt: Date.now() }))
+    } catch {}
+  }, [mode, timeLeft, running])
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -99,7 +113,9 @@ export function PomodoroTimer({ onComplete }: Props) {
         duration: MODES.pomodoro.duration,
         started_at: startedAt,
         ended_at: endedAt,
-      } as any)
+      } as any).catch(() => {
+        toast({ title: 'Aviso', description: 'No se pudo guardar la sesión de pomodoro', variant: 'destructive' })
+      })
       window.electronAPI.showNotification('🍅 Pomodoro Completado', '¡Buen trabajo! Tómate un descanso.')
       toast({ title: '🍅 Pomodoro completado', description: '¡Buen trabajo!' })
       usePomodoroStore.setState(s => ({ pomodoroCount: s.pomodoroCount + 1, totalPomodoros: s.totalPomodoros + 1 }))

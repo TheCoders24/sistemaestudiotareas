@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Brain, Plus, Trash2, BookOpen, RotateCcw, ThumbsUp, ThumbsDown,
   ChevronRight, BarChart3, Download, Upload, Star, X,
-  Keyboard
+  Keyboard, ClipboardCheck
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -46,6 +46,12 @@ export default function FlashcardsPage() {
   const [allDueCount, setAllDueCount] = useState(0)
   const [studyComplete, setStudyComplete] = useState(false)
   const studyContainerRef = useRef<HTMLDivElement>(null)
+  const [examMode, setExamMode] = useState(false)
+  const [examQuestions, setExamQuestions] = useState<{ card: Flashcard; options: string[]; correctIdx: number }[]>([])
+  const [examIndex, setExamIndex] = useState(0)
+  const [examSelected, setExamSelected] = useState<number | null>(null)
+  const [examAnswers, setExamAnswers] = useState<boolean[]>([])
+  const [examComplete, setExamComplete] = useState(false)
 
   useEffect(() => { loadDecks() }, [])
 
@@ -128,6 +134,42 @@ export default function FlashcardsPage() {
       }, 2000)
     }
   }, [dueCards, currentIndex, selectedDeck])
+
+  function startExam() {
+    const allCards = cards
+    if (allCards.length < 2) {
+      toast({ title: 'Necesitas al menos 2 tarjetas', variant: 'destructive' })
+      return
+    }
+    const shuffled = [...allCards].sort(() => Math.random() - 0.5)
+    const questions = shuffled.map(card => {
+      const distractors = allCards.filter(c => c.id !== card.id).sort(() => Math.random() - 0.5).slice(0, 3).map(c => c.back)
+      const options = [...distractors, card.back].sort(() => Math.random() - 0.5)
+      return { card, options, correctIdx: options.indexOf(card.back) }
+    })
+    setExamQuestions(questions)
+    setExamIndex(0)
+    setExamSelected(null)
+    setExamAnswers([])
+    setExamComplete(false)
+    setExamMode(true)
+  }
+
+  function handleExamAnswer(selectedIdx: number) {
+    if (examSelected !== null) return
+    setExamSelected(selectedIdx)
+    const isCorrect = selectedIdx === examQuestions[examIndex].correctIdx
+    setExamAnswers(prev => [...prev, isCorrect])
+  }
+
+  function handleExamNext() {
+    if (examIndex < examQuestions.length - 1) {
+      setExamIndex(i => i + 1)
+      setExamSelected(null)
+    } else {
+      setExamComplete(true)
+    }
+  }
 
   function addBulkCards() {
     const lines = previewFront.split('\n').filter(l => l.trim())
@@ -287,6 +329,78 @@ export default function FlashcardsPage() {
     )
   }
 
+  if (examMode && examQuestions.length > 0) {
+    const examScore = examAnswers.filter(Boolean).length
+    return (
+      <div className="max-w-lg mx-auto text-center" tabIndex={0}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="text-xs gap-1">
+              <ClipboardCheck className="h-3 w-3" /> {examComplete ? 'Completado' : `${examIndex + 1} / ${examQuestions.length}`}
+            </Badge>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => { setExamMode(false); setExamComplete(false) }}>
+            Salir
+          </Button>
+        </div>
+        <Progress value={examComplete ? 100 : (examIndex / examQuestions.length) * 100} className="mb-6 h-1.5" />
+        {examComplete ? (
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-12">
+            <Brain className="h-16 w-16 mx-auto mb-4 text-indigo-500" />
+            <h2 className="text-3xl font-bold mb-2">Examen Completado</h2>
+            <p className="text-5xl font-bold mb-4" style={{ color: examScore / examQuestions.length >= 0.7 ? '#22c55e' : '#ef4444' }}>
+              {examScore}/{examQuestions.length}
+            </p>
+            <p className="text-muted-foreground mb-6">{Math.round(examScore / examQuestions.length * 100)}% de aciertos</p>
+            <div className="flex justify-center gap-3">
+              <Button onClick={startExam} className="gap-2"><RotateCcw className="h-4 w-4" /> Repetir examen</Button>
+              <Button variant="outline" onClick={() => { setExamMode(false); setExamComplete(false) }}>Volver al mazo</Button>
+            </div>
+          </motion.div>
+        ) : (
+          <div>
+            <Card className="mb-6">
+              <CardContent className="pt-6">
+                <p className="text-lg font-medium mb-1">{examQuestions[examIndex].card.front}</p>
+                {examQuestions[examIndex].card.hint && (
+                  <p className="text-xs text-muted-foreground mt-2">Pista: {examQuestions[examIndex].card.hint}</p>
+                )}
+              </CardContent>
+            </Card>
+            <div className="grid grid-cols-1 gap-3">
+              {examQuestions[examIndex].options.map((option, i) => {
+                let variant: 'default' | 'outline' = 'outline'
+                let className = ''
+                if (examSelected !== null) {
+                  if (i === examQuestions[examIndex].correctIdx) { variant = 'default'; className = 'border-green-500 bg-green-500/10 text-green-600' }
+                  else if (i === examSelected) { variant = 'default'; className = 'border-red-500 bg-red-500/10 text-red-600' }
+                }
+                return (
+                  <Button key={i} variant={variant} className={`text-left h-auto py-3 px-4 whitespace-normal ${className}`}
+                    onClick={() => handleExamAnswer(i)} disabled={examSelected !== null}>
+                    <span className="font-mono text-xs mr-2 text-muted-foreground">{String.fromCharCode(65 + i)}.</span> {option}
+                  </Button>
+                )
+              })}
+            </div>
+            {examSelected !== null && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
+                <Button onClick={handleExamNext} className="gap-2">
+                  {examIndex < examQuestions.length - 1 ? 'Siguiente pregunta' : 'Ver resultado'}
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </motion.div>
+            )}
+            <div className="flex items-center justify-center gap-4 mt-4 text-xs text-muted-foreground">
+              <span>Correctas: {examAnswers.filter(Boolean).length}</span>
+              <span>Incorrectas: {examAnswers.filter(a => !a).length}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -378,8 +492,13 @@ export default function FlashcardsPage() {
 
           {/* Study button */}
           {dueCards.length > 0 && (
-            <Button size="lg" className="w-full mb-4 gap-2" onClick={() => { setStudyMode(true); setCurrentIndex(0); setFlipped(false); setStudyComplete(false) }}>
+            <Button size="lg" className="w-full mb-2 gap-2" onClick={() => { setStudyMode(true); setCurrentIndex(0); setFlipped(false); setStudyComplete(false) }}>
               <BookOpen className="h-5 w-5" /> Estudiar ({dueCards.length} tarjetas)
+            </Button>
+          )}
+          {cards.length >= 2 && (
+            <Button size="lg" variant="outline" className="w-full mb-4 gap-2" onClick={startExam}>
+              <ClipboardCheck className="h-5 w-5" /> Modo Examen ({cards.length} preguntas)
             </Button>
           )}
 

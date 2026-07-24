@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Plus, Trash2, ExternalLink, FolderKanban, GitBranch,
-  Circle
+  Circle, LayoutTemplate
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,6 +20,19 @@ import type { Project } from '@/types'
 
 const STATUS_OPTIONS = ['activo', 'en pausa', 'completado', 'archivado']
 
+const TEMPLATES = [
+  { id: 'web', name: 'Desarrollo Web', desc: 'Proyecto de desarrollo web fullstack', color: '#3b82f6', tech: 'HTML, CSS, JavaScript',
+    tasks: ['Configurar entorno de desarrollo', 'Diseñar mockups/prototipos', 'Crear estructura del proyecto', 'Desarrollar frontend', 'Desarrollar backend/API', 'Integrar base de datos', 'Tests y QA', 'Despliegue y configuración'] },
+  { id: 'tesis', name: 'TESIS / TFG', desc: 'Proyecto de investigación y tesis', color: '#8b5cf6', tech: 'Investigación, LaTeX/Word',
+    tasks: ['Elegir tema y alcance', 'Revisión bibliográfica', 'Definir metodología', 'Redactar anteproyecto', 'Recopilar datos/resultados', 'Análisis de resultados', 'Redacción del documento final', 'Preparar presentación', 'Revisión y correcciones'] },
+  { id: 'curso', name: 'Curso Online', desc: 'Curso o certificación en tecnología', color: '#22c55e', tech: 'Aprendizaje',
+    tasks: ['Investigar el curso/certificación', 'Crear plan de estudio', 'Estudiar módulo 1', 'Práctica módulo 1', 'Estudiar módulo 2', 'Práctica módulo 2', 'Examen de simulacro', 'Examen final'] },
+  { id: 'movil', name: 'App Móvil', desc: 'Desarrollo de aplicación móvil', color: '#f97316', tech: 'React Native, Flutter',
+    tasks: ['Definir features y alcance', 'Configurar entorno (React Native/Flutter)', 'Diseñar UI/UX', 'Desarrollar pantallas principales', 'Integrar APIs/servicios', 'Testing en dispositivos', 'Publicar en App Store/Play Store'] },
+  { id: 'data', name: 'Proyecto de Datos', desc: 'Análisis de datos / Machine Learning', color: '#06b6d4', tech: 'Python, pandas, scikit-learn',
+    tasks: ['Definir pregunta/hipótesis', 'Recopilar datos', 'Limpieza de datos', 'Análisis exploratorio (EDA)', 'Feature engineering', 'Entrenar modelos', 'Evaluar y comparar modelos', 'Documentar hallazgos'] },
+]
+
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [open, setOpen] = useState(false)
@@ -30,6 +43,7 @@ export default function ProjectsPage() {
   const [repoUrl, setRepoUrl] = useState('')
   const [color, setColor] = useState('#6366f1')
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [showTemplates, setShowTemplates] = useState(false)
 
   useEffect(() => { loadProjects() }, [])
 
@@ -62,6 +76,24 @@ export default function ProjectsPage() {
     loadProjects()
   }
 
+  async function createFromTemplate(templateId: string) {
+    if (!window.electronAPI) return
+    const template = TEMPLATES.find(t => t.id === templateId)
+    if (!template) return
+    const project = await safeIpc<any>('createProject', {
+      name: template.name, description: template.desc, status: 'activo',
+      tech_stack: template.tech, repo_url: '', color: template.color,
+    })
+    if (project) {
+      for (const taskTitle of template.tasks) {
+        await window.electronAPI.createTask({ title: taskTitle, description: '', priority: 'media', project_id: project.id } as any)
+      }
+      toast({ title: 'Proyecto creado desde plantilla', description: `${template.name} con ${template.tasks.length} tareas` })
+    }
+    setShowTemplates(false)
+    loadProjects()
+  }
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -71,7 +103,29 @@ export default function ProjectsPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Organiza tus proyectos de programación</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex items-center gap-2">
+          <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
+            <DialogTrigger asChild>
+              <Button variant="outline"><LayoutTemplate className="h-4 w-4 mr-1" /> Plantilla</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Crear desde plantilla</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                {TEMPLATES.map(t => (
+                  <button key={t.id} onClick={() => createFromTemplate(t.id)}
+                    className="w-full text-left p-3 rounded-lg border hover:bg-accent/50 transition-colors">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Circle className="h-3 w-3" style={{ fill: t.color, color: t.color }} />
+                      <span className="font-medium text-sm">{t.name}</span>
+                      <Badge variant="secondary" className="text-[10px] ml-auto">{t.tasks.length} tareas</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{t.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-1" /> Nuevo Proyecto</Button>
           </DialogTrigger>
@@ -115,6 +169,7 @@ export default function ProjectsPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -145,7 +200,7 @@ export default function ProjectsPage() {
                   </div>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => setDeleteId(project.id)}>
+                      <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-8 sm:w-8 sm:opacity-0 sm:group-hover:opacity-100" onClick={() => setDeleteId(project.id)}>
                         <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                       </Button>
                     </TooltipTrigger>
