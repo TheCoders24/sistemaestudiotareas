@@ -43,6 +43,22 @@ const WeeklyReviewPage = lazy(() => import('./components/WeeklyReview/WeeklyRevi
 const HeaderPomodoro = lazy(() => import('./components/HeaderPomodoro/HeaderPomodoro').then(m => ({ default: m.HeaderPomodoro })))
 const CommandPalette = lazy(() => import('./components/CommandPalette/CommandPalette'))
 const WelcomeWizard = lazy(() => import('./components/WelcomeWizard/WelcomeWizard').then(m => ({ default: m.WelcomeWizard })))
+const ReviewDashboard = lazy(() => import('./components/SpacedRepetition/ReviewDashboard'))
+const QuickCapture = lazy(() => import('./components/QuickCapture/QuickCapture'))
+const TaskCalendarView = lazy(() => import('./components/TaskViews/TaskCalendarView'))
+const TaskTimelineView = lazy(() => import('./components/TaskViews/TaskTimelineView'))
+const TaskTableView = lazy(() => import('./components/TaskViews/TaskTableView'))
+const EnergyPlanning = lazy(() => import('./components/EnergyPlanning/EnergyPlanning'))
+const SmartReminders = lazy(() => import('./components/SmartReminders/SmartReminders'))
+const SocialPage = lazy(() => import('./components/Social/SocialPage'))
+const AvatarPet = lazy(() => import('./components/Gamification/AvatarPet'))
+const AchievementShop = lazy(() => import('./components/Gamification/AchievementShop'))
+const SubjectStreaks = lazy(() => import('./components/Gamification/SubjectStreaks'))
+const WebsiteBlocker = lazy(() => import('./components/FocusMode/WebsiteBlocker'))
+const DistractionStats = lazy(() => import('./components/FocusMode/DistractionStats'))
+const CloudSync = lazy(() => import('./components/Sync/CloudSync'))
+const WeeklyPDFReport = lazy(() => import('./components/Reports/WeeklyPDFReport'))
+const CalendarImport = lazy(() => import('./components/CalendarImport/CalendarImport'))
 
 function AppInner() {
   const {
@@ -67,6 +83,8 @@ function AppInner() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [welcomeOpen, setWelcomeOpen] = useState(firstRun)
   const { soundEnabled, playSound, createConfetti } = useSound()
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
+  const [taskViewMode, setTaskViewMode] = useState<'list' | 'calendar' | 'timeline' | 'table'>('list')
 
   useEffect(() => {
     (window as any).__confirmDelete = (type: string, id: number, title: string) => setConfirmDelete({ type, id, title })
@@ -198,6 +216,7 @@ function AppInner() {
       else if (combo === 'Ctrl+K') { e.preventDefault(); setCommandPaletteOpen(true) }
       else if (combo === 'Ctrl+F') { e.preventDefault(); setSearchOpen(true) }
       else if (combo === 'Ctrl+Shift+F') { e.preventDefault(); setFocusMode(true) }
+      else if (combo === 'Ctrl+Space') { e.preventDefault(); setQuickCaptureOpen(true) }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
@@ -345,6 +364,20 @@ function AppInner() {
                 {activeTab === 'metas' && <ErrorBoundary name="Metas"><Goals /></ErrorBoundary>}
                 {activeTab === 'reporte' && <ErrorBoundary name="Reporte"><WeeklyReviewPage /></ErrorBoundary>}
                 {activeTab === 'papelera' && <ErrorBoundary name="Papelera"><TrashPage /></ErrorBoundary>}
+                {activeTab === 'repaso' && <ErrorBoundary name="Repaso"><ReviewDashboard /></ErrorBoundary>}
+                {activeTab === 'tareas' && taskViewMode === 'calendar' && <ErrorBoundary name="Calendario Tareas"><TaskCalendarView /></ErrorBoundary>}
+                {activeTab === 'tareas' && taskViewMode === 'timeline' && <ErrorBoundary name="Timeline Tareas"><TaskTimelineView /></ErrorBoundary>}
+                {activeTab === 'tareas' && taskViewMode === 'table' && <ErrorBoundary name="Tabla Tareas"><TaskTableView /></ErrorBoundary>}
+                {activeTab === 'energia' && <ErrorBoundary name="Energía"><EnergyPlanning /></ErrorBoundary>}
+                {activeTab === 'recordatorios' && <ErrorBoundary name="Recordatorios"><SmartReminders /></ErrorBoundary>}
+                {activeTab === 'social' && <ErrorBoundary name="Social"><SocialPage /></ErrorBoundary>}
+                {activeTab === 'tienda' && <ErrorBoundary name="Tienda"><AchievementShop /></ErrorBoundary>}
+                {activeTab === 'rachas-materias' && <ErrorBoundary name="Rachas"><SubjectStreaks /></ErrorBoundary>}
+                {activeTab === 'bloqueador' && <ErrorBoundary name="Bloqueador"><WebsiteBlocker /></ErrorBoundary>}
+                {activeTab === 'distracciones' && <ErrorBoundary name="Distracciones"><DistractionStats /></ErrorBoundary>}
+                {activeTab === 'sync' && <ErrorBoundary name="Sync"><CloudSync /></ErrorBoundary>}
+                {activeTab === 'informe' && <ErrorBoundary name="Informe"><WeeklyPDFReport /></ErrorBoundary>}
+                {activeTab === 'importar-cal' && <ErrorBoundary name="Importar Cal"><CalendarImport /></ErrorBoundary>}
               </Suspense>
             </div>
           </main>
@@ -353,6 +386,14 @@ function AppInner() {
         <Toaster />
 
         <UndoToast />
+
+        <Suspense fallback={null}>
+          <QuickCapture open={quickCaptureOpen} onOpenChange={setQuickCaptureOpen} />
+        </Suspense>
+
+        <Suspense fallback={null}>
+          <AvatarPet />
+        </Suspense>
 
         <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
           <DialogContent className="sm:max-w-md">

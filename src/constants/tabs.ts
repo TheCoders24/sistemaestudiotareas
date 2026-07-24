@@ -1,4 +1,4 @@
-import { Sparkles, Clock, LayoutDashboard, CheckSquare, FolderKanban, NotebookPen, CalendarDays, Code2, Activity, Trophy, Swords, BookOpen, BarChart3, StickyNote, Target, Trash2 } from 'lucide-react'
+import { Sparkles, Clock, LayoutDashboard, CheckSquare, FolderKanban, NotebookPen, CalendarDays, Code2, Activity, Trophy, Swords, BookOpen, BarChart3, StickyNote, Target, Trash2, Brain, Battery, BellRing, Users, ShoppingBag, Flame, Shield, Eye, RefreshCw, FileText, CalendarPlus } from 'lucide-react'
 
 export const TABS = [
   { id: 'inicio', label: 'Inicio', icon: Sparkles },
@@ -18,6 +18,17 @@ export const TABS = [
   { id: 'metas', label: 'Metas', icon: Target },
   { id: 'reporte', label: 'Reporte', icon: BarChart3 },
   { id: 'papelera', label: 'Papelera', icon: Trash2 },
+  { id: 'repaso', label: 'Repaso Inteligente', icon: Brain },
+  { id: 'energia', label: 'Energía', icon: Battery },
+  { id: 'recordatorios', label: 'Recordatorios', icon: BellRing },
+  { id: 'social', label: 'Social', icon: Users },
+  { id: 'tienda', label: 'Tienda', icon: ShoppingBag },
+  { id: 'rachas-materias', label: 'Rachas por Materia', icon: Flame },
+  { id: 'bloqueador', label: 'Bloqueador Web', icon: Shield },
+  { id: 'distracciones', label: 'Distracciones', icon: Eye },
+  { id: 'sync', label: 'Sincronización', icon: RefreshCw },
+  { id: 'informe', label: 'Informe Semanal', icon: FileText },
+  { id: 'importar-cal', label: 'Importar Calendario', icon: CalendarPlus },
 ]
 
 export const KEYBOARD_SHORTCUTS: Record<string, string> = {
@@ -26,4 +37,8 @@ export const KEYBOARD_SHORTCUTS: Record<string, string> = {
   snippets: 'Ctrl+Shift+S', habitos: 'Ctrl+H', logros: 'Ctrl+L',
   desafios: 'Ctrl+Shift+D', mapa: 'Ctrl+M', stats: 'Ctrl+E',
   notas: 'Ctrl+N', metas: 'Ctrl+G', reporte: 'Ctrl+Shift+R', papelera: 'Ctrl+Shift+T',
+  repaso: 'Ctrl+Shift+Q', energia: 'Ctrl+Shift+B', recordatorios: 'Ctrl+Shift+N',
+  social: 'Ctrl+Shift+U', tienda: 'Ctrl+Shift+I', 'rachas-materias': 'Ctrl+Shift+F',
+  bloqueador: 'Ctrl+Shift+Z', distracciones: 'Ctrl+Shift+E', sync: 'Ctrl+Shift+W',
+  informe: 'Ctrl+Shift+O', 'importar-cal': 'Ctrl+Shift+A',
 }

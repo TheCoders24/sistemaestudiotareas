@@ -360,6 +360,11 @@ declare global {
       reviewFlashcard: (data: { id: number; ease: number }) => Promise<Flashcard>
       getFlashcardStats: (deckId: number) => Promise<{ total: number; due: number; reviewed: number }>
       getRetentionStats: () => Promise<{ total: number; easy: number; hard: number; retentionRate: number }>
+      getFlashcardReviewStats: () => Promise<{ totalDue: number; reviewedToday: number; totalCards: number; retention: number; streak: number }>
+      getUpcomingFlashcardReviews: () => Promise<{ date: string; count: number; label: string }[]>
+      updateFlashcardStreak: (data: { studied: boolean }) => Promise<{ streak: number }>
+      getSubjectStreaks: () => Promise<{ id: number; name: string; color: string; current: number; max: number; heatmap: { date: string; count: number }[] }[]>
+      importICSEvents: (events: { title: string; description: string; startDate: string }[]) => Promise<{ id: number; title: string }[]>
       checkForUpdates?: () => Promise<void>
       installUpdate?: () => Promise<void>
       onUpdateStatus?: (callback: (data: { status: string; percent?: number }) => void) => void

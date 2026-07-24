@@ -943,6 +943,98 @@ function registerIpcHandlers() {
     return { total, easy, hard, retentionRate }
   })
 
+  ipcMain.handle('db:getFlashcardReviewStats', () => {
+    const today = new Date().toISOString().split('T')[0]
+    const totalDue = db.prepare('SELECT COUNT(*) as count FROM flashcards WHERE next_review <= datetime("now")').get().count
+    const reviewedToday = db.prepare(`SELECT COUNT(*) as count FROM flashcards WHERE date(next_review) <= date("now") AND date(next_review) >= date("${today}", "-1 day") AND repetitions > 0`).get().count
+    const totalCards = db.prepare('SELECT COUNT(*) as count FROM flashcards').get().count
+    const retention = totalCards > 0 ? Math.round((reviewedToday / Math.max(totalCards, 1)) * 100) : 0
+    const streakRow = db.prepare(`SELECT value FROM settings WHERE key = 'flashcard_streak'`).get()
+    const streak = streakRow ? parseInt(streakRow.value) : 0
+    return { totalDue, reviewedToday, totalCards, retention, streak }
+  })
+
+  ipcMain.handle('db:getUpcomingFlashcardReviews', () => {
+    const days = []
+    for (let i = 0; i < 7; i++) {
+      const date = new Date()
+      date.setDate(date.getDate() + i)
+      const dateStr = date.toISOString().split('T')[0]
+      const count = db.prepare(`SELECT COUNT(*) as count FROM flashcards WHERE date(next_review) = date("${dateStr}")`).get().count
+      days.push({ date: dateStr, count, label: date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' }) })
+    }
+    return days
+  })
+
+  ipcMain.handle('db:updateFlashcardStreak', (_, { studied }) => {
+    const row = db.prepare(`SELECT value FROM settings WHERE key = 'flashcard_streak'`).get()
+    let streak = row ? parseInt(row.value) : 0
+    const lastDateRow = db.prepare(`SELECT value FROM settings WHERE key = 'flashcard_streak_date'`).get()
+    const lastDate = lastDateRow ? lastDateRow.value : null
+    const today = new Date().toISOString().split('T')[0]
+    if (studied) {
+      if (lastDate === today) return { streak }
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const yesterdayStr = yesterday.toISOString().split('T')[0]
+      if (lastDate === yesterdayStr) {
+        streak += 1
+      } else {
+        streak = 1
+      }
+      db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES ('flashcard_streak', '${streak}')`).run()
+      db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES ('flashcard_streak_date', '${today}')`).run()
+    }
+    return { streak }
+  })
+
+  ipcMain.handle('db:getSubjectStreaks', () => {
+    const projects = db.prepare('SELECT id, name, color FROM projects WHERE deleted = 0').all()
+    const streaks = projects.map(p => {
+      const sessions = db.prepare(`SELECT date(started_at) as day FROM pomodoro_sessions WHERE project_id = ? ORDER BY day DESC`, p.id).all()
+      let current = 0, max = 0, temp = 0
+      const days = [...new Set(sessions.map(s => s.day))].sort().reverse()
+      const today = new Date().toISOString().split('T')[0]
+      let checkDate = new Date()
+      for (const day of days) {
+        const checkStr = checkDate.toISOString().split('T')[0]
+        if (day === checkStr) { temp++; checkDate.setDate(checkDate.getDate() - 1) }
+        else break
+      }
+      current = temp
+      temp = 0
+      for (let i = 0; i < days.length; i++) {
+        if (i === 0) { temp = 1 } else {
+          const prev = new Date(days[i - 1])
+          const curr = new Date(days[i])
+          const diff = (prev - curr) / (1000 * 60 * 60 * 24)
+          if (diff === 1) temp++
+          else { max = Math.max(max, temp); temp = 1 }
+        }
+      }
+      max = Math.max(max, temp)
+      const heatmap = []
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i)
+        const ds = d.toISOString().split('T')[0]
+        const count = sessions.filter(s => s.day === ds).length
+        heatmap.push({ date: ds, count })
+      }
+      return { ...p, current, max, heatmap }
+    })
+    return streaks
+  })
+
+  ipcMain.handle('db:importICSEvents', (_, { events }) => {
+    const results = []
+    for (const evt of events) {
+      const task = { title: evt.title, description: evt.description || '', priority: 'media', due_date: evt.startDate, repeat: null }
+      const result = db.prepare('INSERT INTO tasks (title, description, priority, due_date, repeat) VALUES (?, ?, ?, ?, ?)').run(task.title, task.description, task.priority, task.due_date, task.repeat)
+      results.push({ id: result.lastInsertRowid, title: evt.title })
+    }
+    return results
+  })
+
   // Weekly Report
   ipcMain.handle('db:getWeeklyReport', () => {
     const today = new Date().toISOString().split('T')[0]

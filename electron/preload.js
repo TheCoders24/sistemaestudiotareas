@@ -151,6 +151,11 @@ moveStudyTopic: (id, direction) => ipcRenderer.invoke('db:moveStudyTopic', id, d
   reviewFlashcard: (id, ease) => ipcRenderer.invoke('db:reviewFlashcard', { id, ease }),
   getFlashcardStats: (deckId) => ipcRenderer.invoke('db:getFlashcardStats', deckId),
   getRetentionStats: () => ipcRenderer.invoke('db:getRetentionStats'),
+  getFlashcardReviewStats: () => ipcRenderer.invoke('db:getFlashcardReviewStats'),
+  getUpcomingFlashcardReviews: () => ipcRenderer.invoke('db:getUpcomingFlashcardReviews'),
+  updateFlashcardStreak: (data) => ipcRenderer.invoke('db:updateFlashcardStreak', data),
+  getSubjectStreaks: () => ipcRenderer.invoke('db:getSubjectStreaks'),
+  importICSEvents: (events) => ipcRenderer.invoke('db:importICSEvents', events),
 
   // Updater
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
