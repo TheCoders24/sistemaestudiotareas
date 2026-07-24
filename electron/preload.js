@@ -157,6 +157,16 @@ moveStudyTopic: (id, direction) => ipcRenderer.invoke('db:moveStudyTopic', id, d
   getSubjectStreaks: () => ipcRenderer.invoke('db:getSubjectStreaks'),
   importICSEvents: (events) => ipcRenderer.invoke('db:importICSEvents', events),
 
+  // WiFi Sync
+  startWifiSync: () => ipcRenderer.invoke('wifi-sync:start'),
+  stopWifiSync: () => ipcRenderer.invoke('wifi-sync:stop'),
+  discoverWifiSync: () => ipcRenderer.invoke('wifi-sync:discover'),
+  connectWifiSync: (ip) => ipcRenderer.invoke('wifi-sync:connect', { ip }),
+  pullWifiSync: (ip) => ipcRenderer.invoke('wifi-sync:pull', { ip }),
+  pushWifiSync: (ip) => ipcRenderer.invoke('wifi-sync:push', { ip }),
+  onWifiSyncDevice: (callback) => ipcRenderer.on('wifi-sync:device-found', (_, data) => callback(data)),
+  restoreFromJSON: (data) => ipcRenderer.invoke('db:restoreFromJSON', data),
+
   // Updater
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),

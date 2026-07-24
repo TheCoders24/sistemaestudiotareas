@@ -365,6 +365,14 @@ declare global {
       updateFlashcardStreak: (data: { studied: boolean }) => Promise<{ streak: number }>
       getSubjectStreaks: () => Promise<{ id: number; name: string; color: string; current: number; max: number; heatmap: { date: string; count: number }[] }[]>
       importICSEvents: (events: { title: string; description: string; startDate: string }[]) => Promise<{ id: number; title: string }[]>
+      startWifiSync: () => Promise<{ ok: boolean; port: number }>
+      stopWifiSync: () => Promise<{ ok: boolean }>
+      discoverWifiSync: () => Promise<{ ip: string; name: string }[]>
+      connectWifiSync: (ip: string) => Promise<{ name: string; app: string; version: string }>
+      pullWifiSync: (ip: string) => Promise<{ ok: boolean }>
+      pushWifiSync: (ip: string) => Promise<{ ok: boolean }>
+      onWifiSyncDevice?: (callback: (data: { name: string; ip: string; port: number }) => void) => void
+      restoreFromJSON: (data: any) => Promise<boolean>
       checkForUpdates?: () => Promise<void>
       installUpdate?: () => Promise<void>
       onUpdateStatus?: (callback: (data: { status: string; percent?: number }) => void) => void
