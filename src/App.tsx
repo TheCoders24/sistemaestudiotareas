@@ -240,7 +240,8 @@ function AppInner() {
   }, [soundEnabled, playSound, createConfetti])
 
   async function handleQuickAdd() {
-    if (!quickAddTitle.trim() || !window.electronAPI) return
+    if (!quickAddTitle.trim()) return
+    if (!window.electronAPI) { toast({ title: 'Error', description: 'API no disponible', variant: 'destructive' }); return }
     try {
       await window.electronAPI.createTask({ title: quickAddTitle, description: '', priority: 'media', repeat: null } as any)
       setQuickAddTitle('')

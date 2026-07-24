@@ -67,6 +67,11 @@ export default function TaskList() {
   const [sortBy, setSortBy] = useState<'position' | 'priority' | 'due_date' | 'title'>('position')
 
   useEffect(() => { loadTasks(); loadProjects() }, [])
+  useEffect(() => {
+    const handler = () => setShowForm(true)
+    window.addEventListener('open-task-form', handler)
+    return () => window.removeEventListener('open-task-form', handler)
+  }, [])
 
   const taskCounts = useMemo(() => {
     let pending = 0, done = 0

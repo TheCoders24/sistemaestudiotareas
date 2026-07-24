@@ -160,7 +160,7 @@ export default function Dashboard() {
                 <span className="text-sm font-medium">Acciones Rápidas</span>
               </div>
               <div className="grid grid-cols-1 gap-2">
-                <button onClick={() => window.electronAPI && (window as any).__quickAdd?.('task')}
+                <button onClick={() => { (window as any).__setActiveTab?.('tareas'); setTimeout(() => window.dispatchEvent(new CustomEvent('open-task-form')), 100) }}
                   className="flex items-center gap-2 text-xs p-2.5 rounded-lg bg-accent/50 hover:bg-accent transition-colors text-left">
                   <Plus className="h-3.5 w-3.5 text-green-500" />
                   <span>Nueva tarea</span>
