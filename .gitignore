@@ -41,4 +41,14 @@ release_new/
 
 # Empty dirs (embedded git repos)
 sistemadeestudio/
-sistemaestudiotareas/
+
+# JDK installations (too large for GitHub)
+jdk17/
+jdk21/
+
+# Android SDK (too large for GitHub)
+android-sdk/
+
+# Mobile and PWA sister projects
+sistemaestudiotareas-mobile/
+sistemaestudiotareas-pwa/
