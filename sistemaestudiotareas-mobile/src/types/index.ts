@@ -359,6 +359,17 @@ declare global {
       reviewFlashcard: (data: { id: number; ease: number }) => Promise<Flashcard>
       getFlashcardStats: (deckId: number) => Promise<{ total: number; due: number; reviewed: number }>
       getRetentionStats: () => Promise<{ total: number; easy: number; hard: number; retentionRate: number }>
+
+      // Spaced Repetition (Review Dashboard)
+      getFlashcardReviewStats: () => Promise<{ totalDue: number; reviewedToday: number; totalCards: number; retention: number; streak: number }>
+      getUpcomingFlashcardReviews: () => Promise<{ date: string; count: number; label: string }[]>
+      updateFlashcardStreak: () => Promise<{ current: number; max: number }>
+
+      // Subject Streaks
+      getSubjectStreaks: () => Promise<{ project: any; currentStreak: number; bestStreak: number; heatmap: { date: string; minutes: number }[] }[]>
+
+      // Restore from JSON (CloudSync)
+      restoreFromJSON: (data: any) => Promise<boolean>
     }
     __confirmDelete?: (type: string, id: number, title: string) => void
     __exitFocusMode?: () => void

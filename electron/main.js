@@ -1417,3 +1417,4 @@ ipcMain.handle('db:restoreFromJSON', (_, jsonData) => {
   tx()
   return true
 })
+}

@@ -15,67 +15,80 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npx vitest run
-      - run: npm run typecheck
-      - run: npm run lint
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npx vitest run
+      - name: Type check
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
 
-  build-win:
+  build-all-platforms:
     needs: test
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            target: win portable
+            artifact-name: portable-exe
+            artifact-pattern: release/*.exe
+          - os: macos-latest
+            target: mac
+            artifact-name: mac-dmg
+            artifact-pattern: release/*.dmg
+          - os: ubuntu-latest
+            target: linux
+            artifact-name: linux-appimage
+            artifact-pattern: release/*.AppImage
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run build:vite
-      - run: npx electron-builder --win portable
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Vite application
+        run: npm run build:vite
+      - name: Build Electron app
+        run: npx electron-builder --${{ matrix.target }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
+      - name: Verify output files
+        run: |
+          echo "Listing files in release directory:"
+          ls -la release/
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: portable-exe
-          path: release/*.exe
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-pattern }}
 
-  build-mac:
-    needs: test
-    runs-on: macos-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build:vite
-      - run: npx electron-builder --mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-dmg
-          path: release/*.dmg
-
-  build-linux:
-    needs: test
+  deploy-github-releases:
+    needs: build-all-platforms
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+      - name: Display structure of downloaded artifacts
+        run: ls -R
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build:vite
-      - run: npx electron-builder --linux
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-appimage
-          path: release/*.AppImage
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          draft: false
+          prerelease: false
+          files: |
+            portable-exe/*
+            mac-dmg/*
+            linux-appimage/*
