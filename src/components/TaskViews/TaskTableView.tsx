@@ -50,7 +50,7 @@ export default function TaskTableView() {
 
   async function loadTasks() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getTasks()
+    const data = await window.electronAPI.tasks.list()
     setTasks(data.filter((task: any) => !task.deleted))
     setLoading(false)
   }
@@ -58,7 +58,7 @@ export default function TaskTableView() {
   async function loadProjects() {
     if (!window.electronAPI) return
     try {
-      const data = await window.electronAPI.getProjects()
+      const data = await window.electronAPI.projects.list()
       setProjects(data || [])
     } catch {}
   }
@@ -135,7 +135,7 @@ export default function TaskTableView() {
   async function handleBulkDelete() {
     if (!window.electronAPI || selectedIds.size === 0) return
     for (const id of selectedIds) {
-      await window.electronAPI.softDeleteItem('task', id)
+      await window.electronAPI.trash.softDelete('task', id)
     }
     toast({ title: `${selectedIds.size} tarea(s) eliminada(s)` })
     setSelectedIds(new Set())
@@ -147,7 +147,7 @@ export default function TaskTableView() {
     for (const id of selectedIds) {
       const task = tasks.find(t => t.id === id)
       if (task && !task.completed) {
-        await window.electronAPI.toggleTask(id)
+        await window.electronAPI.tasks.toggle(id)
       }
     }
     toast({ title: `${selectedIds.size} tarea(s) completada(s)` })
@@ -158,7 +158,7 @@ export default function TaskTableView() {
   async function handleBulkPriority(priority: string) {
     if (!window.electronAPI || selectedIds.size === 0) return
     for (const id of selectedIds) {
-      await window.electronAPI.updateTask(id, { priority })
+      await window.electronAPI.tasks.update(id, { priority })
     }
     toast({ title: `Prioridad cambiada a "${priority}"` })
     setSelectedIds(new Set())
@@ -174,7 +174,7 @@ export default function TaskTableView() {
     if (!editingCell || !window.electronAPI) return
     const field = editingCell.field
     const value = field === 'due_date' ? (editValue || null) : editValue
-    await window.electronAPI.updateTask(editingCell.taskId, { [field]: value })
+    await window.electronAPI.tasks.update(editingCell.taskId, { [field]: value })
     setEditingCell(null)
     loadTasks()
   }
@@ -385,7 +385,7 @@ export default function TaskTableView() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
                               if (window.electronAPI) {
-                                await window.electronAPI.toggleTask(task.id)
+                                await window.electronAPI.tasks.toggle(task.id)
                                 loadTasks()
                               }
                             }}>
@@ -393,7 +393,7 @@ export default function TaskTableView() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
                               if (window.electronAPI) {
-                                await window.electronAPI.softDeleteItem('task', task.id)
+                                await window.electronAPI.trash.softDelete('task', task.id)
                                 loadTasks()
                                 toast({ title: 'Tarea eliminada' })
                               }

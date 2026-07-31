@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Brain, Plus, Trash2, BookOpen, RotateCcw, ThumbsUp, ThumbsDown,
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Progress } from '@/components/ui/progress'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -18,7 +19,7 @@ import { toast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
 import { InfoBox } from '@/components/ui/info-box'
 import { useTranslate } from '@/lib/translate'
-interface FlashcardDeck { id: number; name: string; description: string; card_count: number; created_at: string }
+interface FlashcardDeck { id: number; name: string; description: string; card_count: number; created_at: string; course_id?: number | null }
 interface Flashcard { id: number; deck_id: number; front: string; back: string; hint: string; difficulty: number; ease_factor: number; ease: number; repetitions: number; interval: number; reviews: number; next_review: string; created_at: string }
 
 export default function FlashcardsPage() {
@@ -52,6 +53,9 @@ export default function FlashcardsPage() {
   const [examSelected, setExamSelected] = useState<number | null>(null)
   const [examAnswers, setExamAnswers] = useState<boolean[]>([])
   const [examComplete, setExamComplete] = useState(false)
+  const [courses, setCourses] = useState<any[]>([])
+  const [selectedCourse, setSelectedCourse] = useState<string>('')
+  const [formCourse, setFormCourse] = useState('')
 
   useEffect(() => { loadDecks() }, [])
 
@@ -71,16 +75,18 @@ export default function FlashcardsPage() {
   }, [studyMode, currentIndex, flipped, dueCards.length])
 
   async function loadDecks() {
-    const d = await ((window.electronAPI as any).getFlashcardDecks() as Promise<FlashcardDeck[]>)
+    const d = await (window.electronAPI.flashcards.decks.list() as Promise<FlashcardDeck[]>)
     if (d) {
       setDecks(d)
       let totalDue = 0
       for (const deck of d) {
-        const s = await ((window.electronAPI as any).getFlashcardStats(deck.id) as Promise<{ total: number; due: number; reviewed: number } | null>)
+        const s = await (window.electronAPI.flashcards.stats.deck(deck.id) as Promise<{ total: number; due: number; reviewed: number } | null>)
         if (s) totalDue += s.due
       }
       setAllDueCount(totalDue)
     }
+    const c = await ((window.electronAPI as any).courses.list() as Promise<any[]>).catch(() => [])
+    if (c) setCourses(c)
   }
 
   async function selectDeck(id: number) {
@@ -90,10 +96,10 @@ export default function FlashcardsPage() {
     setFlipped(false)
     setStudyComplete(false)
     const [c, du, s, r] = await Promise.all([
-      (window.electronAPI as any).getFlashcards(id) as Promise<Flashcard[]>,
-      (window.electronAPI as any).getDueFlashcards(id) as Promise<Flashcard[]>,
-      (window.electronAPI as any).getFlashcardStats(id) as Promise<any>,
-      (window.electronAPI as any).getRetentionStats(id) as Promise<any>,
+      window.electronAPI.flashcards.cards.list(id) as Promise<Flashcard[]>,
+      window.electronAPI.flashcards.cards.getDue(id) as Promise<Flashcard[]>,
+      window.electronAPI.flashcards.stats.deck(id) as Promise<any>,
+      window.electronAPI.flashcards.stats.retention() as Promise<any>,
     ])
     if (c) setCards(c)
     if (du) setDueCards(du)
@@ -104,14 +110,14 @@ export default function FlashcardsPage() {
   async function createDeck() {
     const name = newDeckName.trim()
     if (!name) return
-    await (window.electronAPI as any).createFlashcardDeck({ name, description: newDeckDesc })
-    setNewDeckName(''); setNewDeckDesc(''); setShowAddDeck(false)
+    await window.electronAPI.flashcards.decks.create({ name, description: newDeckDesc, course_id: formCourse ? Number(formCourse) : null })
+    setNewDeckName(''); setNewDeckDesc(''); setFormCourse(''); setShowAddDeck(false)
     loadDecks()
   }
 
   async function addCard() {
     if (!selectedDeck || !newFront.trim() || !newBack.trim()) return
-    await (window.electronAPI as any).createFlashcard({ deck_id: selectedDeck, front: newFront, back: newBack })
+    await window.electronAPI.flashcards.cards.create({ deck_id: selectedDeck, front: newFront, back: newBack })
     setNewFront(''); setNewBack(''); setShowAddCard(false)
     if (selectedDeck) selectDeck(selectedDeck)
   }
@@ -119,7 +125,7 @@ export default function FlashcardsPage() {
   const handleReview = useCallback(async (rating: number) => {
     if (!dueCards[currentIndex]) return
     const wasLastCard = currentIndex >= dueCards.length - 1
-    await (window.electronAPI as any).reviewFlashcard(dueCards[currentIndex].id, rating)
+    await window.electronAPI.flashcards.cards.review({ id: dueCards[currentIndex].id, ease: rating })
     if (!wasLastCard) {
       setCurrentIndex(i => i + 1)
       setFlipped(false)
@@ -178,7 +184,7 @@ export default function FlashcardsPage() {
     if (count === 0) return
     Promise.all(
       Array.from({ length: count }, (_, i) =>
-        (window.electronAPI as any).createFlashcard({ deck_id: selectedDeck!, front: lines[i], back: backs[i] })
+        window.electronAPI.flashcards.cards.create({ deck_id: selectedDeck!, front: lines[i], back: backs[i] })
       )
     ).then(() => {
       setPreviewFront(''); setPreviewBack(''); setShowPreview(false)
@@ -190,7 +196,7 @@ export default function FlashcardsPage() {
   async function exportDeck(deckId: number) {
     const deck = decks.find(d => d.id === deckId)
     if (!deck) return
-    const c = await ((window.electronAPI as any).getFlashcards(deckId) as Promise<Flashcard[]>)
+    const c = await (window.electronAPI.flashcards.cards.list(deckId) as Promise<Flashcard[]>)
     if (!c) return
     const data = { name: deck.name, description: deck.description, cards: c.map(card => ({ front: card.front, back: card.back })) }
     const json = JSON.stringify(data, null, 2)
@@ -214,10 +220,10 @@ export default function FlashcardsPage() {
         const text = await file.text()
         const data = JSON.parse(text)
         if (!data.cards || !Array.isArray(data.cards)) throw new Error('Formato inválido')
-        const deck = await ((window.electronAPI as any).createFlashcardDeck({ name: data.name || 'Importado', description: data.description || '' }) as Promise<FlashcardDeck>)
+        const deck = await (window.electronAPI.flashcards.decks.create({ name: data.name || 'Importado', description: data.description || '' }) as Promise<FlashcardDeck>)
         if (deck) {
           for (const card of data.cards) {
-            await (window.electronAPI as any).createFlashcard({ deck_id: deck.id, front: card.front, back: card.back })
+            await window.electronAPI.flashcards.cards.create({ deck_id: deck.id, front: card.front, back: card.back })
           }
           loadDecks()
           toast({ title: `Mazo importado: ${data.cards.length} tarjetas` })
@@ -228,6 +234,14 @@ export default function FlashcardsPage() {
     }
     input.click()
   }
+
+  const filteredDecks = useMemo(() => {
+    let result = decks
+    if (selectedCourse) {
+      result = result.filter(d => d.course_id === Number(selectedCourse))
+    }
+    return result
+  }, [decks, selectedCourse])
 
   const currentCard = dueCards[currentIndex]
   const progressPercent = dueCards.length > 0 ? (currentIndex / dueCards.length) * 100 : 0
@@ -432,6 +446,18 @@ export default function FlashcardsPage() {
               <div className="space-y-3">
                 <Input placeholder="Nombre del mazo" value={newDeckName} onChange={(e) => setNewDeckName(e.target.value)} />
                 <Input placeholder="Descripción (opcional)" value={newDeckDesc} onChange={(e) => setNewDeckDesc(e.target.value)} />
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Curso (opcional)</label>
+                  <Select value={formCourse} onValueChange={setFormCourse}>
+                    <SelectTrigger><SelectValue placeholder="Sin curso" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sin curso</SelectItem>
+                      {courses.map((c: any) => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button onClick={createDeck}>Crear</Button>
               </div>
             </DialogContent>
@@ -439,14 +465,30 @@ export default function FlashcardsPage() {
         </div>
       </div>
 
+      {courses.length > 0 && (
+        <div className="mb-4 max-w-[200px]">
+          <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Todos los cursos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos los cursos</SelectItem>
+              {courses.map((c: any) => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* Deck list */}
       {!selectedDeck && decks.length === 0 && (
         <EmptyState icon={Brain} title="Sin mazos" description="Crea tu primer mazo de flashcards para empezar a estudiar" />
       )}
 
-      {!selectedDeck && decks.length > 0 && (
+      {!selectedDeck && filteredDecks.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {decks.map((deck) => {
+          {filteredDecks.map((deck) => {
             return (
               <Card key={deck.id} className="cursor-pointer hover:border-indigo-500/50 transition-colors" onClick={() => selectDeck(deck.id)}>
                 <CardContent className="p-4 flex items-center justify-between">
@@ -554,7 +596,7 @@ export default function FlashcardsPage() {
               onOpenChange={(open) => { if (!open) setDeckToDelete(null) }}
               title="Eliminar mazo"
               description="Se eliminarán todas las tarjetas de este mazo."
-              onConfirm={async () => { if (deckToDelete) { await (window.electronAPI as any).deleteFlashcardDeck(deckToDelete); setDeckToDelete(null); setSelectedDeck(null); loadDecks() } }}
+                    onConfirm={async () => { if (deckToDelete) { await window.electronAPI.flashcards.decks.delete(deckToDelete); setDeckToDelete(null); setSelectedDeck(null); loadDecks() } }}
             />
           </div>
 
@@ -609,7 +651,7 @@ export default function FlashcardsPage() {
                         )}
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={async () => { await (window.electronAPI as any).deleteFlashcard(card.id); selectDeck(selectedDeck) }}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={async () => { await window.electronAPI.flashcards.cards.delete(card.id); selectDeck(selectedDeck) }}>
                       <X className="h-3 w-3" />
                     </Button>
                   </CardContent>

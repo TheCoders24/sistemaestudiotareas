@@ -90,14 +90,14 @@ export default function EnergyPlanning() {
 
   const loadTasks = useCallback(async () => {
     try {
-      const data = await (window as any).electronAPI.getTasks();
+      const data = await (window as any).electronAPI.tasks.list();
       if (data && Array.isArray(data)) setTasks(data);
     } catch { }
   }, []);
 
   const loadSchedule = useCallback(async () => {
     try {
-      const saved = await (window as any).electronAPI.getSetting('energy_schedule');
+      const saved = await (window as any).electronAPI.settings.get('energy_schedule');
       if (saved) setSchedule(JSON.parse(saved));
     } catch { }
   }, []);
@@ -133,7 +133,7 @@ export default function EnergyPlanning() {
       const idx = ENERGY_ORDER.indexOf(current);
       const next = ENERGY_ORDER[(idx + 1) % ENERGY_ORDER.length];
       const updated = { ...prev, [key]: next };
-      (window as any).electronAPI?.setSetting('energy_schedule', JSON.stringify(updated));
+      (window as any).electronAPI?.settings.set('energy_schedule', JSON.stringify(updated));
       return updated;
     });
   };

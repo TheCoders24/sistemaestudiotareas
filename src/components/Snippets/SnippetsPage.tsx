@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Code2, Plus, Copy, Trash2, Search, Check } from 'lucide-react'
+import { Code2, Plus, Copy, Trash2, Search, Check, Play, Loader } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,7 +14,6 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { safeIpc } from '@/lib/ipc'
 import { TagPicker } from '@/components/ui/tag-picker'
 import { TagBadge } from '@/components/ui/tag-badge'
 
@@ -32,20 +31,23 @@ export default function SnippetsPage() {
   const [tagIds, setTagIds] = useState<number[]>([])
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [runningId, setRunningId] = useState<number | null>(null)
+  const [output, setOutput] = useState<Record<number, { stdout: string; stderr: string; exitCode: number } | null>>({})
 
   useEffect(() => { loadSnippets() }, [])
 
   async function loadSnippets() {
-    const data = await safeIpc<any[]>('getSnippets')
+    if (!window.electronAPI) return
+    const data = await window.electronAPI.snippets.list()
     if (data) setSnippets(data)
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim() || !code.trim()) return
-    const snippet = await safeIpc<any>('createSnippet', { title, code, language, description })
-    if (snippet && tagIds.length > 0) {
-      await (window.electronAPI as any).setSnippetTags(snippet.id, tagIds)
+    if (!title.trim() || !code.trim() || !window.electronAPI) return
+    const snippet = await window.electronAPI.snippets.create({ title, code, language, description })
+    if (snippet && tagIds.length > 0 && typeof window.electronAPI.snippets.setTags === 'function') {
+      await window.electronAPI.snippets.setTags(snippet.id, tagIds)
     }
     setTitle(''); setCode(''); setDescription(''); setTagIds([])
     setOpen(false)
@@ -54,7 +56,8 @@ export default function SnippetsPage() {
   }
 
   async function handleDelete(id: number) {
-    await safeIpc('deleteSnippet', id)
+    if (!window.electronAPI) return
+    await window.electronAPI.snippets.delete(id)
     loadSnippets()
     toast({ title: 'Snippet eliminado' })
   }
@@ -64,6 +67,23 @@ export default function SnippetsPage() {
     setCopiedId(id)
     setTimeout(() => setCopiedId(null), 2000)
     toast({ title: 'Copiado al portapapeles' })
+  }
+
+  async function handleRun(id: number) {
+    if (!window.electronAPI) return
+    setRunningId(id)
+    setOutput(prev => ({ ...prev, [id]: null }))
+    try {
+      const result = await window.electronAPI.snippets.execute(id)
+      setOutput(prev => ({ ...prev, [id]: result }))
+      if (result.exitCode !== 0) {
+        toast({ title: 'Error de ejecución', description: result.stderr?.slice(0, 100), variant: 'destructive' })
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: String(err), variant: 'destructive' })
+    } finally {
+      setRunningId(null)
+    }
   }
 
   const filtered = snippets.filter(s => {
@@ -153,6 +173,11 @@ export default function SnippetsPage() {
                     )}
                   </div>
                   <div className="flex gap-1">
+                    {['javascript', 'typescript', 'python', 'bash'].includes(snippet.language) && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleRun(snippet.id)} disabled={runningId === snippet.id}>
+                        {runningId === snippet.id ? <Loader className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopy(snippet.code, snippet.id)}>
                       {copiedId === snippet.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                     </Button>
@@ -180,6 +205,17 @@ export default function SnippetsPage() {
                     {snippet.code}
                   </SyntaxHighlighter>
                 </div>
+                {output[snippet.id] && (
+                  <div className="mt-2 rounded-md bg-black/90 p-3 text-xs font-mono">
+                    {output[snippet.id].stdout && (
+                      <pre className="text-green-400 whitespace-pre-wrap">{output[snippet.id].stdout}</pre>
+                    )}
+                    {output[snippet.id].stderr && (
+                      <pre className="text-red-400 whitespace-pre-wrap">{output[snippet.id].stderr}</pre>
+                    )}
+                    <div className="text-[10px] text-muted-foreground mt-1">Exit code: {output[snippet.id].exitCode}</div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

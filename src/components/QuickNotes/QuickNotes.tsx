@@ -5,11 +5,12 @@ import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import TipTapEditor from '@/components/Notes/TipTapEditor'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from '@/components/ui/use-toast'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ListSkeleton } from '@/components/ui/loading-skeleton'
+import { MarkdownToolbar } from './MarkdownToolbar'
 
 interface Note {
   id: number
@@ -49,7 +50,7 @@ export default function QuickNotes() {
 
   async function loadNotes() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getNotes()
+    const data = await window.electronAPI.notes.list()
     setNotes(data)
     setLoading(false)
   }
@@ -58,7 +59,7 @@ export default function QuickNotes() {
     e.preventDefault()
     if (!newTitle.trim() || !window.electronAPI) return
     try {
-      await window.electronAPI.createNote({ title: newTitle, content: newContent } as any)
+      await window.electronAPI.notes.create({ title: newTitle, content: newContent } as any)
       setNewTitle(''); setNewContent('')
       setShowCreate(false)
       loadNotes()
@@ -71,7 +72,7 @@ export default function QuickNotes() {
   async function handleSave(id: number) {
     if (!window.electronAPI) return
     try {
-      await window.electronAPI.updateNote(id, { title: editTitle, content: editContent } as any)
+      await window.electronAPI.notes.update(id, { title: editTitle, content: editContent } as any)
       setEditingId(null)
       loadNotes()
       toast({ title: 'Nota guardada' })
@@ -83,7 +84,7 @@ export default function QuickNotes() {
   async function handleDelete(id: number) {
     if (!window.electronAPI) return
     try {
-      await window.electronAPI.deleteNote(id)
+      await window.electronAPI.notes.delete(id)
       loadNotes()
     } catch {
       toast({ title: 'Error', description: 'No se pudo eliminar la nota', variant: 'destructive' })
@@ -147,7 +148,8 @@ export default function QuickNotes() {
             <Card>
               <CardContent className="pt-4 space-y-3">
                 <Input ref={inputRef} value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Título" required />
-                <Textarea value={newContent} onChange={e => setNewContent(e.target.value)} placeholder="Contenido (soporta Markdown)..." className="min-h-[100px]" />
+                <MarkdownToolbar value={newContent} onChange={setNewContent} preview={false} onTogglePreview={() => {}} />
+                <TipTapEditor content={newContent} onChange={setNewContent} placeholder="Escribe tu nota..." />
                 <Button type="submit" className="w-full">✓ Guardar Nota</Button>
               </CardContent>
             </Card>
@@ -176,19 +178,17 @@ export default function QuickNotes() {
               <Card className="group h-full">
                 <CardContent className="pt-4">
                   {editingId === note.id ? (
-                    <div className="space-y-2">
-                      <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="text-sm font-medium" />
-                      <div className="flex justify-end">
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditPreview(!editPreview)}>
-                          {editPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </Button>
-                      </div>
+                    <div className="space-y-0">
+                      <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="text-sm font-medium mb-2" />
                       {editPreview ? (
                         <div className="min-h-[120px] p-3 rounded bg-muted/30 prose prose-sm dark:prose-invert max-w-none text-sm">
                           <ReactMarkdown>{editContent}</ReactMarkdown>
                         </div>
                       ) : (
-                        <Textarea value={editContent} onChange={e => setEditContent(e.target.value)} className="min-h-[120px]" />
+                        <>
+                          <MarkdownToolbar value={editContent} onChange={setEditContent} preview={editPreview} onTogglePreview={() => setEditPreview(!editPreview)} />
+                          <TipTapEditor content={editContent} onChange={setEditContent} />
+                        </>
                       )}
                       <div className="flex gap-2">
                         <Button size="sm" onClick={() => handleSave(note.id)}>Guardar</Button>

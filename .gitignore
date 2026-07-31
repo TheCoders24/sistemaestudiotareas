@@ -5,6 +5,8 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+debug*.log
+debug*.out.log
 
 # Optional npm cache directory
 .npm
@@ -52,3 +54,6 @@ android-sdk/
 # Mobile and PWA sister projects
 sistemaestudiotareas-mobile/
 sistemaestudiotareas-pwa/
+
+# CI workflow (blocks push when PAT lacks workflow scope)
+.github/workflows/

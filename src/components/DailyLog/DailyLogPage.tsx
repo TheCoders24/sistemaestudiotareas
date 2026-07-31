@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
 import ReactMarkdown from 'react-markdown'
-import { safeIpc } from '@/lib/ipc'
 import type { DailyLog } from '@/types'
 
 export default function DailyLogPage() {
@@ -24,13 +23,13 @@ export default function DailyLogPage() {
 
   async function loadLogs() {
     if (!window.electronAPI) return
-    const data = await safeIpc<DailyLog[]>('getDailyLogs')
+    const data = await window.electronAPI.dailyLogs.list()
     setLogs(data ?? [])
   }
 
   async function loadLogForDate(date: string) {
     if (!window.electronAPI) return
-    const log = await safeIpc<DailyLog>('getDailyLog', date)
+    const log = await window.electronAPI.dailyLogs.get(date)
     setCurrentLog(log)
     if (log) {
       setContent(log.content)
@@ -49,9 +48,9 @@ export default function DailyLogPage() {
     if (!window.electronAPI) return
     setSaving(true)
     if (currentLog) {
-      await safeIpc('updateDailyLog', currentLog.id, { content, focus, blockers, tomorrow_plan: tomorrowPlan })
+      await window.electronAPI.dailyLogs.update(currentLog.id, { content, focus, blockers, tomorrow_plan: tomorrowPlan })
     } else {
-      await safeIpc('createDailyLog', { date: selectedDate, content, focus, blockers, tomorrow_plan: tomorrowPlan })
+      await window.electronAPI.dailyLogs.create({ date: selectedDate, content, focus, blockers, tomorrow_plan: tomorrowPlan })
     }
     loadLogs()
     loadLogForDate(selectedDate)

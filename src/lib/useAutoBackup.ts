@@ -11,7 +11,7 @@ const BACKUP_KEY = 'auto-backup-config'
 
 async function loadConfig(): Promise<BackupConfig> {
   if (!window.electronAPI) return { enabled: false, interval: 'daily', lastBackup: null }
-  const saved = await window.electronAPI.getSetting(BACKUP_KEY)
+  const saved = await window.electronAPI.settings.get(BACKUP_KEY)
   if (saved) {
     try { return JSON.parse(saved) } catch { /* ignore */ }
   }
@@ -20,7 +20,7 @@ async function loadConfig(): Promise<BackupConfig> {
 
 async function saveConfig(config: BackupConfig) {
   if (!window.electronAPI) return
-  await window.electronAPI.setSetting(BACKUP_KEY, JSON.stringify(config))
+  await window.electronAPI.settings.set(BACKUP_KEY, JSON.stringify(config))
 }
 
 function getIntervalMs(interval: string): number {
@@ -53,8 +53,10 @@ export function useAutoBackup() {
   const doBackup = useCallback(async () => {
     if (!window.electronAPI) return
     try {
-      const data = await window.electronAPI.exportData()
-      const p = await (window.electronAPI as any).saveBackupDialog(data)
+      const data = await window.electronAPI.export.data()
+      const p = typeof (window.electronAPI as any).backup?.saveDialog === 'function'
+        ? await (window.electronAPI as any).backup.saveDialog(data)
+        : null
       if (p) {
         const now = new Date().toISOString()
         setConfig((prev) => ({ ...prev, lastBackup: now }))

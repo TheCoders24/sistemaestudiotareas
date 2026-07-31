@@ -12,7 +12,7 @@ export default function TrashPage() {
 
   const loadTrash = () => {
     if (!window.electronAPI) return
-    window.electronAPI.getTrashItems().then((r: any) => {
+    window.electronAPI.trash.list().then((r: any) => {
       setTasks(r.tasks || [])
       setNotes(r.notes || [])
       setProjects(r.projects || [])
@@ -25,7 +25,7 @@ export default function TrashPage() {
 
   function handleRestore(type: string, id: number) {
     if (window.electronAPI) {
-      window.electronAPI.restoreItem(type, id).then(() => {
+      window.electronAPI.trash.restore(type, id).then(() => {
         toast({ title: 'Elemento restaurado' })
         loadTrash()
       })
@@ -34,7 +34,7 @@ export default function TrashPage() {
 
   function handleDeletePermanent(type: string, id: number) {
     if (window.electronAPI) {
-      window.electronAPI.deleteItemPermanent(type, id).then(() => {
+      window.electronAPI.trash.deletePermanent(type, id).then(() => {
         toast({ title: 'Eliminado permanentemente' })
         loadTrash()
       })
@@ -43,7 +43,7 @@ export default function TrashPage() {
 
   function handleEmptyTrash() {
     if (window.electronAPI) {
-      window.electronAPI.emptyTrash().then(() => {
+      window.electronAPI.trash.empty().then(() => {
         toast({ title: 'Papelera vaciada' })
         loadTrash()
       })

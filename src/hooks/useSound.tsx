@@ -19,7 +19,7 @@ export function SoundProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getSetting('sound_enabled').then(val => {
+      window.electronAPI.settings.get('sound_enabled').then(val => {
         if (val !== null) setSoundEnabledState(val === 'true')
       })
     }
@@ -27,7 +27,7 @@ export function SoundProvider({ children }: { children: ReactNode }) {
 
   const setSoundEnabled = useCallback((v: boolean) => {
     setSoundEnabledState(v)
-    if (window.electronAPI) window.electronAPI.setSetting('sound_enabled', v ? 'true' : 'false')
+    if (window.electronAPI) window.electronAPI.settings.set('sound_enabled', v ? 'true' : 'false')
   }, [])
 
   const playSound = useCallback((type: 'complete' | 'levelup' | 'achievement') => {

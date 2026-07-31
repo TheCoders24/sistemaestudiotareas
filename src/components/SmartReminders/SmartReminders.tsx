@@ -84,14 +84,14 @@ export default function SmartReminders() {
 
   const loadTasks = useCallback(async () => {
     try {
-      const data = await (window as any).electronAPI.getTasks();
+      const data = await (window as any).electronAPI.tasks.list();
       if (data && Array.isArray(data)) setTasks(data);
     } catch { }
   }, []);
 
   const loadConfig = useCallback(async () => {
     try {
-      const saved = await (window as any).electronAPI.getSetting('escalation_config');
+      const saved = await (window as any).electronAPI.settings.get('escalation_config');
       if (saved) setConfig(JSON.parse(saved));
     } catch { }
   }, []);
@@ -124,7 +124,7 @@ export default function SmartReminders() {
   const toggleConfigLevel = (key: keyof EscalationConfig) => {
     setConfig(prev => {
       const updated = { ...prev, [key]: { ...prev[key], enabled: !prev[key].enabled } };
-      (window as any).electronAPI?.setSetting('escalation_config', JSON.stringify(updated));
+      (window as any).electronAPI?.settings.set('escalation_config', JSON.stringify(updated));
       return updated;
     });
   };
@@ -132,7 +132,7 @@ export default function SmartReminders() {
   const updateConfigHours = (key: keyof EscalationConfig, hours: number) => {
     setConfig(prev => {
       const updated = { ...prev, [key]: { ...prev[key], hours } };
-      (window as any).electronAPI?.setSetting('escalation_config', JSON.stringify(updated));
+      (window as any).electronAPI?.settings.set('escalation_config', JSON.stringify(updated));
       return updated;
     });
   };
@@ -140,7 +140,7 @@ export default function SmartReminders() {
   const toggleConfigSound = (key: keyof EscalationConfig) => {
     setConfig(prev => {
       const updated = { ...prev, [key]: { ...prev[key], sound: !prev[key].sound } };
-      (window as any).electronAPI?.setSetting('escalation_config', JSON.stringify(updated));
+      (window as any).electronAPI?.settings.set('escalation_config', JSON.stringify(updated));
       return updated;
     });
   };
@@ -148,7 +148,7 @@ export default function SmartReminders() {
   const handleCreateReminder = async () => {
     if (!selectedTaskId || !reminderDate) return;
     try {
-      await (window as any).electronAPI?.updateTask?.(selectedTaskId, { reminder: reminderDate });
+      await (window as any).electronAPI?.tasks.update(selectedTaskId, { reminder: reminderDate });
       setShowCreate(false);
       setSelectedTaskId(null);
       setReminderDate('');

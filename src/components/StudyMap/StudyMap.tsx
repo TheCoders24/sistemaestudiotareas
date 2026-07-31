@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { BookOpen, Plus, Trash2, ChevronRight, ChevronDown, Search, Link, ArrowUp, ArrowDown, CheckCircle2, RefreshCw, Clock, ChevronsDown, ChevronsUpDown, Paperclip, FileText, File, ExternalLink } from 'lucide-react'
+import { BookOpen, Plus, Trash2, ChevronRight, ChevronDown, Search, Link, ArrowUp, ArrowDown, CheckCircle2, RefreshCw, Clock, ChevronsDown, ChevronsUpDown, Paperclip, FileText, File, ExternalLink, LayoutTemplate, Sparkles, Loader } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -9,9 +9,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { toast } from '@/components/ui/use-toast'
-import { safeIpc } from '@/lib/ipc'
 import { useTranslate } from '@/lib/translate'
 import type { StudyFile } from '@/types'
+import TemplateLibrary from '@/components/Templates/TemplateLibrary'
 
 const LEVELS = [
   { value: 0, label: 'Sin iniciar', color: '#6b7280', bg: '#6b728015' },
@@ -36,6 +36,7 @@ interface Topic {
   order_position: number
   study_level?: number
   study_level_updated_at?: string
+  course_id?: number | null
 }
 
 export default function StudyMap() {
@@ -53,32 +54,39 @@ export default function StudyMap() {
   const [editingResource, setEditingResource] = useState<number | null>(null)
   const [resourceInput, setResourceInput] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+  const [courses, setCourses] = useState<any[]>([])
+  const [selectedCourse, setSelectedCourse] = useState<string>('')
+  const [formCourse, setFormCourse] = useState('')
   const [topicFiles, setTopicFiles] = useState<Record<number, StudyFile[]>>({})
   const [filesPanelTopic, setFilesPanelTopic] = useState<number | null>(null)
   const [uploadingTopic, setUploadingTopic] = useState<number | null>(null)
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [generatingFlashcards, setGeneratingFlashcards] = useState<number | null>(null)
+  const [generatedFlashcards, setGeneratedFlashcards] = useState<Record<number, any[]>>({})
 
   useEffect(() => { loadTopics() }, [])
 
   async function loadTopics() {
     if (!window.electronAPI) { setTopics([]); return }
-    const data = await safeIpc<Topic[]>('getStudyTopics')
+    const data = await window.electronAPI.study.topics.list()
     setTopics(data ?? [])
     const exp: Record<number, boolean> = {}
     ;(data ?? []).forEach((t: Topic) => { exp[t.id] = true })
     setExpanded(exp)
+    const c = await window.electronAPI.courses.list(); if (c) setCourses(c)
     loadStats()
   }
 
   async function loadStats() {
     if (!window.electronAPI) return
-    const s = await safeIpc<{ levels: { study_level: number, count: number }[], total: number }>('getStudyStats')
+    const s = await window.electronAPI.study.stats()
     if (s) setStats(s)
   }
 
   async function handleSetLevel(topicId: number, level: number) {
     if (!window.electronAPI) return
     setExpandingId(topicId)
-    await safeIpc('setStudyLevel', topicId, level)
+    await window.electronAPI.study.topics.setLevel(topicId, level)
     setTopics(prev => prev.map(t => t.id === topicId ? { ...t, study_level: level, study_level_updated_at: new Date().toISOString() } : t))
     loadStats()
     setTimeout(() => setExpandingId(null), 600)
@@ -90,32 +98,47 @@ export default function StudyMap() {
     e.preventDefault()
     if (!formName.trim()) return
     if (window.electronAPI) {
-      await safeIpc('createStudyTopic', {
+      await window.electronAPI.study.topics.create({
         name: formName, description: formDesc,
         parent_id: formParent ? Number(formParent) : null,
+        course_id: formCourse ? Number(formCourse) : null,
         order_position: topics.length,
       })
     }
-    setFormName(''); setFormDesc(''); setFormParent('')
+    setFormName(''); setFormDesc(''); setFormParent(''); setFormCourse('')
     setShowAddForm(false)
     loadTopics()
     toast({ title: 'Tema creado', description: `"${formName}" agregado.` })
   }
 
   async function handleDelete(id: number) {
-    if (window.electronAPI) await safeIpc('deleteStudyTopic', id)
+    if (window.electronAPI) await window.electronAPI.study.topics.delete(id)
     loadTopics()
+  }
+
+  async function handleGenerateFlashcards(topicId: number) {
+    if (!window.electronAPI) return
+    setGeneratingFlashcards(topicId)
+    try {
+      const cards = await window.electronAPI.ai.generateFlashcards('topic', topicId)
+      setGeneratedFlashcards(prev => ({ ...prev, [topicId]: cards }))
+      toast({ title: 'Flashcards generadas', description: `${cards.length} tarjetas generadas con IA. Revisalas y confirmá en la sección Flashcards.` })
+    } catch (err) {
+      toast({ title: 'Error', description: String(err), variant: 'destructive' })
+    } finally {
+      setGeneratingFlashcards(null)
+    }
   }
 
   async function handleMove(id: number, direction: 'up' | 'down') {
     if (!window.electronAPI) return
-    await safeIpc('moveStudyTopic', id, direction)
+    await window.electronAPI.study.topics.move(id, direction)
     loadTopics()
   }
 
   async function handleSaveResource(topicId: number) {
     if (!window.electronAPI) return
-    await safeIpc('updateStudyTopic', topicId, { resource_url: resourceInput })
+    await window.electronAPI.study.topics.update(topicId, { resource_url: resourceInput })
     setTopics(prev => prev.map(t => t.id === topicId ? { ...t, resource_url: resourceInput } : t))
     setEditingResource(null)
     toast({ title: 'Recurso guardado' })
@@ -125,7 +148,7 @@ export default function StudyMap() {
     if (!window.electronAPI) return
     setUploadingTopic(topicId)
     try {
-      const file = await safeIpc<StudyFile | null>('pickAndUploadFile', topicId)
+      const file = await window.electronAPI.study.files.pickAndUpload(topicId)
       if (file) {
         setTopicFiles(prev => ({ ...prev, [topicId]: [...(prev[topicId] || []), file] }))
         toast({ title: 'Archivo subido', description: file.original_name })
@@ -138,18 +161,18 @@ export default function StudyMap() {
 
   async function handleDeleteFile(topicId: number, fileId: number) {
     if (!window.electronAPI) return
-    await safeIpc('deleteFile', fileId)
+    await window.electronAPI.study.files.delete(fileId)
     setTopicFiles(prev => ({ ...prev, [topicId]: (prev[topicId] || []).filter(f => f.id !== fileId) }))
     toast({ title: 'Archivo eliminado' })
   }
 
   function handleOpenFile(fileId: number) {
-    if (window.electronAPI) window.electronAPI.openFile(fileId)
+    if (window.electronAPI) window.electronAPI.study.files.open(fileId)
   }
 
   async function loadTopicFiles(topicId: number) {
     if (!window.electronAPI) return
-    const files = await safeIpc<StudyFile[]>('getTopicFiles', topicId)
+    const files = await window.electronAPI.study.files.list(topicId)
     setTopicFiles(prev => ({ ...prev, [topicId]: files }))
   }
 
@@ -198,10 +221,17 @@ export default function StudyMap() {
   }
 
   const filteredTopics = useMemo(() => {
-    if (!search.trim()) return topics
-    const q = search.toLowerCase()
-    return topics.filter(t => t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
-  }, [topics, search])
+    let result = topics
+    if (selectedCourse) {
+      const courseId = Number(selectedCourse)
+      result = result.filter(t => t.course_id === courseId)
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(t => t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
+    }
+    return result
+  }, [topics, search, selectedCourse])
 
   function expandAll() {
     const all: Record<number, boolean> = {}
@@ -389,6 +419,14 @@ export default function StudyMap() {
               </Tooltip>
             </TooltipProvider>
 
+            <button
+              onClick={(e) => { e.stopPropagation(); handleGenerateFlashcards(topic.id) }}
+              disabled={generatingFlashcards === topic.id}
+              className="p-1 rounded-md text-muted-foreground/30 hover:text-purple-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-purple-500/10 disabled:opacity-50"
+              aria-label="Generar flashcards con IA"
+            >
+              {generatingFlashcards === topic.id ? <Loader className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleDelete(topic.id) }}
               className="p-1 rounded-md text-muted-foreground/30 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all hover:bg-destructive/10"
@@ -585,6 +623,21 @@ export default function StudyMap() {
                 <button onClick={() => loadTopics()} className="p-1.5 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-accent transition-colors" aria-label="Recargar"><RefreshCw className="h-4 w-4" /></button>
               </TooltipTrigger><TooltipContent className="text-xs">Recargar</TooltipContent></Tooltip>
             </TooltipProvider>
+            {courses.length > 0 && (
+              <div className="w-40">
+                <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Todos los cursos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos los cursos</SelectItem>
+                    {courses.map((c: any) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -611,6 +664,20 @@ export default function StudyMap() {
                   </SelectContent>
                 </Select>
               </div>
+              {courses.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Curso (opcional)</label>
+                  <Select value={formCourse} onValueChange={setFormCourse}>
+                    <SelectTrigger><SelectValue placeholder="Sin curso" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sin curso</SelectItem>
+                      {courses.map((c: any) => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <Button type="submit" className="w-full" size="sm">✓ Crear Tema</Button>
             </CardContent>
           </form>
@@ -627,7 +694,12 @@ export default function StudyMap() {
             <p className="text-xs text-muted-foreground max-w-sm mb-4">
               Agregá los temas de tu materia, carrera o curso. Pueden ser de Medicina, Ingeniería, Programación, o cualquier área de estudio.
             </p>
-            <Button onClick={() => setShowAddForm(true)} size="sm"><Plus className="h-4 w-4 mr-1" /> Crear primer tema</Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setShowAddForm(true)} size="sm"><Plus className="h-4 w-4 mr-1" /> Crear primer tema</Button>
+              <Button variant="outline" onClick={() => setTemplateDialogOpen(true)} size="sm">
+                <LayoutTemplate className="h-4 w-4 mr-1" /> Empezar con plantilla
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -640,6 +712,12 @@ export default function StudyMap() {
           </CardContent>
         </Card>
       )}
+      <TemplateLibrary
+        type="study_plan"
+        open={templateDialogOpen}
+        onOpenChange={setTemplateDialogOpen}
+        onInstantiated={() => { loadTopics(); loadStats() }}
+      />
     </div>
   )
 }

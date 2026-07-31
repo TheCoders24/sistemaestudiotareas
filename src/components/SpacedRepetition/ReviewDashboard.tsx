@@ -24,12 +24,12 @@ export default function ReviewDashboard() {
     async function load() {
       if (!window.electronAPI) return
       try {
-        const d = await (window.electronAPI as any).getFlashcardDecks?.() || []
+        const d = await (window.electronAPI.flashcards.decks.list()) || []
         setDecks(d)
         if (d.length > 0) setSelectedDeck(d[0].id)
-        const s = await (window.electronAPI as any).getFlashcardReviewStats?.()
+        const s = await (window.electronAPI.flashcards.stats.reviews())
         if (s) setStats(s)
-        const u = await (window.electronAPI as any).getUpcomingFlashcardReviews?.()
+        const u = await (window.electronAPI.flashcards.stats.upcoming())
         if (u) setUpcoming(u)
       } catch {}
       setLoading(false)

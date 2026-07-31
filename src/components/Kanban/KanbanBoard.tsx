@@ -35,7 +35,7 @@ export default function KanbanBoard() {
 
   async function loadCards() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getKanbanCards()
+    const data = await window.electronAPI.kanban.cards.list()
     setCards(data)
   }
 
@@ -49,7 +49,7 @@ export default function KanbanBoard() {
     e.preventDefault()
     if (!formTitle.trim() || !window.electronAPI) return
     try {
-      await window.electronAPI.createKanbanCard({
+      await window.electronAPI.kanban.cards.create({
         title: formTitle, description: formDesc, column_type: formColumn,
         priority: formPriority, tags: formTags, due_date: formDueDate || null,
       } as any)
@@ -69,7 +69,7 @@ export default function KanbanBoard() {
       window.__confirmDelete('kanban', id, card?.title || '')
     } else {
       try {
-        await window.electronAPI.softDeleteItem('kanban', id)
+        await window.electronAPI.trash.softDelete('kanban', id)
         loadCards()
         if (card) {
           const { pushAction } = useUndoStore.getState()
@@ -77,7 +77,7 @@ export default function KanbanBoard() {
             label: `"${card.title}" eliminada`,
             onUndo: async () => {
               if (window.electronAPI) {
-                await window.electronAPI.restoreItem('kanban', id)
+                await window.electronAPI.trash.restore('kanban', id)
                 loadCards()
               }
             },
@@ -113,7 +113,7 @@ export default function KanbanBoard() {
 
     if (window.electronAPI) {
       try {
-        await window.electronAPI.moveKanbanCard(Number(active.id), targetColumn, targetPosition)
+        await window.electronAPI.kanban.cards.move(Number(active.id), targetColumn, targetPosition)
       } catch {
         toast({ title: 'Error', description: 'No se pudo mover la tarjeta', variant: 'destructive' })
       }

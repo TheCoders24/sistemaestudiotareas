@@ -5,7 +5,7 @@ export default function HabitHeatmap({ habitId, color }: { habitId: number; colo
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getHabitLogs(habitId).then(setLogs)
+      window.electronAPI.habits.logs.list(habitId).then(setLogs)
     }
   }, [habitId])
 

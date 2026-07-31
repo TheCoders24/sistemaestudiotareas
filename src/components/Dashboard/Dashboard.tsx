@@ -66,13 +66,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!window.electronAPI) return
-    window.electronAPI.getDashboard().then(setData)
-    window.electronAPI.getXpHistory(7).then(setXpHistory)
-    window.electronAPI.getXpHistory(30).then(setXpHistory30)
-    window.electronAPI.getActivityFeed().then(setActivityFeed)
-    window.electronAPI.getHabitStats().then(setHabitStats)
-    window.electronAPI.getStudyStats().then(s => { if (s) setStudyStats(s) }).catch(() => {})
-    window.electronAPI.getWeeklyReport().then(setWeeklyReport).catch(() => {})
+    window.electronAPI.dashboard.get().then(setData)
+    window.electronAPI.gamification.xp.history(7).then(setXpHistory)
+    window.electronAPI.gamification.xp.history(30).then(setXpHistory30)
+    window.electronAPI.activity.list().then(setActivityFeed)
+    window.electronAPI.habits.stats().then(setHabitStats)
+    window.electronAPI.study.stats().then(s => { if (s) setStudyStats(s) }).catch(() => {})
+    window.electronAPI.stats.weeklyReport().then(setWeeklyReport).catch(() => {})
   }, [])
 
   if (!data) return (

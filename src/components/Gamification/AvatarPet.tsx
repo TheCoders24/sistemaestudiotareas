@@ -59,7 +59,7 @@ export default function AvatarPet({ inline = false }: { inline?: boolean }) {
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getXp().then(d => {
+      window.electronAPI.gamification.xp.get().then(d => {
         setXp(d.total)
         setLevel(d.level)
       }).catch(() => {})

@@ -67,8 +67,8 @@ export default function SocialPage() {
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getXp().then(d => setXp(d.total)).catch(() => {})
-      window.electronAPI.getStreak('daily_study').then(s => { if (s) setStreak(s.current) }).catch(() => {})
+  window.electronAPI.gamification.xp.get().then(d => setXp(d.total)).catch(() => {})
+  window.electronAPI.streaks.get('daily_study').then(s => { if (s) setStreak(s.current) }).catch(() => {})
     }
   }, [])
 

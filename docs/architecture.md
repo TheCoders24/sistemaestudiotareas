@@ -7,52 +7,72 @@
 ─────────────────────                 ───────────────
 React App                              Node.js + Electron
   │                                      │
-  ├── Componentes React                  ├── BrowserWindow
-  │     │                                │     └── Carga dist/index.html
-  │     ├── safeIpc()──►ipcRenderer──►   ├── ipcMain.handle()
-  │     │                                │     └── safeHandler wrapper
-  │     └── Zustand stores               │
+  ├── Componentes React                  ├── BrowserWindow (contextIsolation)
+  │     │                                │     └── Carga dist/index.html o Vite dev
+  │     ├── window.electronAPI──►ipcRenderer.invoke()──►  ├── ipcMain.handle()
+  │     │        (preload)               │                │     └── safeHandle (validación Zod)
+  │     └── Zustand stores               │                └── handlers/ (27 módulos)
+  │                                      │
   │                                      ├── database.js
   │                                      │     ├── better-sqlite3
   │                                      │     ├── WAL mode + FK ON
   │                                      │     └── Migraciones automáticas
   │                                      │
-  │                                      ├── autoUpdater
-  │                                      │     └── electron-updater (GitHub)
+  │                                      ├── core/
+  │                                      │     ├── safe-handle.js   (contrato IPC)
+  │                                      │     ├── schemas/index.js (canales Zod)
+  │                                      │     ├── logger.js, event-bus.js, result.js
+  │                                      │     ├── encryption.js, pin-lock.js
+  │                                      │     ├── performance-*.js, startup-profiler.js
+  │                                      │     ├── session-manager.js, window-manager.js
+  │                                      │     ├── notification-manager.js, outbox.js
+  │                                      │     └── plugin-system.js, automation-engine.js
   │                                      │
-  │                                      └── CSP via session.webRequest
-  └────── preload.js ──────────────────►      (contextBridge)
+  │                                      └── Auto-backup (setInterval 1h)
+  └────── preload.js ──────────────────►      (contextBridge.exposeInMainWorld)
 ```
 
 ## Capas
 
 ### 1. Main Process (`electron/main.js`)
-- Crea la ventana con `contextIsolation: true`, `nodeIntegration: false`
-- Content-Security-Policy vía `session.webRequest.onHeadersReceived`
-- Registra ~80 IPC handlers agrupados por dominio
-- Wrapper `safeHandler()` para captura de errores
-- Auto-updater con `electron-updater` (GitHub releases)
-- Export/Import de todas las tablas como JSON
+- Crea la ventana con `contextIsolation: true`, `nodeIntegration: false`, `sandbox`.
+- Content-Security-Policy vía `session.webRequest.onHeadersReceived`.
+- **Registro de 27 módulos de handlers** (ver `docs/electron.md`) → +100 canales IPC.
+- `safeHandle(ipcMain, canal, schemaZod, handler)` como contrato único de IPC.
+- Auto-backup horario con `setInterval(doAutoBackup, 3600000)` (1 backup/día, retención 30).
+- Auto-updater con `electron-updater` (GitHub releases).
+- Startup profiler y performance modes para optimizar el arranque.
 
 ### 2. Preload (`electron/preload.js`)
-- `contextBridge.exposeInMainWorld('electronAPI', { ... })`
-- Expone ~90 métodos + 4 event listeners de auto-updater
-- Cada listener retorna función cleanup
+- `contextBridge.exposeInMainWorld('electronAPI', { ... })`.
+- API **anidada por dominio**: `settings`, `tasks`, `subtasks`, `kanban`, `notes`,
+  `habits`, `goals`, `snippets`, `flashcards`, `study`, `pomodoro`, `search`,
+  `gamification`, `streaks`, `dailyLogs`, `trash`, `export`, `backup`, `events`,
+  `app`, `wifiSync`, `utils`, `dashboard`, `stats`, `labels`, `activity`,
+  `session`, `automation`, `courses`, `templates`, `exams`, `examSimulations`,
+  `ai`, `profiler`, `perf`, `perfMonitor`, `preload`, `pin`, `plugins`, `encryption`.
+- Cada listener de eventos devuelve una función cleanup.
 
-### 3. Database (`electron/database.js`)
-- Singleton `better-sqlite3` con WAL mode + foreign keys
-- 28 tablas con índices + 33 migraciones automáticas
-- Ubicación: `app.getPath('userData')/sistema.db`
+### 3. Core IPC (`electron/core/safe-handle.js` + `schemas/`)
+- `schemas/index.js` define **cada canal** como un schema Zod (tupla `{0,1,...}`) que
+  valida los argumentos y los transforma a un objeto plano para el handler.
+- `safeHandle` aplica **parse dual** (con y sin transform) y re-lanza los errores
+  como `Error("Validación falló en <canal>: ...")`.
 
-### 4. Renderer (React + Vite)
-- Single-page app con tabs en vez de router
-- Lazy loading de cada tab page con `React.lazy()` + `Suspense`
-- Optimización: `React.memo` en componentes siempre montados
-- safeIpc wrapper con retry (3 intentos) + cache (5s TTL)
+### 4. Database (`electron/database.js`)
+- Singleton `better-sqlite3` con WAL mode + foreign keys.
+- **34 tablas** (ver `docs/database.md`).
+- Ubicación: `app.getPath('userData')/sistema.db`.
+
+### 5. Renderer (React + Vite)
+- Single-page app con tabs en vez de router.
+- Lazy loading de cada tab page con `React.lazy()` + `Suspense`.
+- Llamadas IPC a través de `window.electronAPI` (tipado en `src/types/index.ts`).
 
 ## Seguridad
-- `contextIsolation: true` — el renderer no accede a Node
-- `nodeIntegration: false`
-- Content-Security-Policy restrictiva
-- `validateInput()` en cada handler IPC (columnas permitidas + campos requeridos)
-- Truncado de strings a 10k caracteres en validación
+- `contextIsolation: true` — el renderer no accede a Node.
+- `nodeIntegration: false`, `sandbox` activado.
+- Content-Security-Policy restrictiva.
+- **Validación Zod por canal** — todo argumento IPC se valida antes de tocar la DB.
+- Whitelist de columnas en cada INSERT/UPDATE de los handlers.
+- Truncado de strings a 10k caracteres en validación.

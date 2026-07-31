@@ -15,7 +15,7 @@ export default function DistractionStats() {
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getPomodoroSessions?.().then((data: PomodoroSession[]) => {
+      window.electronAPI.pomodoro.sessions.list?.().then((data: PomodoroSession[]) => {
         if (data) setSessions(data)
       }).catch(() => {})
     }

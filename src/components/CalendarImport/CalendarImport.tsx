@@ -164,7 +164,7 @@ export default function CalendarImport() {
     if (window.electronAPI) {
       for (const event of selected) {
         try {
-          await window.electronAPI.createTask?.({
+          await window.electronAPI.tasks.create?.({
             title: event.title,
             due_date: event.start || null,
             description: event.description,
@@ -199,7 +199,7 @@ export default function CalendarImport() {
       ? `${manualForm.date}T${manualForm.time}`
       : manualForm.date
     if (window.electronAPI) {
-      window.electronAPI.createTask?.({
+      window.electronAPI.tasks.create?.({
         title: manualForm.title,
         due_date: dateTime,
         description: manualForm.description,

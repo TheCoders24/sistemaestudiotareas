@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { UndoToast } from '@/components/ui/undo-toast'
 import { SoundProvider, useSound } from '@/hooks/useSound'
-import { TABS, KEYBOARD_SHORTCUTS } from '@/constants/tabs'
+import { TABS } from '@/constants/tabs'
 import { useShortcutsStore } from '@/stores/shortcutsStore'
 
 const Dashboard = lazy(() => import('./components/Dashboard/Dashboard'))
@@ -59,15 +59,53 @@ const DistractionStats = lazy(() => import('./components/FocusMode/DistractionSt
 const CloudSync = lazy(() => import('./components/Sync/CloudSync'))
 const WeeklyPDFReport = lazy(() => import('./components/Reports/WeeklyPDFReport'))
 const CalendarImport = lazy(() => import('./components/CalendarImport/CalendarImport'))
+const AutomationRules = lazy(() => import('./components/Automation/AutomationRules'))
+const Flashcards = lazy(() => import('./components/Flashcards/FlashcardsPage'))
+const CoursesPage = lazy(() => import('./components/Courses/CoursesPage'))
+const ExamsPage = lazy(() => import('./components/Exams/ExamsPage'))
+const TutorPage = lazy(() => import('./components/Tutor/TutorPage'))
+
+console.log('[APP] App module loaded')
+
+function LoadingScreen() {
+  return (
+    <div className="h-screen flex flex-col items-center justify-center bg-background text-foreground">
+      <div className="flex flex-col items-center gap-4">
+        <Loader className="h-8 w-8 animate-spin text-indigo-500" />
+        <p className="text-sm text-muted-foreground">Cargando configuración...</p>
+      </div>
+    </div>
+  )
+}
+
+function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="h-screen flex flex-col items-center justify-center bg-background text-foreground">
+      <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+        <div className="rounded-full bg-destructive/10 p-3">
+          <X className="h-6 w-6 text-destructive" />
+        </div>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onRetry}>Reintentar</Button>
+          <Button variant="ghost" onClick={() => window.location.reload()}>Recargar app</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function AppInner() {
+  const [initialLoading, setInitialLoading] = useState(() => !!window.electronAPI)
+  const [initError, setInitError] = useState<string | null>(null)
+  const [initRetry, setInitRetry] = useState(0)
   const {
     activeTab, setActiveTab, sidebarOpen, toggleSidebar, setSidebarOpen,
     darkMode, setDarkMode, autoDarkMode, autoDarkStart, autoDarkEnd,
     setAutoDarkMode, setAutoDarkStart, setAutoDarkEnd,
     setStreak, focusMode, setFocusMode,
     userName, setUserName, fontSize, setFontSize, language, setLanguage,
-    denseMode, setDenseMode, firstRun, setFirstRun
+    denseMode, setDenseMode, firstRun, setFirstRun, setInitialSettings
   } = useAppStore()
   const { themeId: currentThemeId, setThemeId } = useThemeStore()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -80,8 +118,10 @@ function AppInner() {
   const [levelUp, setLevelUp] = useState<{ level: number } | null>(null)
   const { pushAction } = useUndoStore()
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; title: string } | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [welcomeOpen, setWelcomeOpen] = useState(firstRun)
+  const [userProfile, setUserProfile] = useState('custom')
   const { soundEnabled, playSound, createConfetti } = useSound()
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
   const [taskViewMode, setTaskViewMode] = useState<'list' | 'calendar' | 'timeline' | 'table'>('list')
@@ -120,48 +160,82 @@ function AppInner() {
   }, [denseMode])
 
   useEffect(() => {
-    if (window.electronAPI) {
-      window.electronAPI.getSetting('theme').then(val => {
-        if (val !== null) setDarkMode(val === 'dark')
-      })
-      window.electronAPI.getSetting('theme_color').then((val: string | null) => {
-        if (val) setThemeId(val)
-      })
-      window.electronAPI.getSetting('user_name').then((val: string | null) => {
-        if (val) setUserName(val)
-      })
-      window.electronAPI.getSetting('font_size').then((val: string | null) => {
-        if (val) setFontSize(val as 'sm' | 'base' | 'lg')
-      })
-      window.electronAPI.getSetting('language').then((val: string | null) => {
-        if (val) setLanguage(val as 'es' | 'en')
-      })
-      window.electronAPI.getSetting('dense_mode').then((val: string | null) => {
-        if (val) setDenseMode(val === 'true')
-      })
-      window.electronAPI.getSetting('auto_dark_mode').then((val: string | null) => {
-        if (val) setAutoDarkMode(val === 'true')
-      })
-      window.electronAPI.getSetting('auto_dark_start').then((val: string | null) => {
-        if (val) setAutoDarkStart(val)
-      })
-      window.electronAPI.getSetting('auto_dark_end').then((val: string | null) => {
-        if (val) setAutoDarkEnd(val)
-      })
-      window.electronAPI.getStreak('daily_study').then(s => {
-        if (s) setStreak(s)
-      })
-      if (window.electronAPI.onUpdateStatus) {
-        window.electronAPI.onUpdateStatus((data: any) => {
-          if (data.status === 'available') toast({ title: 'Actualización disponible', description: 'Descargando en segundo plano...' })
-          if (data.status === 'downloaded') toast({ title: 'Actualización lista', description: 'Reinicia la app para aplicar la actualización.' })
+    let active = true
+    setInitialLoading(true)
+    setInitError(null)
+
+    const timeoutId = setTimeout(() => {
+      if (!active) return
+      console.warn('[APP] Initialization timed out')
+      setInitError('La inicialización está tomando más de lo esperado. Verifica la conexión con Electron.')
+      setInitialLoading(false)
+    }, 15000)
+
+    async function loadInitialSettings() {
+      if (!window.electronAPI) {
+        clearTimeout(timeoutId)
+        if (active) setInitialLoading(false)
+        return
+      }
+
+      try {
+        const results = await Promise.all([
+          window.electronAPI.settings.get('theme').catch(() => null),
+          window.electronAPI.settings.get('theme_color').catch(() => null),
+          window.electronAPI.settings.get('user_name').catch(() => null),
+          window.electronAPI.settings.get('font_size').catch(() => null),
+          window.electronAPI.settings.get('language').catch(() => null),
+          window.electronAPI.settings.get('dense_mode').catch(() => null),
+          window.electronAPI.settings.get('auto_dark_mode').catch(() => null),
+          window.electronAPI.settings.get('auto_dark_start').catch(() => null),
+          window.electronAPI.settings.get('auto_dark_end').catch(() => null),
+          window.electronAPI.streaks.get('daily_study').catch(() => null),
+        ])
+
+        if (!active) return
+
+        const [theme, themeColor, userName, fontSz, lang, dense, autoDark, autoDarkSt, autoDarkEn, streak] = results
+
+        setInitialSettings({
+          ...(theme !== null && { darkMode: theme === 'dark' }),
+          ...(userName !== null && { userName }),
+          ...(fontSz !== null && { fontSize: fontSz as 'sm' | 'base' | 'lg' }),
+          ...(lang !== null && { language: lang as 'es' | 'en' }),
+          ...(dense !== null && { denseMode: dense === 'true' }),
+          ...(autoDark !== null && { autoDarkMode: autoDark === 'true' }),
+          ...(autoDarkSt !== null && { autoDarkStart: autoDarkSt }),
+          ...(autoDarkEn !== null && { autoDarkEnd: autoDarkEn }),
         })
+
+        if (themeColor) setThemeId(themeColor)
+        if (streak) setStreak(streak)
+
+        if (window.electronAPI.events.onUpdateStatus) {
+          window.electronAPI.events.onUpdateStatus((data: any) => {
+            if (data.status === 'available') toast({ title: 'Actualización disponible', description: 'Descargando en segundo plano...' })
+            if (data.status === 'downloaded') toast({ title: 'Actualización lista', description: 'Reinicia la app para aplicar la actualización.' })
+          })
+        }
+
+        clearTimeout(timeoutId)
+        if (active) setInitialLoading(false)
+      } catch (e) {
+        console.error('[APP] Error loading initial settings:', e)
+        clearTimeout(timeoutId)
+        if (active) {
+          setInitError('Error al cargar configuración inicial. Intenta de nuevo.')
+          setInitialLoading(false)
+        }
       }
     }
-  }, [])
+
+    loadInitialSettings()
+
+    return () => { active = false; clearTimeout(timeoutId) }
+  }, [initRetry])
 
   useEffect(() => {
-    if (window.electronAPI) window.electronAPI.setSetting('theme', darkMode ? 'dark' : 'light')
+    if (window.electronAPI) window.electronAPI.settings.set('theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
 
   useEffect(() => {
@@ -181,24 +255,32 @@ function AppInner() {
   }, [autoDarkMode, autoDarkStart, autoDarkEnd, setDarkMode])
 
   useEffect(() => {
-    if (window.electronAPI && currentThemeId) window.electronAPI.setSetting('theme_color', currentThemeId)
+    if (window.electronAPI && currentThemeId) window.electronAPI.settings.set('theme_color', currentThemeId)
   }, [currentThemeId])
 
   useEffect(() => {
-    if (window.electronAPI && userName) window.electronAPI.setSetting('user_name', userName)
+    if (window.electronAPI && userName) window.electronAPI.settings.set('user_name', userName)
   }, [userName])
 
   useEffect(() => {
-    if (window.electronAPI) window.electronAPI.setSetting('font_size', fontSize)
+    if (window.electronAPI) window.electronAPI.settings.set('font_size', fontSize)
   }, [fontSize])
 
   useEffect(() => {
-    if (window.electronAPI) window.electronAPI.setSetting('language', language)
+    if (window.electronAPI) window.electronAPI.settings.set('language', language)
   }, [language])
 
   useEffect(() => {
-    if (window.electronAPI) window.electronAPI.setSetting('dense_mode', String(denseMode))
+    if (window.electronAPI) window.electronAPI.settings.set('dense_mode', String(denseMode))
   }, [denseMode])
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.settings.get('userProfile').then((val: string | null) => {
+        if (val) setUserProfile(val)
+      })
+    }
+  }, [])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -226,7 +308,7 @@ function AppInner() {
     if (!window.electronAPI) return
     const interval = setInterval(async () => {
       try {
-        const data = await window.electronAPI.exportData()
+        const data = await window.electronAPI.export.data()
         localStorage.setItem('auto_backup', JSON.stringify({
           data,
           timestamp: new Date().toISOString(),
@@ -238,11 +320,11 @@ function AppInner() {
 
   const handleStreakUpdate = useCallback(() => {
     if (window.electronAPI) {
-      window.electronAPI.updateStreak('daily_study').then(async s => {
+      window.electronAPI.streaks.update('daily_study').then(async s => {
         if (s) setStreak(s)
         if (s && s.current > 1 && soundEnabled) playSound('achievement')
         if (window.electronAPI) {
-          const result = await window.electronAPI.checkAchievements()
+          const result = await window.electronAPI.gamification.achievements.check()
           for (const a of result.unlocked) {
             if (soundEnabled) playSound('levelup')
             createConfetti()
@@ -262,7 +344,7 @@ function AppInner() {
     if (!quickAddTitle.trim()) return
     if (!window.electronAPI) { toast({ title: 'Error', description: 'API no disponible', variant: 'destructive' }); return }
     try {
-      await window.electronAPI.createTask({ title: quickAddTitle, description: '', priority: 'media', repeat: null } as any)
+      await window.electronAPI.tasks.create({ title: quickAddTitle, description: '', priority: 'media', repeat: null } as any)
       setQuickAddTitle('')
       setQuickAddOpen(false)
       toast({ title: 'Tarea creada', description: `"${quickAddTitle}" agregada.` })
@@ -273,6 +355,9 @@ function AppInner() {
   }
 
   function handleWelcomeComplete() {
+    if (window.electronAPI) {
+      window.electronAPI.settings.set('userProfile', userProfile)
+    }
     setFirstRun(false)
     setWelcomeOpen(false)
   }
@@ -283,12 +368,16 @@ function AppInner() {
         activeTab={activeTab}
         onNavigate={(tab) => { setActiveTab(tab); setSidebarOpen(false) }}
         onClose={() => setSidebarOpen(false)}
+        onOpenSettings={() => setSettingsOpen(true)}
         userName={userName}
         fontSize={fontSize}
         denseMode={denseMode}
       />
     </Suspense>
   )
+
+  if (initError) return <ErrorScreen message={initError} onRetry={() => setInitRetry(c => c + 1)} />
+  if (initialLoading) return <LoadingScreen />
 
   return (
     <TooltipProvider>
@@ -336,7 +425,7 @@ function AppInner() {
                 <Keyboard className="h-5 w-5" />
               </Button>
             </TooltipTrigger><TooltipContent side="bottom">Atajos (Ctrl+/)</TooltipContent></Tooltip>
-            <Suspense fallback={null}><Settings /></Suspense>
+            <Suspense fallback={null}><Settings open={settingsOpen} onOpenChange={setSettingsOpen} /></Suspense>
           </div>
         </header>
 
@@ -364,6 +453,7 @@ function AppInner() {
                 {activeTab === 'metas' && <ErrorBoundary name="Metas"><Goals /></ErrorBoundary>}
                 {activeTab === 'reporte' && <ErrorBoundary name="Reporte"><WeeklyReviewPage /></ErrorBoundary>}
                 {activeTab === 'papelera' && <ErrorBoundary name="Papelera"><TrashPage /></ErrorBoundary>}
+                {activeTab === 'flashcards' && <ErrorBoundary name="Flashcards"><Flashcards /></ErrorBoundary>}
                 {activeTab === 'repaso' && <ErrorBoundary name="Repaso"><ReviewDashboard /></ErrorBoundary>}
                 {activeTab === 'tareas' && taskViewMode === 'calendar' && <ErrorBoundary name="Calendario Tareas"><TaskCalendarView /></ErrorBoundary>}
                 {activeTab === 'tareas' && taskViewMode === 'timeline' && <ErrorBoundary name="Timeline Tareas"><TaskTimelineView /></ErrorBoundary>}
@@ -372,12 +462,16 @@ function AppInner() {
                 {activeTab === 'recordatorios' && <ErrorBoundary name="Recordatorios"><SmartReminders /></ErrorBoundary>}
                 {activeTab === 'social' && <ErrorBoundary name="Social"><SocialPage /></ErrorBoundary>}
                 {activeTab === 'tienda' && <ErrorBoundary name="Tienda"><AchievementShop /></ErrorBoundary>}
+                {activeTab === 'cursos' && <ErrorBoundary name="Cursos"><CoursesPage /></ErrorBoundary>}
+                {activeTab === 'exams' && <ErrorBoundary name="Exámenes"><ExamsPage /></ErrorBoundary>}
+                {activeTab === 'tutor' && <ErrorBoundary name="Tutor IA"><TutorPage /></ErrorBoundary>}
                 {activeTab === 'rachas-materias' && <ErrorBoundary name="Rachas"><SubjectStreaks /></ErrorBoundary>}
                 {activeTab === 'bloqueador' && <ErrorBoundary name="Bloqueador"><WebsiteBlocker /></ErrorBoundary>}
                 {activeTab === 'distracciones' && <ErrorBoundary name="Distracciones"><DistractionStats /></ErrorBoundary>}
                 {activeTab === 'sync' && <ErrorBoundary name="Sync"><CloudSync /></ErrorBoundary>}
                 {activeTab === 'informe' && <ErrorBoundary name="Informe"><WeeklyPDFReport /></ErrorBoundary>}
                 {activeTab === 'importar-cal' && <ErrorBoundary name="Importar Cal"><CalendarImport /></ErrorBoundary>}
+                {activeTab === 'automation' && <ErrorBoundary name="Automation"><AutomationRules /></ErrorBoundary>}
               </Suspense>
             </div>
           </main>
@@ -422,14 +516,14 @@ function AppInner() {
               <Button variant="ghost" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
               <Button variant="destructive" onClick={async () => {
                 if (confirmDelete && window.electronAPI) {
-                  await window.electronAPI.softDeleteItem(confirmDelete.type, confirmDelete.id)
+                  await window.electronAPI.trash.softDelete(confirmDelete.type, confirmDelete.id)
                   toast({ title: 'Elemento movido a la papelera' })
                   const { type, id, title } = confirmDelete
                   pushAction({
                     label: `"${title}" eliminada`,
                     onUndo: async () => {
                       if (window.electronAPI) {
-                        await window.electronAPI.restoreItem(type, id)
+                        await window.electronAPI.trash.restore(type, id)
                       }
                     },
                   })
@@ -506,6 +600,7 @@ function AppInner() {
               case 'new-note': setActiveTab('notas'); break
               case 'focus-mode': setFocusMode(true); break
               case 'toggle-dark': setDarkMode(!useAppStore.getState().darkMode); break
+              case 'quick-capture': setQuickCaptureOpen(true); break
             }
           }}
         />
@@ -523,6 +618,8 @@ function AppInner() {
           onChangeFontSize={setFontSize}
           denseMode={denseMode}
           onChangeDenseMode={setDenseMode}
+          userProfile={userProfile}
+          onChangeUserProfile={setUserProfile}
           onComplete={handleWelcomeComplete}
         />
       </Suspense>

@@ -16,7 +16,9 @@ export function TagPicker({ selectedIds, onChange }: TagPickerProps) {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    if (window.electronAPI) { (window.electronAPI as any).getTags().then(setTags) }
+    if (window.electronAPI && typeof (window.electronAPI as any).getTags === 'function') {
+      (window.electronAPI as any).getTags().then(setTags).catch(() => {})
+    }
   }, [])
 
   const toggle = useCallback((id: number) => {
@@ -27,7 +29,8 @@ export function TagPicker({ selectedIds, onChange }: TagPickerProps) {
   const createAndAdd = useCallback(async () => {
     const name = newName.trim()
     if (!name) return
-    const tag = await ((window.electronAPI as any).createTag({ name }) as Promise<TagType>)
+    if (!window.electronAPI || typeof (window.electronAPI as any).createTag !== 'function') return
+    const tag = await ((window.electronAPI as any).createTag({ name }) as Promise<TagType>).catch(() => null)
     if (tag) {
       setTags((prev) => [...prev, tag])
       onChange([...selectedIds, tag.id])

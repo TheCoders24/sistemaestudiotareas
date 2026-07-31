@@ -2,7 +2,8 @@ const Database = require('better-sqlite3')
 const path = require('path')
 const { app } = require('electron')
 
-const SCHEMA_VERSION = 8
+const crypto = require('crypto')
+const SCHEMA_VERSION = 15
 const SCHEMA_KEY = 'db_schema_version'
 
 let db
@@ -28,6 +29,77 @@ function initDatabase() {
       value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS kanban_columns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'custom',
+      color TEXT DEFAULT '#6366f1',
+      wip_limit INTEGER DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      workspace_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS workspaces (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      icon TEXT DEFAULT 'briefcase',
+      color TEXT DEFAULT '#6366f1',
+      is_default INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      deleted INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS courses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+      name TEXT NOT NULL,
+      color TEXT DEFAULT '#6366f1',
+      icon TEXT DEFAULT 'book',
+      term TEXT,
+      credits INTEGER,
+      target_grade REAL,
+      archived INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      payload TEXT NOT NULL,
+      is_builtin INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id INTEGER REFERENCES courses(id),
+      title TEXT NOT NULL,
+      date TEXT NOT NULL,
+      weight REAL,
+      study_topic_ids TEXT,
+      completed INTEGER DEFAULT 0,
+      grade_obtained REAL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS exam_simulations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      deck_id INTEGER NOT NULL,
+      course_id INTEGER REFERENCES courses(id),
+      total_questions INTEGER NOT NULL DEFAULT 0,
+      correct_answers INTEGER NOT NULL DEFAULT 0,
+      wrong_answers INTEGER NOT NULL DEFAULT 0,
+      duration_seconds INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS projects (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -36,13 +108,16 @@ function initDatabase() {
       tech_stack TEXT DEFAULT '',
       repo_url TEXT DEFAULT '',
       color TEXT DEFAULT '#6366f1',
+      workspace_id INTEGER,
       deleted INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS tasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      parent_task_id INTEGER,
       title TEXT NOT NULL,
       description TEXT DEFAULT '',
       completed INTEGER DEFAULT 0,
@@ -51,12 +126,15 @@ function initDatabase() {
       reminder TEXT,
       tags TEXT DEFAULT '',
       project_id INTEGER,
+      workspace_id INTEGER,
       repeat TEXT,
       deleted INTEGER DEFAULT 0,
       position INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+      FOREIGN KEY (parent_task_id) REFERENCES tasks(id) ON DELETE SET NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS subtasks (
@@ -65,6 +143,34 @@ function initDatabase() {
       title TEXT NOT NULL,
       completed INTEGER DEFAULT 0,
       position INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      depends_on_id INTEGER NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      FOREIGN KEY (depends_on_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      UNIQUE(task_id, depends_on_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS task_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS time_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT,
+      duration INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
     );
@@ -89,9 +195,11 @@ function initDatabase() {
       tags TEXT DEFAULT '',
       due_date TEXT,
       project_id INTEGER,
+      workspace_id INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS pomodoro_sessions (
@@ -101,8 +209,10 @@ function initDatabase() {
       duration INTEGER NOT NULL,
       started_at TEXT NOT NULL,
       ended_at TEXT,
+      workspace_id INTEGER,
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS study_topics (
@@ -112,7 +222,9 @@ function initDatabase() {
       description TEXT DEFAULT '',
       resource_url TEXT DEFAULT '',
       order_position INTEGER DEFAULT 0,
-      FOREIGN KEY (parent_id) REFERENCES study_topics(id) ON DELETE CASCADE
+      workspace_id INTEGER,
+      FOREIGN KEY (parent_id) REFERENCES study_topics(id) ON DELETE CASCADE,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS study_progress (
@@ -123,15 +235,30 @@ function initDatabase() {
       FOREIGN KEY (topic_id) REFERENCES study_topics(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS note_folders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      parent_id INTEGER,
+      color TEXT DEFAULT '#6366f1',
+      workspace_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (parent_id) REFERENCES note_folders(id) ON DELETE CASCADE,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+    );
+
     CREATE TABLE IF NOT EXISTS notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT DEFAULT 'Sin título',
       content TEXT DEFAULT '',
       project_id INTEGER,
+      folder_id INTEGER,
+      workspace_id INTEGER,
       deleted INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+      FOREIGN KEY (folder_id) REFERENCES note_folders(id) ON DELETE SET NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS goals (
@@ -140,7 +267,9 @@ function initDatabase() {
       type TEXT NOT NULL CHECK(type IN ('daily', 'weekly')),
       target INTEGER NOT NULL,
       metric TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
+      workspace_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS goal_progress (
@@ -166,7 +295,9 @@ function initDatabase() {
       focus TEXT DEFAULT '',
       blockers TEXT DEFAULT '',
       tomorrow_plan TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now'))
+      workspace_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS snippets (
@@ -177,8 +308,10 @@ function initDatabase() {
       description TEXT DEFAULT '',
       tags TEXT DEFAULT '',
       project_id INTEGER,
+      workspace_id INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS habits (
@@ -187,7 +320,9 @@ function initDatabase() {
       icon TEXT DEFAULT 'check',
       color TEXT DEFAULT '#6366f1',
       frequency TEXT DEFAULT 'daily',
-      created_at TEXT DEFAULT (datetime('now'))
+      workspace_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS habit_logs (
@@ -277,7 +412,9 @@ function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       description TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now'))
+      workspace_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS flashcards (
@@ -293,6 +430,91 @@ function initDatabase() {
       next_review TEXT DEFAULT (datetime('now')),
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (deck_id) REFERENCES flashcard_decks(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS outbox_events (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      published_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS snapshots (
+      id TEXT PRIMARY KEY,
+      workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      reason TEXT,
+      payload_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id TEXT PRIMARY KEY,
+      workspace_id INTEGER REFERENCES workspaces(id) ON DELETE SET NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS daily_task_stats (
+      id TEXT PRIMARY KEY,
+      workspace_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      completed_count INTEGER NOT NULL DEFAULT 0,
+      created_count INTEGER NOT NULL DEFAULT 0,
+      worked_minutes INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(workspace_id, date)
+    );
+
+    CREATE TABLE IF NOT EXISTS project_stats (
+      project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+      total_tasks INTEGER NOT NULL DEFAULT 0,
+      completed_tasks INTEGER NOT NULL DEFAULT 0,
+      total_minutes INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS labels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL DEFAULT '#6366f1',
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS task_labels (
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      label_id INTEGER NOT NULL REFERENCES labels(id) ON DELETE CASCADE,
+      PRIMARY KEY (task_id, label_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS attachments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      storage_path TEXT NOT NULL,
+      checksum TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS automation_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      trigger TEXT NOT NULL,
+      conditions_json TEXT NOT NULL DEFAULT '[]',
+      actions_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
   `)
 
@@ -331,7 +553,28 @@ function deferDbInit() {
     CREATE INDEX IF NOT EXISTS idx_entity_links_from ON entity_links(from_type, from_id);
     CREATE INDEX IF NOT EXISTS idx_entity_links_to ON entity_links(to_type, to_id);
     CREATE INDEX IF NOT EXISTS idx_study_files_topic_id ON study_files(topic_id);
+    CREATE INDEX IF NOT EXISTS idx_outbox_unpublished ON outbox_events(published_at) WHERE published_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_snapshots_entity ON snapshots(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_log(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_log(created_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_due_pending ON tasks(due_date) WHERE completed IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_labels_workspace ON labels(workspace_id);
+    CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_automation_rules_trigger ON automation_rules(enabled, trigger);
   `)
+
+  try {
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+        entity_type, entity_id UNINDEXED, workspace_id UNINDEXED,
+        title, body, tags,
+        tokenize='porter unicode61'
+      );
+    `)
+  } catch (e) {
+    console.log('[DB] FTS5 not available:', e.message)
+  }
+
   const existingAchievements = db.prepare('SELECT COUNT(*) as count FROM achievements').get()
   if (existingAchievements.count === 0) {
     const achievementSeeds = [
@@ -420,6 +663,43 @@ function deferDbInit() {
       { sql: `ALTER TABLE study_topics ADD COLUMN study_level INTEGER DEFAULT 0`, table: 'study_topics', col: 'study_level' },
       { sql: `ALTER TABLE study_topics ADD COLUMN study_level_updated_at TEXT`, table: 'study_topics', col: 'study_level_updated_at' },
       { sql: `ALTER TABLE study_topics ADD COLUMN resource_url TEXT DEFAULT ''`, table: 'study_topics', col: 'resource_url' },
+      { sql: `CREATE TABLE IF NOT EXISTS workspaces (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, icon TEXT DEFAULT 'briefcase', color TEXT DEFAULT '#6366f1', is_default INTEGER DEFAULT 0, sort_order INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')))`, table: 'workspaces', col: 'id' },
+      { sql: `ALTER TABLE projects ADD COLUMN workspace_id INTEGER`, table: 'projects', col: 'workspace_id' },
+      { sql: `ALTER TABLE tasks ADD COLUMN workspace_id INTEGER`, table: 'tasks', col: 'workspace_id' },
+      { sql: `ALTER TABLE notes ADD COLUMN workspace_id INTEGER`, table: 'notes', col: 'workspace_id' },
+      { sql: `ALTER TABLE kanban_cards ADD COLUMN workspace_id INTEGER`, table: 'kanban_cards', col: 'workspace_id' },
+      { sql: `ALTER TABLE pomodoro_sessions ADD COLUMN workspace_id INTEGER`, table: 'pomodoro_sessions', col: 'workspace_id' },
+      { sql: `ALTER TABLE study_topics ADD COLUMN workspace_id INTEGER`, table: 'study_topics', col: 'workspace_id' },
+      { sql: `ALTER TABLE goals ADD COLUMN workspace_id INTEGER`, table: 'goals', col: 'workspace_id' },
+      { sql: `ALTER TABLE habits ADD COLUMN workspace_id INTEGER`, table: 'habits', col: 'workspace_id' },
+      { sql: `ALTER TABLE snippets ADD COLUMN workspace_id INTEGER`, table: 'snippets', col: 'workspace_id' },
+      { sql: `ALTER TABLE daily_logs ADD COLUMN workspace_id INTEGER`, table: 'daily_logs', col: 'workspace_id' },
+      { sql: `ALTER TABLE flashcard_decks ADD COLUMN workspace_id INTEGER`, table: 'flashcard_decks', col: 'workspace_id' },
+      { sql: `CREATE TABLE IF NOT EXISTS kanban_columns (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'custom', color TEXT DEFAULT '#6366f1', wip_limit INTEGER DEFAULT 0, position INTEGER NOT NULL DEFAULT 0, workspace_id INTEGER, created_at TEXT DEFAULT (datetime('now')))`, table: 'kanban_columns', col: 'id' },
+      { sql: `CREATE TABLE IF NOT EXISTS note_folders (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, parent_id INTEGER, color TEXT DEFAULT '#6366f1', workspace_id INTEGER, created_at TEXT DEFAULT (datetime('now')))`, table: 'note_folders', col: 'id' },
+      { sql: `ALTER TABLE notes ADD COLUMN folder_id INTEGER`, table: 'notes', col: 'folder_id' },
+      { sql: `CREATE TABLE IF NOT EXISTS task_dependencies (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, depends_on_id INTEGER NOT NULL, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE, FOREIGN KEY (depends_on_id) REFERENCES tasks(id) ON DELETE CASCADE, UNIQUE(task_id, depends_on_id))`, table: 'task_dependencies', col: 'id' },
+      { sql: `CREATE TABLE IF NOT EXISTS task_comments (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, content TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE)`, table: 'task_comments', col: 'id' },
+      { sql: `CREATE TABLE IF NOT EXISTS time_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, start_time TEXT NOT NULL, end_time TEXT, duration INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE)`, table: 'time_entries', col: 'id' },
+      { sql: `ALTER TABLE habits ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`, table: 'habits', col: 'updated_at' },
+      { sql: `ALTER TABLE goals ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`, table: 'goals', col: 'updated_at' },
+      { sql: `ALTER TABLE snippets ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`, table: 'snippets', col: 'updated_at' },
+      { sql: `CREATE TABLE IF NOT EXISTS outbox_events (id TEXT PRIMARY KEY, type TEXT NOT NULL, payload_json TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), published_at TEXT)`, table: 'outbox_events', col: 'id' },
+      { sql: `CREATE TABLE IF NOT EXISTS snapshots (id TEXT PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, reason TEXT, payload_json TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))`, table: 'snapshots', col: 'id' },
+      { sql: `CREATE TABLE IF NOT EXISTS activity_log (id TEXT PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE SET NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, action TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))`, table: 'activity_log', col: 'id' },
+      { sql: `CREATE TABLE IF NOT EXISTS daily_task_stats (id TEXT PRIMARY KEY, workspace_id INTEGER NOT NULL, date TEXT NOT NULL, completed_count INTEGER NOT NULL DEFAULT 0, created_count INTEGER NOT NULL DEFAULT 0, worked_minutes INTEGER NOT NULL DEFAULT 0, UNIQUE(workspace_id, date))`, table: 'daily_task_stats', col: 'id' },
+      { sql: `CREATE TABLE IF NOT EXISTS project_stats (project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, total_tasks INTEGER NOT NULL DEFAULT 0, completed_tasks INTEGER NOT NULL DEFAULT 0, total_minutes INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))`, table: 'project_stats', col: 'id' },
+      { sql: 'ALTER TABLE tasks ADD COLUMN parent_task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL', table: 'tasks', col: 'parent_task_id' },
+      // v13: courses table
+      { sql: `CREATE TABLE IF NOT EXISTS courses (id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id INTEGER NOT NULL REFERENCES workspaces(id), name TEXT NOT NULL, color TEXT DEFAULT '#6366f1', icon TEXT DEFAULT 'book', term TEXT, credits INTEGER, target_grade REAL, archived INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')))`, table: 'courses', col: 'id' },
+      { sql: `ALTER TABLE study_topics ADD COLUMN course_id INTEGER REFERENCES courses(id)`, table: 'study_topics', col: 'course_id' },
+      { sql: `ALTER TABLE flashcard_decks ADD COLUMN course_id INTEGER REFERENCES courses(id)`, table: 'flashcard_decks', col: 'course_id' },
+      // v14: templates
+      { sql: `CREATE TABLE IF NOT EXISTS templates (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, name TEXT NOT NULL, description TEXT DEFAULT '', payload TEXT NOT NULL, is_builtin INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')))`, table: 'templates', col: 'id' },
+      // v15: exams + exam_simulations + flashcard study_topic_id
+      { sql: `CREATE TABLE IF NOT EXISTS exams (id INTEGER PRIMARY KEY AUTOINCREMENT, course_id INTEGER REFERENCES courses(id), title TEXT NOT NULL, date TEXT NOT NULL, weight REAL, study_topic_ids TEXT, completed INTEGER DEFAULT 0, grade_obtained REAL, created_at TEXT DEFAULT (datetime('now')))`, table: 'exams', col: 'id' },
+      { sql: `CREATE TABLE IF NOT EXISTS exam_simulations (id INTEGER PRIMARY KEY AUTOINCREMENT, deck_id INTEGER NOT NULL, course_id INTEGER REFERENCES courses(id), total_questions INTEGER NOT NULL DEFAULT 0, correct_answers INTEGER NOT NULL DEFAULT 0, wrong_answers INTEGER NOT NULL DEFAULT 0, duration_seconds INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))`, table: 'exam_simulations', col: 'id' },
+      { sql: `ALTER TABLE flashcards ADD COLUMN study_topic_id INTEGER REFERENCES study_topics(id)`, table: 'flashcards', col: 'study_topic_id' },
     ]
     const migrationTx = db.transaction(() => {
       for (const m of migrations) {
@@ -437,6 +717,42 @@ function deferDbInit() {
     } catch {}
     if (migrationLog.length > 0) console.log('[DB Migration] Applied:', migrationLog.join('; '))
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(SCHEMA_KEY, String(SCHEMA_VERSION))
+  }
+  const existingDefaultWorkspace = db.prepare('SELECT id FROM workspaces WHERE is_default = 1 AND deleted = 0').get()
+  if (!existingDefaultWorkspace) {
+    const wsCount = db.prepare('SELECT COUNT(*) as count FROM workspaces WHERE deleted = 0').get().count
+    if (wsCount === 0) {
+      db.prepare("INSERT INTO workspaces (name, icon, color, is_default, sort_order) VALUES (?, ?, ?, ?, ?)").run('Mi Espacio', 'briefcase', '#6366f1', 1, 0)
+    }
+  }
+
+  const existingTemplates = db.prepare("SELECT COUNT(*) as count FROM templates WHERE is_builtin = 1").get().count
+  if (existingTemplates === 0) {
+    const insertTemplate = db.prepare('INSERT INTO templates (type, name, description, payload, is_builtin) VALUES (?, ?, ?, ?, 1)')
+    const seedTemplates = [
+      ['project', 'Proyecto de Tesis', 'Estructura básica para proyecto de tesis o trabajo final',
+        JSON.stringify({ project: { name: '{{name}}', description: '{{description}}', color: '#6366f1', status: 'active' } })],
+      ['project', 'Sprint de 2 Semanas', 'Tablero ágil para sprint de desarrollo',
+        JSON.stringify({ project: { name: '{{name}}', description: 'Sprint planificado desde plantilla', color: '#22c55e', status: 'active' } })],
+      ['kanban_board', 'Tablero Ágil - Desarrollo', 'Columnas: Backlog, Por hacer, En progreso, Hecho',
+        JSON.stringify({})],
+      ['kanban_board', 'Tablero Académico', 'Columnas: Pendiente, Investigando, En redacción, Revisado, Entregado',
+        JSON.stringify({})],
+      ['study_plan', 'Repaso 30 Días para Examen', 'Plan de estudio intensivo con temas y flashcards',
+        JSON.stringify({ studyTopics: [
+          { name: 'Semana 1 - Fundamentos', description: 'Conceptos básicos y teoría fundamental', order_position: 1 },
+          { name: 'Semana 2 - Temas Avanzados', description: 'Profundización en temas clave', order_position: 2 },
+          { name: 'Semana 3 - Práctica y ejercicios', description: 'Resolución de problemas y aplicación', order_position: 3 },
+          { name: 'Semana 4 - Repaso general', description: 'Repaso integral y simulacros', order_position: 4 },
+        ] })],
+    ]
+    const insertMany = db.transaction(() => {
+      for (const [type, name, description, payload] of seedTemplates) {
+        insertTemplate.run(type, name, description, payload)
+      }
+    })
+    insertMany()
+    console.log('[DB] Seed templates inserted')
   }
 }
 

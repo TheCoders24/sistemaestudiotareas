@@ -7,9 +7,10 @@ interface EmptyStateProps {
   description?: string
   actionLabel?: string
   onAction?: () => void
+  children?: React.ReactNode
 }
 
-export function EmptyState({ icon: Icon, title, description, actionLabel, onAction }: EmptyStateProps) {
+export function EmptyState({ icon: Icon, title, description, actionLabel, onAction, children }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       <div className="p-4 rounded-full bg-muted mb-4">
@@ -19,11 +20,14 @@ export function EmptyState({ icon: Icon, title, description, actionLabel, onActi
       {description && (
         <p className="text-sm text-muted-foreground mb-4 max-w-sm">{description}</p>
       )}
-      {actionLabel && onAction && (
-        <Button variant="outline" size="sm" onClick={onAction}>
-          {actionLabel}
-        </Button>
-      )}
+      <div className="flex items-center gap-2">
+        {actionLabel && onAction && (
+          <Button variant="outline" size="sm" onClick={onAction}>
+            {actionLabel}
+          </Button>
+        )}
+        {children}
+      </div>
     </div>
   )
 }

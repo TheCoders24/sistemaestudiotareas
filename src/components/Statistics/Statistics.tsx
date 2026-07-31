@@ -26,7 +26,7 @@ export default function Statistics() {
 
   async function loadStats() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getStats(period)
+    const data = await window.electronAPI.stats.get(period)
     setStats(data)
   }
 
@@ -34,8 +34,8 @@ export default function Statistics() {
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getXpHistory(30).then(setXpHistory)
-      window.electronAPI.getHabitStats().then(setHabitStats)
+      window.electronAPI.gamification.xp.history(30).then(setXpHistory)
+      window.electronAPI.habits.stats().then(setHabitStats)
     }
   }, [])
 
@@ -367,7 +367,7 @@ export default function Statistics() {
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie data={stats.pomodorosByProject.map((d: any, i: number) => ({ name: d.name, value: d.count, fill: ['#ef4444','#3b82f6','#22c55e','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'][i % 8] }))}
+                  <Pie data={stats.pomodorosByProject.map((d: any, i: number) => ({ name: d.name, value: d.count, fill: ['#ef4444','#3b82f6','#22c55e','#f59e0b','#8b5cf6','#ec4899','#06b7d4','#f97316'][i % 8] }))}
                     cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
                   </Pie>
                   <Tooltip {...CUSTOM_TOOLTIP} />

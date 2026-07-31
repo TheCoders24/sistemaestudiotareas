@@ -5,6 +5,18 @@ interface StreakData {
   max: number
 }
 
+interface InitSettings {
+  darkMode?: boolean
+  themeColor?: string
+  userName?: string
+  fontSize?: 'sm' | 'base' | 'lg'
+  language?: 'es' | 'en'
+  denseMode?: boolean
+  autoDarkMode?: boolean
+  autoDarkStart?: string
+  autoDarkEnd?: string
+}
+
 interface AppState {
   activeTab: string
   sidebarOpen: boolean
@@ -33,6 +45,7 @@ interface AppState {
   setLanguage: (lang: 'es' | 'en') => void
   setDenseMode: (dense: boolean) => void
   setFirstRun: (val: boolean) => void
+  setInitialSettings: (settings: InitSettings) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -63,4 +76,14 @@ export const useAppStore = create<AppState>((set) => ({
   setLanguage: (lang) => set({ language: lang }),
   setDenseMode: (dense) => set({ denseMode: dense }),
   setFirstRun: (val) => set({ firstRun: val }),
+  setInitialSettings: (settings) => set({
+    ...(settings.darkMode !== undefined && { darkMode: settings.darkMode }),
+    ...(settings.userName !== undefined && { userName: settings.userName }),
+    ...(settings.fontSize !== undefined && { fontSize: settings.fontSize }),
+    ...(settings.language !== undefined && { language: settings.language }),
+    ...(settings.denseMode !== undefined && { denseMode: settings.denseMode }),
+    ...(settings.autoDarkMode !== undefined && { autoDarkMode: settings.autoDarkMode }),
+    ...(settings.autoDarkStart !== undefined && { autoDarkStart: settings.autoDarkStart }),
+    ...(settings.autoDarkEnd !== undefined && { autoDarkEnd: settings.autoDarkEnd }),
+  }),
 }))

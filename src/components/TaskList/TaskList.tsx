@@ -81,21 +81,21 @@ export default function TaskList() {
 
   async function loadTasks() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getTasksWithSubtasks?.() || []
+    const data = await window.electronAPI.tasks.listWithSubtasks()
     setTasks(data)
     setLoading(false)
   }
 
   async function loadProjects() {
     if (!window.electronAPI) return
-    setProjects(await window.electronAPI.getProjects())
+    setProjects(await window.electronAPI.projects.list())
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!newTitle.trim() || !window.electronAPI) return
     try {
-      await window.electronAPI.createTask({
+      await window.electronAPI.tasks.create({
         title: newTitle, description: newDesc, priority: newPriority,
         due_date: newDueDate || null, reminder: newReminder || null,
         project_id: newProjectId ? Number(newProjectId) : null,
@@ -115,9 +115,9 @@ export default function TaskList() {
     if (!window.electronAPI) return
     try {
       const task = tasks.find(t => t.id === id)
-      await window.electronAPI.toggleTask(id)
+      await window.electronAPI.tasks.toggle(id)
       if (task?.repeat && task.completed) {
-        await window.electronAPI.createTask({
+        await window.electronAPI.tasks.create({
           title: task.title, description: task.description, priority: task.priority,
           project_id: task.project_id, repeat: task.repeat, tags: task.tags,
         } as any)
@@ -129,7 +129,7 @@ export default function TaskList() {
           label: `"${task.title}" ${task.completed ? 'descompletada' : 'completada'}`,
           onUndo: async () => {
             if (window.electronAPI) {
-              await window.electronAPI.toggleTask(id)
+              await window.electronAPI.tasks.toggle(id)
               loadTasks()
             }
           },
@@ -146,14 +146,14 @@ export default function TaskList() {
     if (window.__confirmDelete) {
       window.__confirmDelete('task', id, task?.title || '')
     } else {
-      await window.electronAPI.softDeleteItem('task', id)
+      await window.electronAPI.trash.softDelete('task', id)
       loadTasks()
       if (task) {
         pushAction({
           label: `"${task.title}" eliminada`,
           onUndo: async () => {
             if (window.electronAPI) {
-              await window.electronAPI.restoreItem('task', id)
+              await window.electronAPI.trash.restore('task', id)
               loadTasks()
             }
           },
@@ -164,20 +164,20 @@ export default function TaskList() {
 
   async function handleAddSubtask(taskId: number) {
     if (!editingSubtask || !editingSubtask.title.trim() || !window.electronAPI) return
-    await window.electronAPI.createSubtask({ task_id: taskId, title: editingSubtask.title } as any)
+    await window.electronAPI.subtasks.create({ task_id: taskId, title: editingSubtask.title } as any)
     setEditingSubtask(null)
     loadTasks()
   }
 
   async function handleToggleSubtask(id: number) {
     if (!window.electronAPI) return
-    await window.electronAPI.toggleSubtask(id)
+    await window.electronAPI.subtasks.toggle(id)
     loadTasks()
   }
 
   async function handleDeleteSubtask(id: number) {
     if (!window.electronAPI) return
-    await window.electronAPI.deleteSubtask(id)
+    await window.electronAPI.subtasks.delete(id)
     loadTasks()
   }
 
@@ -195,7 +195,7 @@ export default function TaskList() {
 
   async function handleRemoveTagFromTask(taskId: number, tag: string) {
     if (!window.electronAPI) return
-    await window.electronAPI.removeTagFromTask(taskId, tag)
+    await window.electronAPI.tasks.removeTag(taskId, tag)
     loadTasks()
   }
 
@@ -215,7 +215,7 @@ export default function TaskList() {
     setTasks(copy)
     setDragId(null); setDragOverId(null)
     if (window.electronAPI) {
-      await window.electronAPI.reorderTasks(copy.map(t => t.id))
+      await window.electronAPI.tasks.reorder(copy.map(t => t.id))
     }
   }, [dragId, dragOverId, tasks])
 

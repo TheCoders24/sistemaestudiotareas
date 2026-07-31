@@ -11,7 +11,7 @@ export default function ChallengesPage() {
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getChallenges().then(setChallenges)
+      window.electronAPI.gamification.challenges.list().then(setChallenges)
     }
   }, [])
 

@@ -13,8 +13,8 @@ export default function AchievementsGallery() {
 
   useEffect(() => {
     if (!window.electronAPI) return
-    window.electronAPI.getAchievements().then(setAchievements)
-    window.electronAPI.getXp().then(x => { xpRef.current = x.total })
+    window.electronAPI.gamification.achievements.list().then(setAchievements)
+    window.electronAPI.gamification.xp.get().then(x => { xpRef.current = x.total })
   }, [])
 
   const unlockedCount = achievements.filter(a => a.unlocked).length

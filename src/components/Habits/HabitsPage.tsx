@@ -42,11 +42,11 @@ export default function HabitsPage() {
 
   async function loadHabits() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getHabits()
+    const data = await window.electronAPI.habits.list()
     setHabits(data)
     const allLogs: Record<number, any[]> = {}
     await Promise.all(data.map(async (h: any) => {
-      allLogs[h.id] = await window.electronAPI.getHabitLogs(h.id)
+      allLogs[h.id] = await window.electronAPI.habits.logs.list(h.id)
     }))
     setHabitLogs(allLogs)
     setLoading(false)
@@ -69,10 +69,10 @@ export default function HabitsPage() {
     if (!name.trim() || !window.electronAPI) return
     try {
       if (editHabit) {
-        await window.electronAPI.updateHabit(editHabit.id, { name, icon, color, frequency })
+        await window.electronAPI.habits.update(editHabit.id, { name, icon, color, frequency })
         toast({ title: 'Hábito actualizado' })
       } else {
-        await window.electronAPI.createHabit({ name, icon, color, frequency } as any)
+        await window.electronAPI.habits.create({ name, icon, color, frequency } as any)
         toast({ title: 'Hábito creado', description: `"${name}" agregado.` })
       }
       setName(''); setOpen(false)
@@ -89,7 +89,7 @@ export default function HabitsPage() {
       window.__confirmDelete('habit', id, habit?.name || '')
     } else {
       try {
-        await window.electronAPI.softDeleteItem('habit', id)
+        await window.electronAPI.trash.softDelete('habit', id)
         loadHabits()
         if (habit) {
           const { pushAction } = useUndoStore.getState()
@@ -97,7 +97,7 @@ export default function HabitsPage() {
             label: `"${habit.name}" eliminado`,
             onUndo: async () => {
               if (window.electronAPI) {
-                await window.electronAPI.restoreItem('habit', id)
+                await window.electronAPI.trash.restore('habit', id)
                 loadHabits()
               }
             },
@@ -112,7 +112,7 @@ export default function HabitsPage() {
   async function toggleHabit(habitId: number, date: string) {
     if (!window.electronAPI) return
     try {
-      await window.electronAPI.toggleHabitLog(habitId, date)
+      await window.electronAPI.habits.logs.toggle(habitId, date)
       loadHabits()
     } catch {
       toast({ title: 'Error', description: 'No se pudo registrar el hábito', variant: 'destructive' })
@@ -166,7 +166,6 @@ export default function HabitsPage() {
         <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" /> Nuevo Hábito</Button>
       </div>
 
-      {/* Dialogs */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

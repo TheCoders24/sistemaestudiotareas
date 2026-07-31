@@ -67,37 +67,37 @@ export default function WeeklyPDFReport() {
     if (!window.electronAPI) return
     try {
       const [t, s, h] = await Promise.all([
-        window.electronAPI.getTasks?.() || Promise.resolve([]),
-        window.electronAPI.getPomodoroSessions?.() || Promise.resolve([]),
-        window.electronAPI.getHabits?.() || Promise.resolve([]),
+        window.electronAPI.tasks.list(),
+        window.electronAPI.pomodoro.sessions.list(),
+        window.electronAPI.habits.list(),
       ])
       if (t) setTasks(t)
       if (s) setSessions(s)
       if (h) setHabits(h)
 
-      if (h && h.length > 0 && window.electronAPI.getHabitLogs) {
+      if (h && h.length > 0) {
         const allLogs: HabitLog[] = []
         for (const habit of h) {
-          const logs = await window.electronAPI.getHabitLogs(habit.id)
+          const logs = await window.electronAPI.habits.logs.list(habit.id)
           if (logs) allLogs.push(...logs.map((l: any) => ({ habit_id: habit.id, date: l.date, completed: l.completed })))
         }
         setHabitLogs(allLogs)
       }
 
-      if (window.electronAPI.getFlashcardStats) {
-        const decks = await (window.electronAPI as any).getFlashcardDecks?.() || []
+      if (window.electronAPI.flashcards?.stats) {
+        const decks = await window.electronAPI.flashcards.decks.list() || []
         let totalCards = 0
         let totalReviewed = 0
         let totalRetention = 0
         let deckCount = 0
         for (const deck of decks) {
-          const stats = await (window.electronAPI as any).getFlashcardStats(deck.id)
+          const stats = await window.electronAPI.flashcards.stats.deck(deck.id)
           if (stats) {
             totalCards += stats.total
             totalReviewed += stats.reviewed
             deckCount++
           }
-          const ret = await (window.electronAPI as any).getRetentionStats?.(deck.id)
+          const ret = await window.electronAPI.flashcards.stats.retention()
           if (ret) totalRetention += ret.retentionRate
         }
         if (deckCount > 0) {
@@ -105,8 +105,8 @@ export default function WeeklyPDFReport() {
         }
       }
 
-      if (window.electronAPI.getAchievements) {
-        const ach = await window.electronAPI.getAchievements()
+      if (window.electronAPI.gamification?.achievements) {
+        const ach = await window.electronAPI.gamification.achievements.list()
         if (ach) setAchievements(ach)
       }
     } catch {}

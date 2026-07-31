@@ -1,0 +1,8 @@
+{
+  "id": "example-plugin",
+  "name": "Plugin de Ejemplo",
+  "version": "1.0.0",
+  "description": "Un plugin de ejemplo para el sistema",
+  "main": "index.js",
+  "permissions": ["db:read", "events:subscribe"]
+}

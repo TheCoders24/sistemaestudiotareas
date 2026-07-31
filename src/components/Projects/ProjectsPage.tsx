@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
-  Plus, Trash2, ExternalLink, FolderKanban, GitBranch,
-  Circle, LayoutTemplate
+  Plus, Trash2, ExternalLink, FolderKanban, GitBranch, GitCommit,
+  Circle, LayoutTemplate, Code2, Terminal
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,7 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { toast } from '@/components/ui/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
-import { safeIpc } from '@/lib/ipc'
+import TemplateLibrary from '@/components/Templates/TemplateLibrary'
 import type { Project } from '@/types'
 
 const STATUS_OPTIONS = ['activo', 'en pausa', 'completado', 'archivado']
@@ -44,19 +44,35 @@ export default function ProjectsPage() {
   const [color, setColor] = useState('#6366f1')
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [gitStatuses, setGitStatuses] = useState<Record<number, any>>({})
 
   useEffect(() => { loadProjects() }, [])
 
   async function loadProjects() {
     if (!window.electronAPI) return
-    const data = await safeIpc<Project[]>('getProjects')
+    const data = await window.electronAPI.projects.list()
     setProjects(data ?? [])
   }
+
+  async function loadGitStatuses() {
+    if (!window.electronAPI) return
+    for (const p of projects) {
+      if (p.repo_url) {
+        try {
+          const status = await window.electronAPI.projects.gitStatus(p.id)
+          if (status) setGitStatuses(prev => ({ ...prev, [p.id]: status }))
+        } catch {}
+      }
+    }
+  }
+
+  useEffect(() => { if (projects.length > 0) loadGitStatuses() }, [projects])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !window.electronAPI) return
-    await safeIpc('createProject', { name, description: desc, status, tech_stack: techStack, repo_url: repoUrl, color })
+    await window.electronAPI.projects.create({ name, description: desc, status, tech_stack: techStack, repo_url: repoUrl, color })
     setName(''); setDesc(''); setTechStack(''); setRepoUrl('')
     setOpen(false)
     loadProjects()
@@ -65,14 +81,14 @@ export default function ProjectsPage() {
 
   async function handleDelete(id: number) {
     if (!window.electronAPI) return
-    await safeIpc('deleteProject', id)
+    await window.electronAPI.projects.delete(id)
     loadProjects()
     toast({ title: 'Proyecto eliminado', description: 'El proyecto fue eliminado.' })
   }
 
   async function handleStatusChange(id: number, newStatus: string) {
     if (!window.electronAPI) return
-    await safeIpc('updateProject', id, { status: newStatus })
+    await window.electronAPI.projects.update(id, { status: newStatus })
     loadProjects()
   }
 
@@ -80,13 +96,13 @@ export default function ProjectsPage() {
     if (!window.electronAPI) return
     const template = TEMPLATES.find(t => t.id === templateId)
     if (!template) return
-    const project = await safeIpc<any>('createProject', {
+    const project = await window.electronAPI.projects.create({
       name: template.name, description: template.desc, status: 'activo',
       tech_stack: template.tech, repo_url: '', color: template.color,
     })
     if (project) {
       for (const taskTitle of template.tasks) {
-        await window.electronAPI.createTask({ title: taskTitle, description: '', priority: 'media', project_id: project.id } as any)
+        await window.electronAPI.tasks.create({ title: taskTitle, description: '', priority: 'media', project_id: project.id } as any)
       }
       toast({ title: 'Proyecto creado desde plantilla', description: `${template.name} con ${template.tasks.length} tareas` })
     }
@@ -181,7 +197,11 @@ export default function ProjectsPage() {
               description="Crea tu primer proyecto para organizar tu trabajo."
               actionLabel="Crear proyecto"
               onAction={() => setOpen(true)}
-            />
+            >
+              <Button variant="outline" onClick={() => setTemplateDialogOpen(true)} size="sm">
+                <LayoutTemplate className="h-4 w-4 mr-1" /> Empezar con plantilla
+              </Button>
+            </EmptyState>
           </div>
         )}
         {projects.map((project, i) => (
@@ -228,16 +248,57 @@ export default function ProjectsPage() {
                   </div>
                 )}
                 {project.repo_url && (
-                  <a href={project.repo_url} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground flex items-center gap-1 hover:text-primary">
-                    <GitBranch className="h-3 w-3" /> {project.repo_url.replace('https://github.com/', '')}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <a href={project.repo_url} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground flex items-center gap-1 hover:text-primary">
+                        <GitBranch className="h-3 w-3" /> {project.repo_url.replace('https://github.com/', '')}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                      <div className="flex gap-0.5 ml-auto">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); window.electronAPI?.projects.openInEditor(project.id, 'code') }}
+                          className="p-1 rounded text-muted-foreground/50 hover:text-indigo-500 hover:bg-indigo-500/10 transition-all"
+                          title="Abrir en VSCode"
+                        >
+                          <Code2 className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); window.electronAPI?.projects.openInEditor(project.id, 'claude') }}
+                          className="p-1 rounded text-muted-foreground/50 hover:text-purple-500 hover:bg-purple-500/10 transition-all"
+                          title="Abrir en Claude Code"
+                        >
+                          <Terminal className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                    {gitStatuses[project.id] && (
+                      <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                        <span className="flex items-center gap-1">
+                          <GitCommit className="h-3 w-3" />
+                          {gitStatuses[project.id].branch}
+                        </span>
+                        <span>·</span>
+                        <span className={`${gitStatuses[project.id].dirty ? 'text-amber-500' : 'text-green-500'}`}>
+                          {gitStatuses[project.id].dirty ? `${gitStatuses[project.id].filesChanged} archivos modificados` : 'Clean'}
+                        </span>
+                        <span>·</span>
+                        <span>{gitStatuses[project.id].lastCommit?.message?.slice(0, 30)}</span>
+                      </div>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>
           </motion.div>
         ))}
       </div>
+
+      <TemplateLibrary
+        type="project"
+        open={templateDialogOpen}
+        onOpenChange={setTemplateDialogOpen}
+        onInstantiated={(result) => { loadProjects() }}
+      />
 
       <ConfirmDialog
         open={deleteId !== null}

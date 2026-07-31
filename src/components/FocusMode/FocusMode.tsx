@@ -23,7 +23,7 @@ export function FocusMode() {
             clearInterval(intervalRef.current!)
             intervalRef.current = null
             if (window.electronAPI) {
-              window.electronAPI.showNotification(
+              window.electronAPI.app.notification.show(
                 mode === 'focus' ? '🍅 Focus completado' : '☕ Descanso terminado',
                 mode === 'focus' ? '¡Buen trabajo! Tomá un descanso.' : '¡De vuelta al trabajo!'
               )

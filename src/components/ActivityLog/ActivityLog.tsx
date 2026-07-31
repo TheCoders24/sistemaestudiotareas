@@ -8,7 +8,7 @@ export default function ActivityLog() {
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getActivityFeed().then(setLogs)
+      window.electronAPI.dashboard.activityFeed().then(setLogs)
     }
   }, [])
 

@@ -36,7 +36,7 @@ export default function Goals() {
 
   async function loadGoals() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getGoals()
+    const data = await window.electronAPI.goals.list()
     setGoals(data)
     await computeProgress(data)
   }
@@ -45,8 +45,8 @@ export default function Goals() {
     if (!window.electronAPI) return
     const today = new Date().toISOString().split('T')[0]
     const [sessions, tasks] = await Promise.all([
-      window.electronAPI.getPomodoroSessions?.(today).catch(() => []) || [],
-      window.electronAPI.getTasks().catch(() => []) || [],
+      window.electronAPI.pomodoro.sessions.list(today).catch(() => []) || [],
+      window.electronAPI.tasks.list().catch(() => []) || [],
     ])
 
     const todaySessions = sessions?.length || 0
@@ -92,7 +92,7 @@ export default function Goals() {
     e.preventDefault()
     if (!title.trim() || !window.electronAPI) return
     try {
-      await window.electronAPI.createGoal({ title, type, target: Number(target), metric } as any)
+      await window.electronAPI.goals.create({ title, type, target: Number(target), metric } as any)
       setTitle(''); setTarget(4)
       setShowForm(false)
       loadGoals()
@@ -106,14 +106,14 @@ export default function Goals() {
     if (!window.electronAPI) return
     const goal = goals.find(g => g.id === id)
     try {
-      await window.electronAPI.softDeleteItem('goal', id)
+      await window.electronAPI.trash.softDelete('goal', id)
       loadGoals()
       if (goal) {
         pushAction({
           label: `"${goal.title}" eliminada`,
           onUndo: async () => {
             if (window.electronAPI) {
-              await window.electronAPI.restoreItem('goal', id)
+              await window.electronAPI.trash.restore('goal', id)
               loadGoals()
             }
           },

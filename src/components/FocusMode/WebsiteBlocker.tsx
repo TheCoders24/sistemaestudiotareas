@@ -56,7 +56,7 @@ export default function WebsiteBlocker() {
   useEffect(() => {
     const checkPomodoro = () => {
       if (window.electronAPI) {
-        window.electronAPI.getSetting?.('pomodoro_running').then((val: string | null) => {
+        window.electronAPI.settings.get?.('pomodoro_running').then((val: string | null) => {
           setIsPomodoroActive(val === 'true')
         }).catch(() => {})
       }

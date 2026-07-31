@@ -46,7 +46,7 @@ export default function TaskCalendarView() {
 
   async function loadTasks() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getTasks()
+    const data = await window.electronAPI.tasks.list()
     setTasks(data.filter((task: any) => !task.deleted))
     setLoading(false)
   }

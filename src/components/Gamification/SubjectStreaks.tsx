@@ -115,8 +115,8 @@ export default function SubjectStreaks() {
       return
     }
     Promise.all([
-      window.electronAPI.getProjects(),
-      window.electronAPI.getPomodoroSessions(),
+      window.electronAPI.projects.list(),
+      window.electronAPI.pomodoro.sessions.list(),
     ]).then(([p, s]) => {
       setProjects(p.filter(pr => !pr.deleted))
       setSessions(s)

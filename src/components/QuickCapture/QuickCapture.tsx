@@ -100,7 +100,7 @@ export default function QuickCapture({ open, onOpenChange }: QuickCaptureProps) 
     }
     try {
       const cleanTitle = value.trim()
-      await window.electronAPI.createTask({
+      await window.electronAPI.tasks.create({
         title: cleanTitle,
         description: '',
         priority: parsed.priority || 'media',

@@ -18,8 +18,8 @@ export default function CloudSync() {
   const [myIps, setMyIps] = useState<{ ip: string; name: string }[]>([])
 
   useEffect(() => {
-    if (window.electronAPI?.onWifiSyncDevice) {
-      window.electronAPI.onWifiSyncDevice((device: Device) => {
+    if (window.electronAPI?.events?.onWifiDeviceFound) {
+      window.electronAPI.events.onWifiDeviceFound((device: Device) => {
         setDevices(prev => {
           if (prev.some(d => d.ip === device.ip)) return prev
           return [...prev, device]
@@ -29,19 +29,19 @@ export default function CloudSync() {
   }, [])
 
   const startServer = useCallback(async () => {
-    if (!window.electronAPI?.startWifiSync) return
-    const result = await window.electronAPI.startWifiSync()
+    if (!window.electronAPI?.wifiSync.start) return
+    const result = await window.electronAPI.wifiSync.start()
     if (result?.ok) {
       setServerActive(true)
-      const ips = await window.electronAPI.discoverWifiSync()
+      const ips = await window.electronAPI.wifiSync.discover()
       setMyIps(ips || [])
       toast({ title: 'Servidor WiFi activo', description: 'Otros dispositivos pueden encontrarte en la red local' })
     }
   }, [])
 
   const stopServer = useCallback(async () => {
-    if (!window.electronAPI?.stopWifiSync) return
-    await window.electronAPI.stopWifiSync()
+    if (!window.electronAPI?.wifiSync.stop) return
+    await window.electronAPI.wifiSync.stop()
     setServerActive(false)
     setDevices([])
     toast({ title: 'Servidor detenido' })
@@ -50,16 +50,16 @@ export default function CloudSync() {
   const scanDevices = useCallback(async () => {
     setScanning(true)
     setDevices([])
-    if (!window.electronAPI?.discoverWifiSync) { setScanning(false); return }
-    const ips = await window.electronAPI.discoverWifiSync()
+    if (!window.electronAPI?.wifiSync?.discover) { setScanning(false); return }
+    const ips = await window.electronAPI.wifiSync.discover()
     setMyIps(ips || [])
     setTimeout(() => setScanning(false), 3000)
   }, [])
 
   const connectManual = useCallback(async () => {
-    if (!manualIp.trim() || !window.electronAPI?.connectWifiSync) return
+    if (!manualIp.trim() || !window.electronAPI?.wifiSync.connect) return
     try {
-      const info = await window.electronAPI.connectWifiSync(manualIp.trim())
+      const info = await window.electronAPI.wifiSync.connect(manualIp.trim())
       if (info) {
         setDevices(prev => {
           if (prev.some(d => d.ip === manualIp.trim())) return prev
@@ -76,7 +76,7 @@ export default function CloudSync() {
   const pullFromDevice = useCallback(async (ip: string, name: string) => {
     setSyncingDevice(ip)
     try {
-      await window.electronAPI?.pullWifiSync(ip)
+      await window.electronAPI.wifiSync.pull(ip)
       toast({ title: 'Datos recibidos', description: `Sincronizado desde ${name}` })
     } catch {
       toast({ title: 'Error', description: `No se pudo sincronizar desde ${name}`, variant: 'destructive' })
@@ -87,7 +87,7 @@ export default function CloudSync() {
   const pushToDevice = useCallback(async (ip: string, name: string) => {
     setSyncingDevice(ip)
     try {
-      await window.electronAPI?.pushWifiSync(ip)
+      await window.electronAPI.wifiSync.push(ip)
       toast({ title: 'Datos enviados', description: `Enviados a ${name}` })
     } catch {
       toast({ title: 'Error', description: `No se pudo enviar a ${name}`, variant: 'destructive' })
@@ -96,11 +96,11 @@ export default function CloudSync() {
   }, [])
 
   const exportToFile = useCallback(async () => {
-    if (!window.electronAPI?.exportData) {
+    if (!window.electronAPI?.export?.data) {
       toast({ title: 'Error', description: 'API no disponible', variant: 'destructive' })
       return
     }
-    const data = await window.electronAPI.exportData()
+    const data = await window.electronAPI.export.data()
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -121,8 +121,8 @@ export default function CloudSync() {
       try {
         const text = await file.text()
         const data = JSON.parse(text)
-        if (window.electronAPI?.restoreFromJSON) {
-          await window.electronAPI.restoreFromJSON(data)
+        if (window.electronAPI?.export.importJSON) {
+          await window.electronAPI.export.importJSON(data)
           toast({ title: 'Importado', description: 'Datos restaurados correctamente. Reiniciá la app.' })
         }
       } catch {

@@ -31,7 +31,7 @@ export default function TaskTimelineView() {
 
   async function loadTasks() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.getTasks()
+    const data = await window.electronAPI.tasks.list()
     setTasks(data.filter((task: any) => !task.deleted && task.due_date))
     setLoading(false)
   }

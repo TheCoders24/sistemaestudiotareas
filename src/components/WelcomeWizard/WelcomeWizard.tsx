@@ -20,6 +20,8 @@ export interface WelcomeWizardProps {
   onChangeFontSize: (size: 'sm' | 'base' | 'lg') => void
   denseMode: boolean
   onChangeDenseMode: (dense: boolean) => void
+  userProfile?: string
+  onChangeUserProfile?: (profile: string) => void
   onComplete: () => void
 }
 
@@ -40,11 +42,13 @@ export function WelcomeWizard({
   onChangeFontSize,
   denseMode,
   onChangeDenseMode,
+  userProfile = 'custom',
+  onChangeUserProfile,
   onComplete,
 }: WelcomeWizardProps) {
   const [step, setStep] = useState(0)
 
-  const next = () => setStep((s) => Math.min(s + 1, 2))
+  const next = () => setStep((s) => Math.min(s + 1, 3))
   const prev = () => setStep((s) => Math.max(s - 1, 0))
 
   return (
@@ -125,10 +129,40 @@ export function WelcomeWizard({
               </div>
             </div>
           )}
+
+          {step === 3 && (
+            <div className="space-y-4 py-2">
+              <h3 className="text-lg font-semibold text-center">¿Cuál es tu perfil?</h3>
+              <p className="text-sm text-muted-foreground text-center">Esto personalizará tu experiencia</p>
+              <div className="grid gap-3">
+                {[
+                  { value: 'custom', label: 'General', desc: 'Uso general de productividad', icon: '👤' },
+                  { value: 'student', label: 'Estudiante', desc: 'Enfoque en cursos, exámenes y estudio', icon: '🎓' },
+                  { value: 'developer', label: 'Desarrollador', desc: 'Enfoque en proyectos, código y sprints', icon: '💻' },
+                ].map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => onChangeUserProfile?.(p.value)}
+                    className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                      userProfile === p.value
+                        ? 'border-indigo-500 bg-indigo-500/10'
+                        : 'border-border hover:border-indigo-500/30'
+                    }`}
+                  >
+                    <span className="text-2xl">{p.icon}</span>
+                    <div>
+                      <span className="font-medium text-sm block">{p.label}</span>
+                      <span className="text-xs text-muted-foreground">{p.desc}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="flex justify-center gap-1.5 py-2">
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
               className={cn(
@@ -149,7 +183,7 @@ export function WelcomeWizard({
             <div />
           )}
 
-          {step < 2 ? (
+          {step < 3 ? (
             <Button size="sm" onClick={next}>
               Siguiente
               <ChevronRight className="h-4 w-4 ml-1" />

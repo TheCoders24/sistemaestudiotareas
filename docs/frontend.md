@@ -6,11 +6,12 @@
 src/
 ├── App.tsx                     # Entry point con lazy loading + keyboard shortcuts
 ├── main.tsx                    # Mount point
-├── components/
+├── components/                 # +40 módulos (tabs y features)
 │   ├── Dashboard/              # Tab: Dashboard
 │   ├── Pomodoro/               # Tab: Pomodoro Timer
 │   ├── Kanban/                 # Tab: Kanban Board
 │   ├── TaskList/               # Tab: Tareas
+│   ├── TaskViews/              # Vistas alternas de tareas
 │   ├── StudyMap/               # Tab: Mapa de Estudio
 │   ├── Statistics/             # Tab: Stats
 │   ├── QuickNotes/             # Tab: Notas
@@ -21,23 +22,48 @@ src/
 │   ├── Habits/                 # Tab: Hábitos
 │   ├── Flashcards/             # Tab: Flashcards
 │   ├── ActivityLog/            # Tab: Actividad
+│   ├── Achievements/           # Logros y gamificación
+│   ├── Challenges/             # Retos
+│   ├── Courses/                # Cursos
+│   ├── Exams/                  # Exámenes
+│   ├── Reports/                # Reportes
+│   ├── WeeklyReview/           # Revisión semanal
+│   ├── SpacedRepetition/       # Repetición espaciada
+│   ├── Tutor/                  # Tutor AI
+│   ├── Automation/             # Reglas de automatización
+│   ├── EnergyPlanning/         # Planificación de energía
+│   ├── SmartReminders/         # Recordatorios inteligentes
+│   ├── FocusMode/              # Modo foco
+│   ├── Calendar/               # Calendario
+│   ├── CalendarImport/         # Importación de calendario
+│   ├── Trash/                  # Papelera
+│   ├── Search/                 # Búsqueda global
+│   ├── CommandPalette/         # Paleta de comandos
+│   ├── QuickCapture/           # Captura rápida
+│   ├── Security/               # PIN lock
+│   ├── Sync/                   # Sincronización (wifi)
+│   ├── Social/                 # Social
+│   ├── Templates/              # Plantillas
+│   ├── WorkspaceSwitcher/      # Cambio de workspace
+│   ├── WelcomeWizard/          # Onboarding
+│   ├── Gamification/           # XP y niveles
+│   ├── HeaderPomodoro/         # Temporizador en header
 │   ├── Sidebar/                # Sidebar (siempre visible)
 │   ├── Settings/               # Dialog de configuración (lazy)
 │   ├── common/                 # Componentes compartidos
-│   └── ui/                     # 34 UI components (shadcn-style)
+│   └── ui/                     # 34+ UI components (shadcn-style)
 ├── stores/
-│   ├── appStore.ts             # Zustand: activeTab, darkMode, sidebar, streak, focus
-│   └── themeStore.ts           # 8 temas de color con CSS variables
+│   ├── appStore.ts             # Zustand: activeTab, darkMode, sidebar, streak, focus, perfil
+│   ├── themeStore.ts           # 8 temas de color con CSS variables
+│   └── undoStore.ts            # Acciones de deshacer
 ├── lib/
-│   ├── ipc.ts                  # safeIpc() con retry + cache
+│   ├── ipc.ts                  # Wrapper tipado (safeIpc)
 │   ├── constants.ts            # TABS, shortcut config, prioridades, recurrencia
-│   ├── utils.ts                # cn() — clsx + tailwind-merge
-│   └── useAutoBackup.ts        # Hook de backup automático
+│   ├── utils.ts                # cn() — clsx + tailwind-merge + i18n t()
+│   └── useAutoBackup.ts        # Hook de backup automático (sin llamadores)
 ├── types/
 │   └── index.ts                # Interfaces + declare global Window.electronAPI
-└── __tests__/
-    ├── basic.test.tsx
-    └── ipc.test.ts
+└── __tests__/                  # Tests históricos por módulo
 ```
 
 ## App.tsx
@@ -51,70 +77,40 @@ Cada tab page se carga con `React.lazy()` + `Suspense` (fallback: `CardSkeleton`
 |---|---|
 | `useAppInitializer` | Carga tema y racha al inicio |
 | `useThemePersistence` | Persiste dark mode en DB + clase `dark` en `<html>` |
-| `useKeyboardShortcuts` | Atajos de teclado (Ctrl+N, Ctrl+P, etc.) |
+| `useKeyboardShortcuts` | Atajos de teclado |
 
 ### Atajos de Teclado
-Definidos en `constants.ts` como `SHORTCUT_CONFIG`:
-```typescript
-const SHORTCUT_CONFIG = [
-  { id: 'dashboard', key: 'h', shift: true },
-  { id: 'pomodoro', key: 'p', shift: false },
-  // ...
-]
-```
-Se iteran dinámicamente — añadir un tab nuevo solo requiere agregarlo al array.
+Definidos en `constants.ts` como `SHORTCUT_CONFIG`; se iteran dinámicamente.
 
 ### Componentes siempre montados (React.memo)
-- `CommandPalette`, `GlobalSearch`, `WelcomeDialog`, `UpdateBanner`
-- `QuickCapture`, `Sidebar`, `Toaster`
+`CommandPalette`, `GlobalSearch`, `WelcomeDialog`, `UpdateBanner`, `QuickCapture`,
+`Sidebar`, `Toaster`.
 
-## IPC Layer: safeIpc
+## IPC Layer
 
-`src/lib/ipc.ts` — wrapper tipado sobre `window.electronAPI`:
+Los componentes llaman directamente a `window.electronAPI.<dominio>.<metodo>()`
+(tipado en `src/types/index.ts`). El API expuesta por el preload está documentada
+en `docs/electron.md`.
 
-```typescript
-safeIpc<T>(method, ...args): Promise<T | null>
-safeIpcOrThrow<T>(method, ...args): Promise<T>
-```
-
-**Características:**
-- **Retry**: 3 intentos con delays [500ms, 1500ms, 4000ms]
-- **Cache**: en memoria, 5s TTL, solo para métodos GET con 0-1 args string
-- **Error toast**: muestra error al usuario si fallan todos los intentos
-- **Null safety**: retorna `null` si `window.electronAPI` no existe (SSR/testing)
-- **`clearIpcCache()`**: limpiar caché manualmente
-- **`setRetryDelays()`**: configurar delays
+Existe `src/lib/ipc.ts` (`safeIpc`) con retry + cache, pero el código actual
+invoca `electronAPI` directamente.
 
 ## Theme System
 
-8 temas de color definidos en `themeStore.ts` como CSS variables HSL:
-
-| Tema | ID | Primary |
-|---|---|---|
-| Índigo | indigo | #6366f1 |
-| Esmeralda | emerald | #10b981 |
-| Rosa | rose | #f43f5e |
-| Ámbar | amber | #f59e0b |
-| Violeta | violet | #8b5cf6 |
-| Cielo | sky | #0ea5e9 |
-| Naranja | orange | #f97316 |
-| Lima | lime | #84cc16 |
-
-## Constants (`src/lib/constants.ts`)
-- `TABS` — array con id, label, icon para renderizar navbar y atajos
-- `KEYBOARD_SHORTCUTS` — map para mostrar en tooltips
-- `SHORTCUT_CONFIG` — array para iterar en el handler de teclado
-- `PRIORITY_LABELS` / `PRIORITY_COLORS` — configuración de prioridades
-- `RECURRENCE_OPTIONS` — opciones de recurrencia de tareas
+8 temas de color definidos en `themeStore.ts` como variables CSS HSL:
+Índigo, Esmeralda, Rosa, Ámbar, Violeta, Cielo, Naranja y Lima.
 
 ## Componentes UI (`src/components/ui/`)
-
-34 componentes basados en Radix primitives + class-variance-authority:
-button, card, input, textarea, select, dialog, popover, tooltip, badge, checkbox, switch, slider, tabs, separator, progress, scroll-area, skeleton, toast/toaster, label, dropdown-menu, sheet, confirm-dialog, empty-state, loading-skeleton, command-palette, global-search, welcome-dialog, update-banner, quick-capture, tag-picker, tag-badge, error-boundary, use-toast.
+Componentes Radix + class-variance-authority: button, card, input, textarea,
+select, dialog, popover, tooltip, badge, checkbox, switch, slider, tabs,
+separator, progress, scroll-area, skeleton, toast/toaster, label, dropdown-menu,
+sheet, confirm-dialog, empty-state, loading-skeleton, command-palette,
+global-search, welcome-dialog, update-banner, quick-capture, tag-picker,
+tag-badge, error-boundary, use-toast.
 
 ## Settings Dialog
-- Lazy-loaded (carga solo cuando se abre)
-- Eye-rest timer (regla 20-20-20) con slider
-- 8 temas de color
-- Auto-backup configurable (hourly/daily/weekly)
-- Export/Import manual de datos JSON
+- Lazy-loaded (carga solo cuando se abre).
+- Eye-rest timer (regla 20-20-20) con slider.
+- 8 temas de color.
+- **Gestión de backups**: listar y restaurar respaldos automáticos.
+- Export/Import manual de datos JSON.

@@ -1,17 +1,33 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { BarChart3, Timer, CheckSquare, Zap, Flame, TrendingUp, Award } from 'lucide-react'
+import { BarChart3, Timer, CheckSquare, Zap, Flame, TrendingUp, Award, Sparkles, Loader } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 
 export default function WeeklyReviewPage() {
   const [report, setReport] = useState<any>(null)
+  const [aiSummary, setAiSummary] = useState<any>(null)
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getWeeklyReport().then(setReport)
+      window.electronAPI.stats.weeklyReport().then(setReport)
     }
   }, [])
+
+  useEffect(() => {
+    if (report) loadAiSummary()
+  }, [report])
+
+  async function loadAiSummary() {
+    if (!window.electronAPI) return
+    setAiSummaryLoading(true)
+    try {
+      const data = await window.electronAPI.ai.weeklySummary()
+      setAiSummary(data)
+    } catch {}
+    setAiSummaryLoading(false)
+  }
 
   const weekLabel = useMemo(() => {
     if (!report) return ''
@@ -33,7 +49,44 @@ export default function WeeklyReviewPage() {
           <Award className="h-6 w-6 text-indigo-500" /> Reporte Semanal
         </h1>
         <p className="text-sm text-muted-foreground mt-1">{weekLabel}</p>
+        <button
+          onClick={loadAiSummary}
+          disabled={aiSummaryLoading}
+          className="text-xs flex items-center gap-1 mt-2 text-purple-500 hover:text-purple-400 disabled:opacity-50"
+        >
+          {aiSummaryLoading ? <Loader className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+          {aiSummary ? 'Actualizar insights con IA' : 'Generar insights con IA'}
+        </button>
       </motion.div>
+
+      {aiSummary && (
+        <div className="mb-6 p-4 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-500/5">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="h-5 w-5 text-purple-500" />
+            <h3 className="font-semibold text-sm">Insights con IA</h3>
+          </div>
+          <div className="space-y-2">
+            {aiSummary.observations?.map((obs: string, i: number) => (
+              <div key={i} className="flex items-start gap-2 text-sm">
+                <span className="text-purple-500 mt-0.5">•</span>
+                <span>{obs}</span>
+              </div>
+            ))}
+            {aiSummary.tip && (
+              <div className="mt-2 p-2 rounded-lg bg-purple-500/10 text-sm">
+                <span className="font-medium text-purple-500">Tip: </span>
+                {aiSummary.tip}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+            <span>Tareas: {aiSummary.tasksCompleted}</span>
+            <span>Pomodoros: {aiSummary.pomodorosDone}</span>
+            <span>XP: {aiSummary.xpGained}</span>
+            <span>Hábitos: {aiSummary.habitsCompleted}</span>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>

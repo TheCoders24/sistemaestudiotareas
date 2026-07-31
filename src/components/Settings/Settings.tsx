@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings2, Download, Upload, Eye, Volume2, VolumeX, Palette, Timer, Keyboard, RotateCcw, HardDrive, AlertTriangle } from 'lucide-react'
+import { Settings2, Download, Upload, Eye, Volume2, VolumeX, Palette, Timer, Keyboard, RotateCcw, HardDrive, AlertTriangle, User, Brain, Key, Check, X, Loader } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
@@ -28,7 +29,7 @@ interface BackupEntry {
   size: number
 }
 
-export default function Settings() {
+export default function Settings({ open: externalOpen, onOpenChange: externalOnOpenChange }: { open?: boolean; onOpenChange?: (o: boolean) => void } = {}) {
   const t = useTranslate()
   const [eyeRestEnabled, setEyeRestEnabled] = useState(true)
   const [eyeRestInterval, setEyeRestInterval] = useState(20)
@@ -44,28 +45,42 @@ export default function Settings() {
   const [backups, setBackups] = useState<BackupEntry[]>([])
   const [backupsLoading, setBackupsLoading] = useState(false)
   const [restoreConfirm, setRestoreConfirm] = useState<BackupEntry | null>(null)
+  const [developerMode, setDeveloperMode] = useState(false)
+  const [userProfile, setUserProfile] = useState('custom')
+  const [aiApiKey, setAiApiKey] = useState('')
+  const [aiKeyValid, setAiKeyValid] = useState<boolean | null>(null)
+  const [aiKeyChecking, setAiKeyChecking] = useState(false)
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.getSetting('pomodoro_preset').then((val: string | null) => {
+      window.electronAPI.settings.get('pomodoro_preset').then((val: string | null) => {
         if (val) setPomodoroPreset(val)
       })
-      window.electronAPI.getSetting('pomodoro_focus').then((val: string | null) => {
+      window.electronAPI.settings.get('pomodoro_focus').then((val: string | null) => {
         if (val) setFocusTime(Number(val))
+      })
+      window.electronAPI.settings.get('developerMode').then((val: string | null) => {
+        if (val) setDeveloperMode(val === 'true')
+      })
+      window.electronAPI.settings.get('userProfile').then((val: string | null) => {
+        if (val) setUserProfile(val)
+      })
+      window.electronAPI.settings.get('ai_api_key').then((val: string | null) => {
+        if (val) setAiApiKey(val)
       })
     }
   }, [])
 
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.setSetting('pomodoro_preset', pomodoroPreset)
+      window.electronAPI.settings.set('pomodoro_preset', pomodoroPreset)
       if (pomodoroPreset === 'custom') {
-        window.electronAPI.setSetting('pomodoro_focus', String(focusTime))
+        window.electronAPI.settings.set('pomodoro_focus', String(focusTime))
       } else {
         const preset = POMODORO_PRESETS.find(p => p.id === pomodoroPreset)
         if (preset) {
           setFocusTime(preset.focus)
-          window.electronAPI.setSetting('pomodoro_focus', String(preset.focus))
+          window.electronAPI.settings.set('pomodoro_focus', String(preset.focus))
         }
       }
     }
@@ -76,7 +91,7 @@ export default function Settings() {
     if (eyeRestEnabled) {
       eyeRestTimerRef.current = setInterval(() => {
         if (window.electronAPI) {
-          window.electronAPI.showNotification('👀 ' + t('settings.eye_rest'), t('settings.eye_rest_desc') + ' (Regla 20-20-20)')
+          window.electronAPI.app.notification.show('👀 ' + t('settings.eye_rest'), t('settings.eye_rest_desc') + ' (Regla 20-20-20)')
         }
       }, eyeRestInterval * 60 * 1000)
     }
@@ -110,7 +125,7 @@ export default function Settings() {
   async function loadBackups() {
     if (!window.electronAPI) return
     setBackupsLoading(true)
-    const list = await window.electronAPI.listBackups()
+    const list = await window.electronAPI.backup.list()
     setBackups(list)
     setBackupsLoading(false)
   }
@@ -118,7 +133,7 @@ export default function Settings() {
   async function handleRestoreBackup(backup: BackupEntry) {
     if (!window.electronAPI) return
     try {
-      await window.electronAPI.restoreBackup(backup.filename)
+      await window.electronAPI.backup.restore(backup.filename)
       toast({ title: t('settings.backups_restore_success'), description: t('settings.backups_restore_success_desc').replace('{date}', backup.date) })
       setRestoreConfirm(null)
     } catch {
@@ -128,7 +143,7 @@ export default function Settings() {
 
   async function handleExport() {
     if (!window.electronAPI) return
-    const data = await window.electronAPI.exportData()
+    const data = await window.electronAPI.export.data()
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -149,7 +164,7 @@ export default function Settings() {
       try {
         const data = JSON.parse(event.target?.result as string)
         if (window.electronAPI) {
-          await window.electronAPI.importData(data)
+          await window.electronAPI.export.import(data)
           toast({ title: '✅ ' + t('settings.import_success'), description: t('settings.import_success_desc') })
         }
       } catch {
@@ -167,7 +182,7 @@ export default function Settings() {
   }
 
   return (
-    <Dialog onOpenChange={(open) => { if (open) loadBackups() }}>
+    <Dialog open={externalOpen} onOpenChange={(open) => { externalOnOpenChange?.(open); if (open) loadBackups() }}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon">
           <Settings2 className="h-5 w-5" />
@@ -226,7 +241,7 @@ export default function Settings() {
               <Switch checked={autoDarkMode} onCheckedChange={(val) => {
                 setAutoDarkMode(val)
                 if (window.electronAPI) {
-                  window.electronAPI.setSetting('auto_dark_mode', val ? 'true' : 'false')
+                  window.electronAPI.settings.set('auto_dark_mode', val ? 'true' : 'false')
                 }
               }} />
             </div>
@@ -237,148 +252,91 @@ export default function Settings() {
                   <label className="text-xs text-muted-foreground">{t('settings.auto_dark_start')}</label>
                   <input type="time" value={autoDarkStart} onChange={(e) => {
                     setAutoDarkStart(e.target.value)
-                    if (window.electronAPI) window.electronAPI.setSetting('auto_dark_start', e.target.value)
+                    if (window.electronAPI) window.electronAPI.settings.set('auto_dark_start', e.target.value)
                   }} className="w-full rounded border border-border bg-background px-2 py-1 text-xs" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">{t('settings.auto_dark_end')}</label>
                   <input type="time" value={autoDarkEnd} onChange={(e) => {
                     setAutoDarkEnd(e.target.value)
-                    if (window.electronAPI) window.electronAPI.setSetting('auto_dark_end', e.target.value)
-                  }} className="w-full rounded border border-border bg-background px-2 py-1 text-xs" />
+                    if (window.electronAPI) window.electronAPI.settings.set('auto_dark_end', e.target.value)
+                   }} className="w-full rounded border border-border bg-background px-2 py-1 text-xs" />
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
           <Separator />
 
-          {/* Pomodoro */}
-          <div className="bg-accent/50 rounded-lg p-4 space-y-3">
+          {/* Perfil de usuario */}
+          <div className="bg-accent/50 rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
-              <Timer className="h-4 w-4 text-red-500" />
-              <span className="text-sm font-medium">{t('settings.pomodoro')}</span>
+              <User className="h-4 w-4 text-indigo-500" />
+              <span className="text-sm font-medium">Perfil de usuario</span>
             </div>
-            <Select value={pomodoroPreset} onValueChange={setPomodoroPreset}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <p className="text-xs text-muted-foreground">Personalizá la experiencia según tu perfil</p>
+            <Select value={userProfile} onValueChange={(val) => {
+              setUserProfile(val)
+              if (window.electronAPI) {
+                window.electronAPI.settings.set('userProfile', val)
+              }
+            }}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {POMODORO_PRESETS.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
+                <SelectItem value="custom">General</SelectItem>
+                <SelectItem value="student">Estudiante</SelectItem>
+                <SelectItem value="developer">Desarrollador</SelectItem>
               </SelectContent>
             </Select>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">{t('settings.pomodoro_focus')}: {focusTime} min</label>
-              <Slider value={[focusTime]} onValueChange={([v]) => {
-                setFocusTime(v); setPomodoroPreset('custom')
-              }} min={5} max={60} step={5} />
-            </div>
           </div>
 
           <Separator />
 
-          {/* Eye Rest */}
+          {/* AI Configuration */}
           <div className="bg-accent/50 rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Eye className="h-4 w-4 text-indigo-500" />
-                <span className="text-sm font-medium">{t('settings.eye_rest')}</span>
-              </div>
-              <Switch checked={eyeRestEnabled} onCheckedChange={setEyeRestEnabled} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">{t('settings.eye_rest_interval')}: {eyeRestInterval} min</label>
-              <Slider value={[eyeRestInterval]} onValueChange={([v]) => setEyeRestInterval(v)}
-                min={10} max={60} step={5} />
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Shortcuts */}
-          <div className="bg-accent/50 rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
-              <Keyboard className="h-4 w-4 text-orange-500" />
-              <span className="text-sm font-medium">{t('settings.shortcuts')}</span>
-              <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={resetDefaults} title={t('settings.shortcuts_reset')}>
-                <RotateCcw className="h-3 w-3" />
+              <Brain className="h-4 w-4 text-purple-500" />
+              <span className="text-sm font-medium">IA - Asistente de Estudio</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Configurá tu API key de Anthropic (Claude) para usar generación de flashcards, resúmenes y tutor IA.
+            </p>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Key className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="password"
+                  value={aiApiKey}
+                  onChange={(e) => setAiApiKey(e.target.value)}
+                  placeholder="sk-ant-..."
+                  className="pl-8 h-8 text-xs font-mono"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                disabled={aiKeyChecking || !aiApiKey}
+                onClick={async () => {
+                  if (!window.electronAPI) return
+                  setAiKeyChecking(true)
+                  setAiKeyValid(null)
+                  await window.electronAPI.settings.set('ai_api_key', aiApiKey)
+                  const result = await window.electronAPI.ai.validateKey()
+                  setAiKeyValid(result.valid)
+                  setAiKeyChecking(false)
+                  if (result.valid) toast({ title: 'API key válida', description: 'La clave de Anthropic funciona correctamente.' })
+                  else toast({ title: 'API key inválida', description: 'Verificá la clave e intentá de nuevo.', variant: 'destructive' })
+                }}
+              >
+                {aiKeyChecking ? <Loader className="h-3 w-3 animate-spin" /> : aiKeyValid === true ? <Check className="h-3 w-3 text-green-500" /> : aiKeyValid === false ? <X className="h-3 w-3 text-red-500" /> : 'Validar'}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">{t('settings.shortcuts_hint')}</p>
-            {recordingTabId && (
-              <div className="text-xs text-yellow-600 dark:text-yellow-400 animate-pulse">
-                {t('settings.shortcuts_recording')}
-              </div>
-            )}
-            <div className="max-h-32 overflow-y-auto space-y-0.5">
-              {TABS.map(tab => (
-                <div key={tab.id} className="flex items-center justify-between px-1 py-0.5 rounded hover:bg-accent/50">
-                  <span className="text-xs">{tab.label}</span>
-                  <button
-                    onClick={() => setRecordingTabId(recordingTabId === tab.id ? null : tab.id)}
-                    className={`px-1.5 py-0.5 rounded border text-[10px] font-mono transition-all
-                      ${recordingTabId === tab.id
-                        ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300'
-                        : 'border-border bg-muted text-foreground hover:border-foreground'
-                      }`}
-                  >
-                    {recordingTabId === tab.id ? '...' : shortcuts[tab.id]}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Export */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium flex items-center gap-2">
-              <Download className="h-4 w-4 text-green-500" /> {t('settings.export')}
+            <p className="text-xs text-muted-foreground">
+              Tu API key se almacena localmente y solo se usa para llamadas a la API de Anthropic.
             </p>
-            <Button onClick={handleExport} className="w-full" variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-1" /> {t('settings.export_btn')}
-            </Button>
-          </div>
-
-          {/* Import */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium flex items-center gap-2">
-              <Upload className="h-4 w-4 text-blue-500" /> {t('settings.import')}
-            </p>
-            <Button onClick={() => fileInputRef.current?.click()} className="w-full" variant="outline" size="sm">
-              <Upload className="h-4 w-4 mr-1" /> {t('settings.import_btn')}
-            </Button>
-            <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
-          </div>
-
-          <Separator />
-
-          {/* Auto Backups */}
-          <div className="bg-accent/50 rounded-lg p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <HardDrive className="h-4 w-4 text-purple-500" />
-              <span className="text-sm font-medium">{t('settings.backups')}</span>
-              {backupsLoading && <span className="text-xs text-muted-foreground ml-auto">{t('common.loading')}</span>}
-            </div>
-            {backups.length === 0 && !backupsLoading && (
-              <p className="text-xs text-muted-foreground py-2">{t('settings.backups_none')}</p>
-            )}
-            {backups.length > 0 && (
-              <div className="max-h-32 overflow-y-auto space-y-1">
-                {backups.map(b => (
-                  <div key={b.filename} className="flex items-center justify-between px-1 py-1 rounded hover:bg-accent/50">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs font-medium truncate">{b.date}</span>
-                      <span className="text-[10px] text-muted-foreground shrink-0">{formatSize(b.size)}</span>
-                    </div>
-                    <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => setRestoreConfirm(b)}>
-                      <AlertTriangle className="h-3 w-3 mr-1" /> {t('settings.backups_restore')}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
         </div>
