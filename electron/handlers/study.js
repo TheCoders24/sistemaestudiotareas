@@ -6,8 +6,14 @@ function register(ipcMain, { getStmt, wsFilter, wsParams, safeUpdate, safeHandle
   })
 
   safeHandle(ipcMain, 'db:createStudyTopic', schemas.study.topics.create, (topic) => {
-    const stmt = getStmt('INSERT INTO study_topics (parent_id, name, description, order_position) VALUES (@parent_id, @name, @description, @order_position)')
-    const result = stmt.run(topic)
+    const allowed = ['parent_id', 'name', 'description', 'resource_url', 'course_id', 'workspace_id', 'order_position']
+    const keys = allowed.filter(k => topic[k] !== undefined)
+    if (keys.length === 0) throw new Error('No se proporcionaron columnas válidas para crear el tema')
+    const cols = keys.join(', ')
+    const named = keys.map(k => `@${k}`).join(', ')
+    const data = {}
+    for (const k of keys) data[k] = topic[k]
+    const result = getStmt(`INSERT INTO study_topics (${cols}) VALUES (${named})`).run(data)
     return getStmt('SELECT * FROM study_topics WHERE id = ?').get(result.lastInsertRowid)
   })
 

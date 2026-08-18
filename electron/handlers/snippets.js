@@ -13,7 +13,13 @@ function register(ipcMain, { addXp, updateChallengeProgress, safeHandle, schemas
     project_id: z.number().int().positive().optional().nullable(),
   }).passthrough(), (snippet) => {
     snippet.project_id = snippet.project_id ?? null
-    const stmt = getStmt('INSERT INTO snippets (title, code, language, description, tags, project_id) VALUES (@title, @code, @language, @description, @tags, @project_id)')
+    snippet.code = snippet.code ?? ''
+    snippet.language = snippet.language || 'text'
+    snippet.description = snippet.description ?? ''
+    const allowed = ['title', 'code', 'language', 'description', 'tags', 'project_id']
+    const cols = allowed.filter(c => snippet[c] !== undefined)
+    const sets = cols.map(c => `@${c}`).join(', ')
+    const stmt = getStmt(`INSERT INTO snippets (${cols.join(', ')}) VALUES (${sets})`)
     const result = stmt.run(snippet)
     addXp(3, 'snippet creado')
     updateChallengeProgress('note', 1)

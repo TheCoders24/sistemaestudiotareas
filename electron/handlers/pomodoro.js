@@ -16,7 +16,12 @@ function register(ipcMain, { getStmt, addXp, updateChallengeProgress, safeHandle
     ended_at: z.string().optional(),
   }).passthrough(), (session) => {
     session.project_id = session.project_id ?? null
-    const stmt = getStmt('INSERT INTO pomodoro_sessions (task_id, project_id, duration, started_at, ended_at) VALUES (@task_id, @project_id, @duration, @started_at, @ended_at)')
+    session.started_at = session.started_at ?? new Date().toISOString()
+    session.ended_at = session.ended_at ?? null
+    const allowed = ['task_id', 'project_id', 'duration', 'started_at', 'ended_at']
+    const cols = allowed.filter(c => session[c] !== undefined)
+    const sets = cols.map(c => `@${c}`).join(', ')
+    const stmt = getStmt(`INSERT INTO pomodoro_sessions (${cols.join(', ')}) VALUES (${sets})`)
     const result = stmt.run(session)
     addXp(10, 'pomodoro completado')
     updateChallengeProgress('pomodoro', 1)

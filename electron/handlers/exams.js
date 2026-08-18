@@ -25,7 +25,12 @@ function register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z }) {
     return getStmt('SELECT * FROM exam_simulations ORDER BY created_at DESC LIMIT 50').all()
   })
   safeHandle(ipcMain, 'exam_simulations:create', schemas.examSimulations.create, (data) => {
-    const result = getStmt('INSERT INTO exam_simulations (deck_id, course_id, total_questions, correct_answers, wrong_answers, duration_seconds) VALUES (@deck_id, @course_id, @total_questions, @correct_answers, @wrong_answers, @duration_seconds)').run(data)
+    data.course_id = data.course_id ?? null
+    const allowed = ['deck_id', 'course_id', 'total_questions', 'correct_answers', 'wrong_answers', 'duration_seconds']
+    const cols = allowed.filter(c => data[c] !== undefined)
+    const sets = cols.map(c => `@${c}`).join(', ')
+    const stmt = getStmt(`INSERT INTO exam_simulations (${cols.join(', ')}) VALUES (${sets})`)
+    const result = stmt.run(data)
     return getStmt('SELECT * FROM exam_simulations WHERE id = ?').get(result.lastInsertRowid)
   })
   safeHandle(ipcMain, 'exams:gpa', z.number().int().positive().optional(), (courseId) => {

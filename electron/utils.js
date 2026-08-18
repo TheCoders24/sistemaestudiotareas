@@ -11,7 +11,10 @@ function getStmt(sql) {
   }
   if (stmts.size >= LRU_MAX) {
     const oldest = stmts.keys().next().value
-    stmts.get(oldest).finalize()
+    const victim = stmts.get(oldest)
+    if (victim && typeof victim.finalize === 'function') {
+      try { victim.finalize() } catch {}
+    }
     stmts.delete(oldest)
   }
   const stmt = getDb().prepare(sql)
@@ -24,7 +27,7 @@ const ALLOWED_COLUMNS = {
   kanban_cards: ['title', 'description', 'column_type', 'position', 'priority', 'tags', 'due_date', 'project_id', 'workspace_id', 'deleted'],
   notes: ['title', 'content', 'project_id', 'workspace_id', 'deleted'],
   projects: ['name', 'description', 'status', 'tech_stack', 'repo_url', 'color', 'workspace_id', 'deleted'],
-  study_topics: ['parent_id', 'name', 'description', 'resource_url', 'order_position', 'workspace_id', 'study_level', 'study_level_updated_at'],
+  study_topics: ['parent_id', 'name', 'description', 'resource_url', 'order_position', 'workspace_id', 'study_level', 'study_level_updated_at', 'course_id'],
   snippets: ['title', 'code', 'language', 'description', 'tags', 'project_id', 'workspace_id', 'deleted'],
   habits: ['name', 'icon', 'color', 'frequency', 'workspace_id', 'deleted'],
   daily_logs: ['content', 'focus', 'blockers', 'tomorrow_plan', 'workspace_id'],

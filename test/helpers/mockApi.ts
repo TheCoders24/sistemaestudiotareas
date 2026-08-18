@@ -95,6 +95,31 @@ export interface MockElectronApi {
       create: (session: any) => Promise<any>
     }
   }
+  study: {
+    topics: {
+      list: () => Promise<any[]>
+      create: (topic: any) => Promise<any>
+      update: (id: number, data: any) => Promise<any>
+      delete: (id: number) => Promise<boolean>
+      move: (id: number, direction: 'up' | 'down') => Promise<boolean>
+      toggleProgress: (topicId: number, date?: string) => Promise<{ completed: boolean }>
+      setLevel: (topicId: number, level: number) => Promise<boolean>
+    }
+    files: {
+      pickAndUpload: (topicId: number) => Promise<any>
+      list: (topicId: number) => Promise<any[]>
+      delete: (fileId: number) => Promise<boolean>
+      open: (fileId: number) => Promise<boolean>
+    }
+    stats: () => Promise<{ levels: { study_level: number; count: number }[]; total: number }>
+  }
+  courses: {
+    list: (wsId?: number) => Promise<any[]>
+    create: (data: any) => Promise<any>
+    update: (id: number, data: any) => Promise<any>
+    delete: (id: number) => Promise<boolean>
+    get: (id: number) => Promise<any>
+  }
   search: (query: string) => Promise<any[]>
   gamification: {
     xp: {
@@ -164,6 +189,9 @@ export function createMockApi(): MockElectronApi {
   let kanbanId = 0
   let dailyLogId = 0
   let subtaskId = 0
+  let studyTopicId = 0
+  let courseId = 0
+  let studyFileId = 0
 
   const tasks: any[] = []
   const notes: any[] = []
@@ -180,6 +208,10 @@ export function createMockApi(): MockElectronApi {
   const streaks: Record<string, any> = {}
   const pomodoroSessions: any[] = []
   const xpLog: any[] = []
+  const studyTopics: any[] = []
+  const courses: any[] = []
+  const studyProgress: any[] = []
+  const studyFiles: any[] = []
 
   const nowIso = () => new Date().toISOString()
 
@@ -351,6 +383,91 @@ export function createMockApi(): MockElectronApi {
         list: async () => pomodoroSessions,
         create: async (s) => { const ps = { id: pomodoroSessions.length + 1, ...s }; pomodoroSessions.push(ps); return ps },
       },
+    },
+
+    study: {
+      topics: {
+        list: async () => [...studyTopics].sort((a, b) => a.order_position - b.order_position),
+        create: async (topic) => {
+          const t = {
+            id: ++studyTopicId,
+            name: topic.name,
+            description: topic.description || '',
+            resource_url: topic.resource_url || '',
+            parent_id: topic.parent_id ?? null,
+            course_id: topic.course_id ?? null,
+            workspace_id: topic.workspace_id ?? null,
+            order_position: topic.order_position ?? studyTopics.length,
+            study_level: 0,
+            study_level_updated_at: null,
+            created_at: nowIso(),
+          }
+          studyTopics.push(t)
+          return t
+        },
+        update: async (id, data) => { const t = studyTopics.find(x => x.id === id); if (t) Object.assign(t, data); return t },
+        delete: async (id) => { const idx = studyTopics.findIndex(x => x.id === id); if (idx >= 0) studyTopics.splice(idx, 1); return true },
+        move: async (id, direction) => {
+          const cur = studyTopics.find(x => x.id === id)
+          if (!cur) return false
+          const siblings = studyTopics
+            .filter(x => (x.parent_id ?? null) === (cur.parent_id ?? null))
+            .sort((a, b) => a.order_position - b.order_position)
+          const idx = siblings.findIndex(x => x.id === id)
+          const other = direction === 'up' ? siblings[idx - 1] : siblings[idx + 1]
+          if (!other) return false
+          const tmp = cur.order_position
+          cur.order_position = other.order_position
+          other.order_position = tmp
+          return true
+        },
+        toggleProgress: async (topicId, date) => {
+          const d = date || nowIso().split('T')[0]
+          const existing = studyProgress.find(p => p.topic_id === topicId && p.date === d)
+          if (existing) { studyProgress.splice(studyProgress.indexOf(existing), 1); return { completed: false } }
+          studyProgress.push({ id: studyProgress.length + 1, topic_id: topicId, date: d })
+          return { completed: true }
+        },
+        setLevel: async (topicId, level) => {
+          const t = studyTopics.find(x => x.id === topicId)
+          if (t) { t.study_level = level; t.study_level_updated_at = nowIso() }
+          return true
+        },
+      },
+      files: {
+        pickAndUpload: async (topicId) => { const f = { id: ++studyFileId, topic_id: topicId, original_name: 'archivo.pdf', stored_name: 'archivo.pdf', file_size: 1024, mime_type: 'application/pdf', created_at: nowIso() }; studyFiles.push(f); return f },
+        list: async (topicId) => studyFiles.filter(f => f.topic_id === topicId),
+        delete: async (fileId) => { const idx = studyFiles.findIndex(x => x.id === fileId); if (idx >= 0) studyFiles.splice(idx, 1); return true },
+        open: async () => true,
+      },
+      stats: async () => {
+        const levels = [0, 1, 2, 3].map(l => ({ study_level: l, count: studyTopics.filter(t => (t.study_level || 0) === l).length }))
+        return { levels, total: studyTopics.length }
+      },
+    },
+
+    courses: {
+      list: async () => courses.filter(c => !c.archived),
+      create: async (data) => {
+        const c = {
+          id: ++courseId,
+          name: data.name,
+          color: data.color || '#6366f1',
+          icon: data.icon || 'book',
+          term: data.term ?? null,
+          credits: data.credits ?? null,
+          target_grade: data.target_grade ?? null,
+          workspace_id: data.workspace_id ?? 1,
+          archived: 0,
+          created_at: nowIso(),
+          updated_at: nowIso(),
+        }
+        courses.push(c)
+        return c
+      },
+      update: async (id, data) => { const c = courses.find(x => x.id === id); if (c) Object.assign(c, data); return c },
+      delete: async (id) => { const c = courses.find(x => x.id === id); if (c) c.archived = 1; return true },
+      get: async (id) => courses.find(x => x.id === id) || null,
     },
 
     search: async (q) => {

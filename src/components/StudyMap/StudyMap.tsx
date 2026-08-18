@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { BookOpen, Plus, Trash2, ChevronRight, ChevronDown, Search, Link, ArrowUp, ArrowDown, CheckCircle2, RefreshCw, Clock, ChevronsDown, ChevronsUpDown, Paperclip, FileText, File, ExternalLink, LayoutTemplate, Sparkles, Loader } from 'lucide-react'
+import { BookOpen, Plus, Trash2, ChevronRight, ChevronDown, Search, Link, ArrowUp, ArrowDown, CheckCircle2, RefreshCw, Clock, ChevronsDown, ChevronsUpDown, Paperclip, FileText, File, ExternalLink, LayoutTemplate, Sparkles, Loader, GraduationCap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from '@/components/ui/use-toast'
 import { useTranslate } from '@/lib/translate'
 import type { StudyFile } from '@/types'
@@ -26,6 +27,8 @@ const LEVEL_LABELS: Record<number, string> = {
   2: 'Primer repaso completado',
   3: 'Segundo repaso completado — dominio del tema',
 }
+
+const COURSE_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6']
 
 interface Topic {
   id: number
@@ -63,8 +66,19 @@ export default function StudyMap() {
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
   const [generatingFlashcards, setGeneratingFlashcards] = useState<number | null>(null)
   const [generatedFlashcards, setGeneratedFlashcards] = useState<Record<number, any[]>>({})
+  const [viewMode, setViewMode] = useState<'all' | 'byCourse'>('all')
+  const [showCourseDialog, setShowCourseDialog] = useState(false)
+  const [courseFormName, setCourseFormName] = useState('')
+  const [courseFormColor, setCourseFormColor] = useState('#6366f1')
+  const [courseFormTerm, setCourseFormTerm] = useState('')
+  const [expandedCourses, setExpandedCourses] = useState<Record<string, boolean>>({})
 
   useEffect(() => { loadTopics() }, [])
+
+  async function loadCourses() {
+    if (!window.electronAPI) return
+    const c = await window.electronAPI.courses.list(); if (c) setCourses(c)
+  }
 
   async function loadTopics() {
     if (!window.electronAPI) { setTopics([]); return }
@@ -73,7 +87,7 @@ export default function StudyMap() {
     const exp: Record<number, boolean> = {}
     ;(data ?? []).forEach((t: Topic) => { exp[t.id] = true })
     setExpanded(exp)
-    const c = await window.electronAPI.courses.list(); if (c) setCourses(c)
+    await loadCourses()
     loadStats()
   }
 
@@ -109,6 +123,26 @@ export default function StudyMap() {
     setShowAddForm(false)
     loadTopics()
     toast({ title: 'Tema creado', description: `"${formName}" agregado.` })
+  }
+
+  async function handleCreateCourse(e: React.FormEvent) {
+    e.preventDefault()
+    if (!courseFormName.trim() || !window.electronAPI) return
+    await window.electronAPI.courses.create({
+      name: courseFormName,
+      color: courseFormColor,
+      term: courseFormTerm || null,
+      workspace_id: 1,
+    })
+    setCourseFormName(''); setCourseFormColor('#6366f1'); setCourseFormTerm('')
+    setShowCourseDialog(false)
+    loadCourses()
+    toast({ title: 'Materia creada', description: `"${courseFormName}" agregada al mapa.` })
+  }
+
+  function getCourse(id: number | null | undefined) {
+    if (!id) return undefined
+    return courses.find(c => c.id === id)
   }
 
   async function handleDelete(id: number) {
@@ -237,16 +271,42 @@ export default function StudyMap() {
     const all: Record<number, boolean> = {}
     topics.forEach(t => { all[t.id] = true })
     setExpanded(all)
+    const allCourses: Record<string, boolean> = {}
+    courseGroups.forEach(g => { allCourses[g.course ? String(g.course.id) : 'none'] = true })
+    setExpandedCourses(allCourses)
   }
 
   function collapseAll() {
     setExpanded({})
+    setExpandedCourses({})
   }
 
   const rootTopics = useMemo(() => {
     return filteredTopics.filter(t => t.parent_id === null)
       .sort((a, b) => a.order_position - b.order_position)
   }, [filteredTopics])
+
+  const courseGroups = useMemo(() => {
+    const groups: { course: any | null; topics: Topic[] }[] = []
+    const byCourse = new Map<number | null, Topic[]>()
+    filteredTopics.filter(t => t.parent_id === null).forEach(t => {
+      const key = t.course_id ?? null
+      if (!byCourse.has(key)) byCourse.set(key, [])
+      byCourse.get(key)!.push(t)
+    })
+    const keys = Array.from(byCourse.keys()).sort((a, b) => {
+      if (a === null) return 1
+      if (b === null) return -1
+      const ca = courses.find(c => c.id === a)
+      const cb = courses.find(c => c.id === b)
+      return (ca?.name || '').localeCompare(cb?.name || '')
+    })
+    for (const key of keys) {
+      const topics = byCourse.get(key)!.sort((a, b) => a.order_position - b.order_position)
+      groups.push({ course: key === null ? null : courses.find(c => c.id === key) || null, topics })
+    }
+    return groups
+  }, [filteredTopics, courses])
 
   const topicsStudiedToday = useMemo(() => {
     return topics.filter(t => studiedToday(t) && t.study_level && t.study_level > 0)
@@ -345,6 +405,18 @@ export default function StudyMap() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-medium truncate">{topic.name}</span>
+              {(() => {
+                const course = getCourse(topic.course_id)
+                return course ? (
+                  <span
+                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full truncate max-w-[130px] flex-shrink-0"
+                    style={{ backgroundColor: course.color + '20', color: course.color }}
+                    title={course.name}
+                  >
+                    {course.name}
+                  </span>
+                ) : null
+              })()}
               {isToday && <Badge variant="outline" className="text-[9px] h-4 px-1 border-indigo-300 text-indigo-600 dark:text-indigo-400 dark:border-indigo-700">Hoy</Badge>}
             </div>
             {topic.description && <span className="text-[11px] text-muted-foreground truncate block">{topic.description}</span>}
@@ -575,9 +647,14 @@ export default function StudyMap() {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">{t('studymap.desc')}</p>
         </div>
-        <Button onClick={() => setShowAddForm(!showAddForm)} size="sm" variant={showAddForm ? 'secondary' : 'default'}>
-          <Plus className="h-4 w-4 mr-1" /> {showAddForm ? 'Cerrar' : 'Añadir Tema'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setShowCourseDialog(true)} size="sm" variant="outline">
+            <GraduationCap className="h-4 w-4 mr-1" /> Nueva materia
+          </Button>
+          <Button onClick={() => setShowAddForm(!showAddForm)} size="sm" variant={showAddForm ? 'secondary' : 'default'}>
+            <Plus className="h-4 w-4 mr-1" /> {showAddForm ? 'Cerrar' : 'Añadir Tema'}
+          </Button>
+        </div>
       </div>
 
       {renderTutorial()}
@@ -598,6 +675,20 @@ export default function StudyMap() {
           {renderProgressHeader()}
 
           <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center rounded-lg border border-border overflow-hidden flex-shrink-0">
+              <button
+                onClick={() => setViewMode('all')}
+                className={`px-2.5 h-8 text-xs font-medium transition-colors ${viewMode === 'all' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Todo
+              </button>
+              <button
+                onClick={() => setViewMode('byCourse')}
+                className={`px-2.5 h-8 text-xs font-medium transition-colors ${viewMode === 'byCourse' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Por materias
+              </button>
+            </div>
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -704,14 +795,86 @@ export default function StudyMap() {
         </Card>
       ) : (
         <Card>
-          <CardContent className="p-2 space-y-0.5">
-            {rootTopics.length === 0 && search && (
-              <p className="text-muted-foreground text-center py-8 text-sm">No se encontraron temas con "{search}"</p>
+          <CardContent className="p-2">
+            {viewMode === 'byCourse' ? (
+              <div className="space-y-4">
+                {courseGroups.length === 0 && search && (
+                  <p className="text-muted-foreground text-center py-8 text-sm">No se encontraron temas con "{search}"</p>
+                )}
+                {courseGroups.map(group => {
+                  const course = group.course
+                  const groupKey = course ? String(course.id) : 'none'
+                  const isOpen = search.trim() ? true : !!expandedCourses[groupKey]
+                  return (
+                    <div key={groupKey}>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedCourses(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
+                        aria-expanded={isOpen}
+                        aria-label={isOpen ? `Colapsar materias de ${course ? course.name : 'Sin materia'}` : `Desplegar materias de ${course ? course.name : 'Sin materia'}`}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent/60 transition-colors group/course"
+                      >
+                        {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: course ? course.color : '#9ca3af' }}
+                        />
+                        <span className={`text-xs font-semibold ${course ? '' : 'text-muted-foreground'}`}>
+                          {course ? course.name : 'Sin materia'}
+                        </span>
+                        <Badge variant="secondary" className="text-[10px]">{group.topics.length}</Badge>
+                      </button>
+                      {isOpen && (
+                        <div className="space-y-0.5">
+                          {group.topics.map(topic => renderTopic(topic))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="space-y-0.5">
+                {rootTopics.length === 0 && search && (
+                  <p className="text-muted-foreground text-center py-8 text-sm">No se encontraron temas con "{search}"</p>
+                )}
+                {rootTopics.map(topic => renderTopic(topic))}
+              </div>
             )}
-            {rootTopics.map(topic => renderTopic(topic))}
           </CardContent>
         </Card>
       )}
+      <Dialog open={showCourseDialog} onOpenChange={(o) => { setShowCourseDialog(o); if (!o) { setCourseFormName(''); setCourseFormColor('#6366f1'); setCourseFormTerm('') } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nueva materia</DialogTitle></DialogHeader>
+          <form onSubmit={handleCreateCourse} className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Nombre de la materia *</label>
+              <Input value={courseFormName} onChange={e => setCourseFormName(e.target.value)} placeholder="Ej: Anatomía I, Álgebra Lineal..." autoFocus required />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Término / cuatrimestre</label>
+              <Input value={courseFormTerm} onChange={e => setCourseFormTerm(e.target.value)} placeholder="Ej: 2026-1" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Color</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {COURSE_COLORS.map((c) => (
+                  <button
+                    type="button"
+                    key={c}
+                    onClick={() => setCourseFormColor(c)}
+                    className={`w-7 h-7 rounded-full transition-all ${courseFormColor === c ? 'ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110' : ''}`}
+                    style={{ backgroundColor: c }}
+                    aria-label={`Color ${c}`}
+                  />
+                ))}
+              </div>
+            </div>
+            <Button type="submit" className="w-full" size="sm">✓ Crear materia</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
       <TemplateLibrary
         type="study_plan"
         open={templateDialogOpen}

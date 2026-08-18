@@ -45,9 +45,14 @@ function register(ipcMain, { getStmt, safeUpdate, wsFilter, wsParams, safeHandle
     project_id: z.number().int().positive().optional().nullable(),
   }).passthrough(), (card) => {
     const maxPos = getStmt('SELECT COALESCE(MAX(position), -1) + 1 as pos FROM kanban_cards WHERE column_type = ?').get(card.column_type)
-    card.position = maxPos.pos
+    card.position = card.position ?? maxPos.pos
     card.project_id = card.project_id ?? null
-    const stmt = getStmt('INSERT INTO kanban_cards (title, description, column_type, position, priority, tags, due_date, project_id) VALUES (@title, @description, @column_type, @position, @priority, @tags, @due_date, @project_id)')
+    card.priority = card.priority || 'media'
+    card.description = card.description ?? ''
+    const allowed = ['title', 'description', 'column_type', 'position', 'priority', 'tags', 'due_date', 'project_id']
+    const cols = allowed.filter(c => card[c] !== undefined)
+    const sets = cols.map(c => `@${c}`).join(', ')
+    const stmt = getStmt(`INSERT INTO kanban_cards (${cols.join(', ')}) VALUES (${sets})`)
     const result = stmt.run(card)
     return getStmt('SELECT * FROM kanban_cards WHERE id = ?').get(result.lastInsertRowid)
   })

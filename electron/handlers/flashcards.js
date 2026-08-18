@@ -53,7 +53,7 @@ function register(ipcMain, { getStmt, getDb, safeHandle, schemas, voidSchema, z 
       interval = 1
     }
     ease_factor = Math.max(1.3, ease_factor + (0.1 - (3 - q) * (0.08 + (3 - q) * 0.02)))
-    getDb().prepare('UPDATE flashcards SET repetitions = ?, interval = ?, ease_factor = ?, next_review = datetime("now", "+" || ? || " days") WHERE id = ?')
+    getDb().prepare("UPDATE flashcards SET repetitions = ?, interval = ?, ease_factor = ?, next_review = datetime('now', '+' || ? || ' days') WHERE id = ?")
       .run(repetitions, interval, ease_factor, interval, id)
     return { ...card, repetitions, interval, ease_factor }
   })
@@ -72,8 +72,8 @@ function register(ipcMain, { getStmt, getDb, safeHandle, schemas, voidSchema, z 
   })
   safeHandle(ipcMain, 'db:getFlashcardReviewStats', voidSchema(), () => {
     const today = new Date().toISOString().split('T')[0]
-    const totalDue = getDb().prepare('SELECT COUNT(*) as count FROM flashcards WHERE next_review <= datetime("now")').get().count
-    const reviewedToday = getDb().prepare(`SELECT COUNT(*) as count FROM flashcards WHERE date(next_review) <= date("now") AND date(next_review) >= date("${today}", "-1 day") AND repetitions > 0`).get().count
+    const totalDue = getDb().prepare("SELECT COUNT(*) as count FROM flashcards WHERE next_review <= datetime('now')").get().count
+    const reviewedToday = getDb().prepare(`SELECT COUNT(*) as count FROM flashcards WHERE date(next_review) <= date('now') AND date(next_review) >= date('${today}', '-1 day') AND repetitions > 0`).get().count
     const totalCards = getDb().prepare('SELECT COUNT(*) as count FROM flashcards').get().count
     const retention = totalCards > 0 ? Math.round((reviewedToday / Math.max(totalCards, 1)) * 100) : 0
     const streakRow = getDb().prepare(`SELECT value FROM settings WHERE key = 'flashcard_streak'`).get()
@@ -86,7 +86,7 @@ function register(ipcMain, { getStmt, getDb, safeHandle, schemas, voidSchema, z 
       const date = new Date()
       date.setDate(date.getDate() + i)
       const dateStr = date.toISOString().split('T')[0]
-      const count = getDb().prepare(`SELECT COUNT(*) as count FROM flashcards WHERE date(next_review) = date("${dateStr}")`).get().count
+      const count = getDb().prepare(`SELECT COUNT(*) as count FROM flashcards WHERE date(next_review) = date('${dateStr}')`).get().count
       days.push({ date: dateStr, count, label: date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' }) })
     }
     return days

@@ -12,6 +12,7 @@ Aplicación de escritorio portable (Windows) con más de 40 módulos integrados.
 - [Sistema de Backup](backup.md)
 - [Testing](TESTING.md)
 - [Características](features.md)
+- [Materias en el Mapa de Estudio](materias-en-studymap.md)
 
 ## Stack Tecnológico
 
@@ -67,4 +68,4 @@ npm run test             # Ejecuta tests (Vitest)
 ## Estado actual verificado
 
 - Arranque limpio (Vite → handlers IPC → render React) sin errores.
-- Suite de tests: **20 archivos · 502 tests · 0 fallos** (ver `docs/TESTING.md`).
+- Suite de tests: **21 archivos · 513 tests · 0 fallos** (ver `docs/TESTING.md`).

@@ -10,7 +10,11 @@ function register(ipcMain, { getStmt, getDb, safeUpdate, wsFilter, wsParams, add
     repo_url: z.string().optional().nullable(),
     color: z.string().optional().nullable(),
   }).passthrough(), (project) => {
-    const stmt = getStmt('INSERT INTO projects (name, description, status, tech_stack, repo_url, color) VALUES (@name, @description, @status, @tech_stack, @repo_url, @color)')
+    project.status = project.status || 'active'
+    const allowed = ['name', 'description', 'status', 'tech_stack', 'repo_url', 'color']
+    const cols = allowed.filter(c => project[c] !== undefined)
+    const sets = cols.map(c => `@${c}`).join(', ')
+    const stmt = getStmt(`INSERT INTO projects (${cols.join(', ')}) VALUES (${sets})`)
     const result = stmt.run(project)
     addXp(15, 'proyecto creado')
     return getStmt('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid)

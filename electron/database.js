@@ -3,7 +3,7 @@ const path = require('path')
 const { app } = require('electron')
 
 const crypto = require('crypto')
-const SCHEMA_VERSION = 15
+const SCHEMA_VERSION = 17
 const SCHEMA_KEY = 'db_schema_version'
 
 let db
@@ -223,6 +223,7 @@ function initDatabase() {
       resource_url TEXT DEFAULT '',
       order_position INTEGER DEFAULT 0,
       workspace_id INTEGER,
+      updated_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (parent_id) REFERENCES study_topics(id) ON DELETE CASCADE,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
@@ -297,6 +298,7 @@ function initDatabase() {
       tomorrow_plan TEXT DEFAULT '',
       workspace_id INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
     );
 
@@ -700,6 +702,10 @@ function deferDbInit() {
       { sql: `CREATE TABLE IF NOT EXISTS exams (id INTEGER PRIMARY KEY AUTOINCREMENT, course_id INTEGER REFERENCES courses(id), title TEXT NOT NULL, date TEXT NOT NULL, weight REAL, study_topic_ids TEXT, completed INTEGER DEFAULT 0, grade_obtained REAL, created_at TEXT DEFAULT (datetime('now')))`, table: 'exams', col: 'id' },
       { sql: `CREATE TABLE IF NOT EXISTS exam_simulations (id INTEGER PRIMARY KEY AUTOINCREMENT, deck_id INTEGER NOT NULL, course_id INTEGER REFERENCES courses(id), total_questions INTEGER NOT NULL DEFAULT 0, correct_answers INTEGER NOT NULL DEFAULT 0, wrong_answers INTEGER NOT NULL DEFAULT 0, duration_seconds INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))`, table: 'exam_simulations', col: 'id' },
       { sql: `ALTER TABLE flashcards ADD COLUMN study_topic_id INTEGER REFERENCES study_topics(id)`, table: 'flashcards', col: 'study_topic_id' },
+      // v16: study_topics.updated_at (safeUpdate siempre escribe updated_at)
+      { sql: `ALTER TABLE study_topics ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`, table: 'study_topics', col: 'updated_at' },
+      // v17: daily_logs.updated_at (safeUpdate siempre escribe updated_at)
+      { sql: `ALTER TABLE daily_logs ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`, table: 'daily_logs', col: 'updated_at' },
     ]
     const migrationTx = db.transaction(() => {
       for (const m of migrations) {

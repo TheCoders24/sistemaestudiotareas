@@ -1,4 +1,4 @@
-function register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z }) {
+function register(ipcMain, { getStmt, getDb, safeHandle, schemas, voidSchema, z }) {
   safeHandle(ipcMain, 'templates:list', z.string().optional(), (type) => {
     if (type) return getStmt('SELECT * FROM templates WHERE type = ? ORDER BY is_builtin DESC, name ASC').all(type)
     return getStmt('SELECT * FROM templates ORDER BY type, is_builtin DESC, name ASC').all()
@@ -12,7 +12,7 @@ function register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z }) {
     if (!template) throw new Error('Template not found')
     const payload = JSON.parse(template.payload)
     const result = { projects: [], studyTopics: [] }
-    const tx = getStmt().transaction(() => {
+    const tx = getDb().transaction(() => {
       if (payload.project) {
         const r = getStmt('INSERT INTO projects (name, description, color, status, workspace_id) VALUES (?, ?, ?, ?, ?)').run(
           resolveTokens(payload.project.name, params),

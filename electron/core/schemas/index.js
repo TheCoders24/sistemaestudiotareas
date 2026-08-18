@@ -287,6 +287,7 @@ exports.study = {
       description: commonOptionalString,
       parent_id: z.number().int().positive().optional().nullable(),
       resource_url: z.string().optional().nullable(),
+      course_id: z.number().int().positive().optional().nullable(),
       workspace_id: workspaceId.optional(),
     }).passthrough(),
     update: z.object({

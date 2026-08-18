@@ -15,7 +15,11 @@ function register(ipcMain, { getStmt, getDb, safeUpdate, addXp, updateChallengeP
     task.project_id = task.project_id ?? null
     task.repeat = task.repeat || null
     task.tags = task.tags || ''
-    const stmt = getStmt('INSERT INTO tasks (title, description, priority, due_date, reminder, project_id, repeat, tags) VALUES (@title, @description, @priority, @due_date, @reminder, @project_id, @repeat, @tags)')
+    task.priority = task.priority || 'media'
+    const allowed = ['title', 'description', 'priority', 'due_date', 'reminder', 'project_id', 'repeat', 'tags']
+    const cols = allowed.filter(c => task[c] !== undefined)
+    const sets = cols.map(c => `@${c}`).join(', ')
+    const stmt = getStmt(`INSERT INTO tasks (${cols.join(', ')}) VALUES (${sets})`)
     const result = stmt.run(task)
     return getStmt('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid)
   })

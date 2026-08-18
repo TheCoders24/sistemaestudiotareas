@@ -12,7 +12,14 @@ function register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z }) {
     target_grade: z.number().min(0).max(100).optional().nullable(),
     workspace_id: z.number().int().positive(),
   }).passthrough(), (data) => {
-    const result = getStmt('INSERT INTO courses (name, color, icon, term, credits, target_grade, workspace_id) VALUES (@name, @color, @icon, @term, @credits, @target_grade, @workspace_id)').run(data)
+    const allowed = ['name', 'color', 'icon', 'term', 'credits', 'target_grade', 'workspace_id']
+    const keys = allowed.filter(k => data[k] !== undefined)
+    if (keys.length === 0) throw new Error('No se proporcionaron columnas válidas para crear el curso')
+    const cols = keys.join(', ')
+    const named = keys.map(k => `@${k}`).join(', ')
+    const filtered = {}
+    for (const k of keys) filtered[k] = data[k]
+    const result = getStmt(`INSERT INTO courses (${cols}) VALUES (${named})`).run(filtered)
     return getStmt('SELECT * FROM courses WHERE id = ?').get(result.lastInsertRowid)
   })
   safeHandle(ipcMain, 'courses:update', z.object({ 0: z.number().int().positive(), 1: z.object({}).passthrough() }).transform(a => ({ id: a[0], data: a[1] })), ({ id, data }) => {
