@@ -5,7 +5,7 @@ interface ForgettingCurveProps {
   easeFactor: number
 }
 
-export default function ForgettingCurve({ retention, interval, reviews, easeFactor }: ForgettingCurveProps) {
+export default function ForgettingCurve({ retention, interval, reviews }: ForgettingCurveProps) {
   const width = 400
   const height = 200
   const padding = { top: 20, right: 20, bottom: 30, left: 45 }

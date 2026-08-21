@@ -1,14 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { BarChart3, TrendingUp, TrendingDown, Clock, Zap, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { BarChart3, TrendingUp, Clock, Zap, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-
-interface PomodoroSession {
-  id: number
-  started_at: string
-  duration: number
-  completed: boolean
-}
+import type { PomodoroSession } from '@/types'
 
 export default function DistractionStats() {
   const [sessions, setSessions] = useState<PomodoroSession[]>([])
@@ -109,7 +103,7 @@ export default function DistractionStats() {
 
   const dayMax = Math.max(...pomodorosByDay.map(d => d.count), 1)
 
-  const completedSessions = sessions.filter(s => s.completed).length
+  const completedSessions = sessions.filter(s => s.ended_at !== null).length
   const totalMinutes = sessions.reduce((sum, s) => sum + (s.duration || 0), 0)
 
   return (

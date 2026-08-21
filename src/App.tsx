@@ -102,7 +102,6 @@ function AppInner() {
   const {
     activeTab, setActiveTab, sidebarOpen, toggleSidebar, setSidebarOpen,
     darkMode, setDarkMode, autoDarkMode, autoDarkStart, autoDarkEnd,
-    setAutoDarkMode, setAutoDarkStart, setAutoDarkEnd,
     setStreak, focusMode, setFocusMode,
     userName, setUserName, fontSize, setFontSize, language, setLanguage,
     denseMode, setDenseMode, firstRun, setFirstRun, setInitialSettings
@@ -117,19 +116,19 @@ function AppInner() {
   const [quickAddTitle, setQuickAddTitle] = useState('')
   const [levelUp, setLevelUp] = useState<{ level: number } | null>(null)
   const { pushAction } = useUndoStore()
-  const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; title: string } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; title: string; onConfirm?: () => void } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [welcomeOpen, setWelcomeOpen] = useState(firstRun)
   const [userProfile, setUserProfile] = useState('custom')
   const { soundEnabled, playSound, createConfetti } = useSound()
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
-  const [taskViewMode, setTaskViewMode] = useState<'list' | 'calendar' | 'timeline' | 'table'>('list')
+  const [taskViewMode] = useState<'list' | 'calendar' | 'timeline' | 'table'>('list')
 
   useEffect(() => {
-    (window as any).__confirmDelete = (type: string, id: number, title: string) => setConfirmDelete({ type, id, title })
+    (window as any).__confirmDelete = (type: string, id: number, title: string, onConfirm?: () => void) => setConfirmDelete({ type, id, title, onConfirm })
     ;(window as any).__setActiveTab = setActiveTab
-    ;(window as any).__quickAdd = (type: string) => { setQuickAddOpen(true) }
+    ;(window as any).__quickAdd = () => { setQuickAddOpen(true) }
     return () => { delete (window as any).__confirmDelete; delete (window as any).__setActiveTab; delete (window as any).__quickAdd }
   }, [setActiveTab])
 
@@ -306,16 +305,16 @@ function AppInner() {
 
   useEffect(() => {
     if (!window.electronAPI) return
-    const interval = setInterval(async () => {
-      try {
-        const data = await window.electronAPI.export.data()
-        localStorage.setItem('auto_backup', JSON.stringify({
-          data,
-          timestamp: new Date().toISOString(),
-        }))
-      } catch {}
-    }, 30 * 60 * 1000)
-    return () => clearInterval(interval)
+    let lastToast = 0
+    const onRejection = (e: PromiseRejectionEvent) => {
+      const now = Date.now()
+      if (now - lastToast < 4000) return
+      lastToast = now
+      const msg = e.reason instanceof Error ? e.reason.message : String(e.reason || 'Error desconocido')
+      toast({ title: 'Algo falló', description: msg, variant: 'destructive' })
+    }
+    window.addEventListener('unhandledrejection', onRejection)
+    return () => window.removeEventListener('unhandledrejection', onRejection)
   }, [])
 
   const handleStreakUpdate = useCallback(() => {
@@ -515,19 +514,24 @@ function AppInner() {
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
               <Button variant="destructive" onClick={async () => {
-                if (confirmDelete && window.electronAPI) {
-                  await window.electronAPI.trash.softDelete(confirmDelete.type, confirmDelete.id)
+                if (!confirmDelete || !window.electronAPI) return
+                const { type, id, title, onConfirm } = confirmDelete
+                try {
+                  await window.electronAPI.trash.softDelete(type, id)
                   toast({ title: 'Elemento movido a la papelera' })
-                  const { type, id, title } = confirmDelete
                   pushAction({
                     label: `"${title}" eliminada`,
                     onUndo: async () => {
                       if (window.electronAPI) {
                         await window.electronAPI.trash.restore(type, id)
                       }
+                      onConfirm?.()
                     },
                   })
+                  onConfirm?.()
                   setConfirmDelete(null)
+                } catch {
+                  toast({ title: 'Error', description: 'No se pudo eliminar', variant: 'destructive' })
                 }
               }}>Eliminar</Button>
             </div>

@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Trash2, CheckSquare, Filter, Table2, MoreHorizontal, FolderKanban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -11,7 +11,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from '@/components/ui/use-toast'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ListSkeleton } from '@/components/ui/loading-skeleton'
-import { useTranslate } from '@/lib/translate'
 
 interface Task {
   id: number; title: string; description: string; completed: number
@@ -33,7 +32,6 @@ const PRIORITY_BADGE: Record<string, string> = {
 const SPANISH_MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
 export default function TaskTableView() {
-  const t = useTranslate()
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [sortField, setSortField] = useState<SortField>('due_date')

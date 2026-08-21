@@ -60,7 +60,7 @@ src/
 │   ├── ipc.ts                  # Wrapper tipado (safeIpc)
 │   ├── constants.ts            # TABS, shortcut config, prioridades, recurrencia
 │   ├── utils.ts                # cn() — clsx + tailwind-merge + i18n t()
-│   └── useAutoBackup.ts        # Hook de backup automático (sin llamadores)
+│   └── translate.ts            # i18n t()
 ├── types/
 │   └── index.ts                # Interfaces + declare global Window.electronAPI
 └── __tests__/                  # Tests históricos por módulo

@@ -2,7 +2,7 @@
 
 ---
 
-## Feature 1: 🔐 Bóveda Segura (Secure Vault)
+## Feature 1: 🔐 Bóveda Segura (Secure Vault)  
 
 Gestor de credenciales y datos sensibles con cifrado AES-256-GCM local.
 

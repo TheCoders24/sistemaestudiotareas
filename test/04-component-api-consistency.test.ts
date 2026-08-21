@@ -16,8 +16,7 @@
  *
  *  Excepciones documentadas (funciones protegidas con `typeof … === 'function'`
  *  porque su handler IPC no existe todavía — degradan sin romper):
- *    - `snippets.setTags`            (SnippetsPage, sin backend de tags)
- *    - `backup.saveDialog`           (useAutoBackup, sin handler de diálogo)
+ *    - (vacío: useAutoBackup fue eliminado y snippets.setTags ya no se llama)
  *
  *  Cómo ejecutarlo:
  *    npm test -- 04-component-api-consistency
@@ -47,7 +46,7 @@ function flattenPaths(node: any, prefix: string[] = [], out: Set<string> = new S
 const validPaths = flattenPaths(api)
 
 /** Rutas protegidas con `typeof` (degradación controlada, no rompen). */
-const LEGACY_GUARDED = new Set(['snippets.setTags', 'backup.saveDialog'])
+const LEGACY_GUARDED = new Set<string>([])
 
 // --- Escáner de cadenas electronAPI en el código fuente ---------------------
 function extractChains(text: string): { parts: string[]; index: number }[] {

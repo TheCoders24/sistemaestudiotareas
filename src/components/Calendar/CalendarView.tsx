@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Calendar, List, CheckCircle, Flame, BookOpen, ChevronDown, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, List, CheckCircle, Flame, BookOpen, ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

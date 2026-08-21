@@ -1,24 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { FileText, Download, Copy, ChevronLeft, ChevronRight, CheckSquare, Timer, Activity, Brain, Trophy, ListTodo } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { FileText, Download, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { toast } from '@/components/ui/use-toast'
-
-interface Task {
-  id: number
-  title: string
-  completed: boolean
-  due_date: string | null
-  priority: string
-}
-
-interface PomodoroSession {
-  id: number
-  started_at: string
-  duration: number
-  completed: boolean
-}
+import type { Task, PomodoroSession } from '@/types'
 
 interface Habit {
   id: number
@@ -55,7 +39,7 @@ export default function WeeklyPDFReport() {
   const [habits, setHabits] = useState<Habit[]>([])
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([])
   const [flashcardStats, setFlashcardStats] = useState({ total: 0, reviewed: 0, retentionRate: 0 })
-  const [achievements, setAchievements] = useState<any[]>([])
+  const [achievements, setAchievements] = useState<Array<{ name?: string; title?: string }>>([])
 
   const { start, end } = useMemo(() => getWeekRange(weekOffset), [weekOffset])
 
@@ -315,8 +299,6 @@ ${flashcardStats.total > 0 ? `Flashcards: ${flashcardStats.total} tarjetas, ${fl
     navigator.clipboard.writeText(summary)
     toast({ title: 'Resumen copiado', description: 'Copiado al portapapeles' })
   }
-
-  const previewHTML = useMemo(() => generateHTML(), [weekTasks, weekSessions, habitCompletionRates, upcomingTasks, flashcardStats, achievements, start, end, dailyBreakdown, maxDailyCount])
 
   return (
     <div className="max-w-5xl mx-auto">

@@ -70,7 +70,28 @@ export interface PomodoroSession {
   workspace_id: number | null
   duration: number
   started_at: string
-  ended_at: string
+  ended_at: string | null
+}
+
+export interface Exam {
+  id: number
+  course_id: number | null
+  title: string
+  date: string
+  weight: number | null
+  study_topic_ids: string | null
+  completed: number
+  grade_obtained: number | null
+  created_at: string
+}
+
+export interface GpaEntry {
+  course_id: number
+  course_name: string
+  target_grade: number | null
+  course_grade: number | null
+  credits: number | null
+  exams_count: number
 }
 
 export interface StudyTopic {
@@ -290,200 +311,285 @@ export interface Flashcard {
 declare global {
   interface Window {
     electronAPI: {
-      getSetting: (key: string) => Promise<string | null>
-      setSetting: (key: string, value: string) => Promise<boolean>
-
-      // Tasks
-      getTasks: (wsId?: number) => Promise<Task[]>
-      getTasksWithSubtasks: (wsId?: number) => Promise<Task[]>
-      createTask: (task: Partial<Task>) => Promise<Task>
-      updateTask: (id: number, data: Partial<Task>) => Promise<Task>
-      deleteTask: (id: number) => Promise<boolean>
-      toggleTask: (id: number) => Promise<Task>
-      reorderTasks: (orderedIds: number[]) => Promise<boolean>
-      addTagToTask: (taskId: number, tag: string) => Promise<boolean>
-      removeTagFromTask: (taskId: number, tag: string) => Promise<boolean>
-      getTasksByTag: (tag: string) => Promise<Task[]>
-
-      // Kanban
-      getKanbanCards: (wsId?: number) => Promise<KanbanCard[]>
-      createKanbanCard: (card: Partial<KanbanCard>) => Promise<KanbanCard>
-      updateKanbanCard: (id: number, data: Partial<KanbanCard>) => Promise<KanbanCard>
-      deleteKanbanCard: (id: number) => Promise<boolean>
-      moveKanbanCard: (id: number, column: string, position: number) => Promise<KanbanCard>
-
-      // Pomodoro
-      getPomodoroSessions: (date?: string) => Promise<PomodoroSession[]>
-      createPomodoroSession: (session: Partial<PomodoroSession>) => Promise<PomodoroSession>
-
-      // Study Topics
-      getStudyTopics: (wsId?: number) => Promise<StudyTopic[]>
-      createStudyTopic: (topic: Partial<StudyTopic>) => Promise<StudyTopic>
-      updateStudyTopic: (id: number, data: Partial<StudyTopic>) => Promise<StudyTopic>
-      deleteStudyTopic: (id: number) => Promise<boolean>
-      toggleStudyProgress: (topicId: number, date: string) => Promise<boolean>
-      setStudyLevel: (topicId: number, level: number) => Promise<boolean>
-      getStudyStats: () => Promise<{ levels: { study_level: number, count: number }[], total: number }>
-      moveStudyTopic: (id: number, direction: 'up' | 'down') => Promise<boolean>
-
-      // Study Files
-      pickAndUploadFile: (topicId: number) => Promise<StudyFile | null>
-      getTopicFiles: (topicId: number) => Promise<StudyFile[]>
-      deleteFile: (fileId: number) => Promise<boolean>
-      openFile: (fileId: number) => Promise<boolean>
-
-      // Notes
-      getNotes: (wsId?: number) => Promise<Note[]>
-      createNote: (note: Partial<Note>) => Promise<Note>
-      updateNote: (id: number, data: Partial<Note>) => Promise<Note>
-      deleteNote: (id: number) => Promise<boolean>
-
-      // Goals
-      getGoals: (wsId?: number) => Promise<Goal[]>
-      createGoal: (goal: Partial<Goal>) => Promise<Goal>
-      updateGoal: (id: number, data: Partial<Goal>) => Promise<Goal>
-      deleteGoal: (id: number) => Promise<boolean>
-      addGoalProgress: (goalId: number, date: string, value: number) => Promise<boolean>
-      getGoalProgress: (goalId: number, today: string) => Promise<number>
-
-      // Streaks
-      getStreak: (name: string) => Promise<Streak | undefined>
-      updateStreak: (name: string) => Promise<{ current: number; max: number }>
-
-      // Statistics
-      getStats: (period: string) => Promise<Stats>
-
-      // Notifications
-      showNotification: (title: string, body: string) => Promise<boolean>
-
-      // Export/Import
-      exportData: () => Promise<Record<string, unknown[]>>
-      importData: (data: Record<string, unknown[]>) => Promise<boolean>
-      listBackups: () => Promise<{ date: string, filename: string, size: number }[]>
-      restoreBackup: (filename: string) => Promise<boolean>
-
-      // Projects
-      getProjects: (wsId?: number) => Promise<Project[]>
-      createProject: (project: Partial<Project>) => Promise<Project>
-      updateProject: (id: number, data: Partial<Project>) => Promise<Project>
-      deleteProject: (id: number) => Promise<boolean>
-
-      // Daily Logs
-      getDailyLogs: (wsId?: number) => Promise<DailyLog[]>
-      getDailyLog: (date: string) => Promise<DailyLog | undefined>
-      createDailyLog: (log: Partial<DailyLog>) => Promise<DailyLog>
-      updateDailyLog: (id: number, data: Partial<DailyLog>) => Promise<DailyLog>
-
-      // Snippets
-      getSnippets: (wsId?: number) => Promise<Snippet[]>
-      createSnippet: (snippet: Partial<Snippet>) => Promise<Snippet>
-      updateSnippet: (id: number, data: Partial<Snippet>) => Promise<Snippet>
-      deleteSnippet: (id: number) => Promise<boolean>
-
-      // Habits
-      getHabits: (wsId?: number) => Promise<Habit[]>
-      createHabit: (habit: Partial<Habit>) => Promise<Habit>
-      updateHabit: (id: number, data: Partial<Habit>) => Promise<Habit>
-      deleteHabit: (id: number) => Promise<boolean>
-      getHabitLogs: (habitId: number) => Promise<HabitLog[]>
-      toggleHabitLog: (habitId: number, date: string) => Promise<HabitLog>
-      getAllHabitLogs: () => Promise<HabitLog[]>
-
-      // Search
+      settings: {
+        get: (key: string) => Promise<string | null>
+        set: (key: string, value: string) => Promise<boolean>
+      }
+      workspaces: {
+        list: () => Promise<Workspace[]>
+        getActive: () => Promise<Workspace | null>
+        setActive: (id: number) => Promise<boolean>
+        create: (data: Partial<Workspace>) => Promise<Workspace>
+        update: (id: number, data: Partial<Workspace>) => Promise<Workspace>
+        delete: (id: number) => Promise<boolean>
+        getEntities: (wsId: number) => Promise<Record<string, number>>
+      }
+      projects: {
+        list: (wsId?: number) => Promise<Project[]>
+        create: (data: Partial<Project>) => Promise<Project>
+        update: (id: number, data: Partial<Project>) => Promise<Project>
+        delete: (id: number) => Promise<boolean>
+        gitStatus: (id: number) => Promise<{ clean: boolean; branch: string }>
+        openInEditor: (id: number, editor: string) => Promise<boolean>
+      }
+      tasks: {
+        list: (wsId?: number) => Promise<Task[]>
+        listWithSubtasks: (wsId?: number) => Promise<Task[]>
+        create: (task: Partial<Task>) => Promise<Task>
+        update: (id: number, data: Partial<Task>) => Promise<Task>
+        delete: (id: number) => Promise<boolean>
+        toggle: (id: number) => Promise<Task>
+        reorder: (orderedIds: number[]) => Promise<boolean>
+        addTag: (taskId: number, tag: string) => Promise<boolean>
+        removeTag: (taskId: number, tag: string) => Promise<boolean>
+        getByTag: (tag: string) => Promise<Task[]>
+        dependencies: {
+          get: (taskId: number) => Promise<TaskRef[]>
+          getDependents: (taskId: number) => Promise<TaskRef[]>
+          add: (taskId: number, dependsOnId: number) => Promise<boolean>
+          remove: (taskId: number, dependsOnId: number) => Promise<boolean>
+        }
+        comments: {
+          list: (taskId: number) => Promise<TaskComment[]>
+          add: (taskId: number, content: string) => Promise<TaskComment>
+          delete: (id: number) => Promise<boolean>
+        }
+        timeTracking: {
+          list: (taskId: number) => Promise<TimeEntry[]>
+          start: (taskId: number) => Promise<TimeEntry>
+          stop: (id: number) => Promise<TimeEntry>
+          delete: (id: number) => Promise<boolean>
+          total: (taskId: number) => Promise<number>
+        }
+      }
+      subtasks: {
+        list: (taskId: number) => Promise<Subtask[]>
+        create: (subtask: Partial<Subtask>) => Promise<Subtask>
+        toggle: (id: number) => Promise<Subtask>
+        delete: (id: number) => Promise<boolean>
+      }
+      kanban: {
+        cards: {
+          list: (wsId?: number) => Promise<KanbanCard[]>
+          create: (card: Partial<KanbanCard>) => Promise<KanbanCard>
+          update: (id: number, data: Partial<KanbanCard>) => Promise<KanbanCard>
+          delete: (id: number) => Promise<boolean>
+          move: (id: number, column: string, position: number) => Promise<KanbanCard>
+        }
+        columns: {
+          list: (wsId?: number) => Promise<KanbanColumn[]>
+          create: (data: Partial<KanbanColumn>) => Promise<KanbanColumn>
+          update: (id: number, data: Partial<KanbanColumn>) => Promise<KanbanColumn>
+          delete: (id: number) => Promise<boolean>
+        }
+      }
+      notes: {
+        list: (wsId?: number) => Promise<Note[]>
+        create: (note: Partial<Note>) => Promise<Note>
+        update: (id: number, data: Partial<Note>) => Promise<Note>
+        delete: (id: number) => Promise<boolean>
+        folders: {
+          list: (wsId?: number) => Promise<NoteFolder[]>
+          create: (data: Partial<NoteFolder>) => Promise<NoteFolder>
+          update: (id: number, data: Partial<NoteFolder>) => Promise<NoteFolder>
+          delete: (id: number) => Promise<boolean>
+        }
+      }
+      habits: {
+        list: (wsId?: number) => Promise<Habit[]>
+        create: (habit: Partial<Habit>) => Promise<Habit>
+        update: (id: number, data: Partial<Habit>) => Promise<Habit>
+        delete: (id: number) => Promise<boolean>
+        logs: {
+          list: (habitId: number) => Promise<HabitLog[]>
+          listAll: () => Promise<HabitLog[]>
+          toggle: (habitId: number, date: string) => Promise<boolean>
+        }
+        stats: () => Promise<Array<{ id: number; name: string; completionRate: number }>>
+      }
+      goals: {
+        list: (wsId?: number) => Promise<Goal[]>
+        create: (goal: Partial<Goal>) => Promise<Goal>
+        update: (id: number, data: Partial<Goal>) => Promise<Goal>
+        delete: (id: number) => Promise<boolean>
+        progress: {
+          add: (goalId: number, date: string, value: number) => Promise<boolean>
+          get: (goalId: number, today: string) => Promise<number>
+        }
+      }
+      snippets: {
+        list: (wsId?: number) => Promise<Snippet[]>
+        create: (snippet: Partial<Snippet>) => Promise<Snippet>
+        update: (id: number, data: Partial<Snippet>) => Promise<Snippet>
+        delete: (id: number) => Promise<boolean>
+        execute: (id: number) => Promise<{ stdout: string; stderr: string; exitCode: number }>
+      }
+      flashcards: {
+        decks: {
+          list: (wsId?: number) => Promise<FlashcardDeck[]>
+          create: (data: { name: string; description?: string; course_id?: number | null }) => Promise<FlashcardDeck>
+          delete: (id: number) => Promise<boolean>
+        }
+        cards: {
+          list: (deckId: number) => Promise<Flashcard[]>
+          create: (data: { deck_id: number; front: string; back: string; hint?: string }) => Promise<Flashcard>
+          delete: (id: number) => Promise<boolean>
+          getDue: (deckId: number) => Promise<Flashcard[]>
+          review: (data: { id: number; ease: number }) => Promise<Flashcard>
+        }
+        stats: {
+          deck: (deckId: number) => Promise<{ total: number; due: number; reviewed: number }>
+          retention: () => Promise<{ total: number; easy: number; hard: number; retentionRate: number }>
+          reviews: () => Promise<{ totalDue: number; reviewedToday: number; totalCards: number; retention: number; streak: number }>
+          upcoming: () => Promise<Array<{ date: string; count: number; label: string }>>
+        }
+        streak: {
+          update: (data: { studied: boolean }) => Promise<{ streak: number }>
+          subjects: () => Promise<Array<{ id: number; name: string; color: string; current: number; max: number; heatmap: Array<{ date: string; count: number }> }>>
+        }
+      }
+      study: {
+        topics: {
+          list: (wsId?: number) => Promise<StudyTopic[]>
+          create: (topic: Partial<StudyTopic>) => Promise<StudyTopic>
+          update: (id: number, data: Partial<StudyTopic>) => Promise<StudyTopic>
+          delete: (id: number) => Promise<boolean>
+          move: (id: number, direction: 'up' | 'down') => Promise<boolean>
+          toggleProgress: (topicId: number, date: string) => Promise<boolean>
+          setLevel: (topicId: number, level: number) => Promise<boolean>
+        }
+        files: {
+          pickAndUpload: (topicId: number) => Promise<StudyFile | null>
+          list: (topicId: number) => Promise<StudyFile[]>
+          delete: (fileId: number) => Promise<boolean>
+          open: (fileId: number) => Promise<boolean>
+        }
+        stats: () => Promise<{ levels: Array<{ study_level: number; count: number }>; total: number }>
+      }
+      pomodoro: {
+        sessions: {
+          list: (date?: string) => Promise<PomodoroSession[]>
+          create: (session: Partial<PomodoroSession>) => Promise<PomodoroSession>
+        }
+      }
       search: (query: string) => Promise<Array<{ id: number; name: string; type: string }>>
-
-      // XP / Gamification
-      getXp: () => Promise<{ total: number; level: number; currentXp: number; nextLevelXp: number }>
-      addXp: (amount: number, reason: string) => Promise<{ total: number; level: number; currentXp: number; nextLevelXp: number; leveledUp: boolean }>
-      getXpHistory: (days?: number) => Promise<Array<{ date: string; xp: number }>>
-      getAchievements: () => Promise<Array<{ id: number; key: string; name: string; description: string; icon: string; xp_reward: number; unlocked: number }>>
-      checkAchievements: () => Promise<{ unlocked: Array<{ id: number; key: string; name: string; icon: string; xp_reward: number }>; leveledUp: boolean; newLevel: number }>
-
-      // Subtasks
-      getSubtasks: (taskId: number) => Promise<Subtask[]>
-      createSubtask: (subtask: Partial<Subtask>) => Promise<Subtask>
-      toggleSubtask: (id: number) => Promise<Subtask>
-      deleteSubtask: (id: number) => Promise<boolean>
-
-      // Trash / Soft Delete
-      softDeleteItem: (type: string, id: number) => Promise<boolean>
-      getTrashItems: () => Promise<{ tasks: any[]; notes: any[]; projects: any[] }>
-      restoreItem: (type: string, id: number) => Promise<boolean>
-      deleteItemPermanent: (type: string, id: number) => Promise<boolean>
-      emptyTrash: () => Promise<boolean>
-
-      // Note Folders
-      getNoteFolders: (wsId?: number) => Promise<NoteFolder[]>
-      createNoteFolder: (data: Partial<NoteFolder>) => Promise<NoteFolder>
-      updateNoteFolder: (id: number, data: Partial<NoteFolder>) => Promise<NoteFolder>
-      deleteNoteFolder: (id: number) => Promise<boolean>
-
-      // Task Dependencies
-      getTaskDependencies: (taskId: number) => Promise<TaskRef[]>
-      getTaskDependents: (taskId: number) => Promise<TaskRef[]>
-      addTaskDependency: (taskId: number, dependsOnId: number) => Promise<boolean>
-      removeTaskDependency: (taskId: number, dependsOnId: number) => Promise<boolean>
-
-      // Task Comments
-      getTaskComments: (taskId: number) => Promise<TaskComment[]>
-      addTaskComment: (taskId: number, content: string) => Promise<TaskComment>
-      deleteTaskComment: (id: number) => Promise<boolean>
-
-      // Time Tracking
-      getTimeEntries: (taskId: number) => Promise<TimeEntry[]>
-      startTimeEntry: (taskId: number) => Promise<TimeEntry>
-      stopTimeEntry: (id: number) => Promise<TimeEntry>
-      deleteTimeEntry: (id: number) => Promise<boolean>
-      getTotalTrackedTime: (taskId: number) => Promise<number>
-
-      // Entity Links
-      linkEntities: (fromType: string, fromId: number, toType: string, toId: number) => Promise<boolean>
-      getEntityLinks: (type: string, id: number) => Promise<any[]>
-
-      // Challenges
-      getChallenges: () => Promise<Challenge[]>
-      updateChallengeProgress: (type: string, amount: number) => Promise<void>
-
-      // Weekly Report
-      getWeeklyReport: () => Promise<WeeklyReport>
-
-      // Dashboard
-      getDashboard: () => Promise<DashboardData>
-      getActivityFeed: () => Promise<any[]>
-      getHabitStats: () => Promise<any[]>
-
-      // Flashcards
-      getFlashcardDecks: (wsId?: number) => Promise<FlashcardDeck[]>
-      createFlashcardDeck: (data: { name: string; description?: string }) => Promise<FlashcardDeck>
-      deleteFlashcardDeck: (id: number) => Promise<boolean>
-      getFlashcards: (deckId: number) => Promise<Flashcard[]>
-      createFlashcard: (data: { deck_id: number; front: string; back: string; hint?: string }) => Promise<Flashcard>
-      deleteFlashcard: (id: number) => Promise<boolean>
-      getDueFlashcards: (deckId: number) => Promise<Flashcard[]>
-      reviewFlashcard: (data: { id: number; ease: number }) => Promise<Flashcard>
-      getFlashcardStats: (deckId: number) => Promise<{ total: number; due: number; reviewed: number }>
-      getRetentionStats: () => Promise<{ total: number; easy: number; hard: number; retentionRate: number }>
-      getFlashcardReviewStats: () => Promise<{ totalDue: number; reviewedToday: number; totalCards: number; retention: number; streak: number }>
-      getUpcomingFlashcardReviews: () => Promise<{ date: string; count: number; label: string }[]>
-      updateFlashcardStreak: (data: { studied: boolean }) => Promise<{ streak: number }>
-      getSubjectStreaks: () => Promise<{ id: number; name: string; color: string; current: number; max: number; heatmap: { date: string; count: number }[] }[]>
-      importICSEvents: (events: { title: string; description: string; startDate: string }[]) => Promise<{ id: number; title: string }[]>
-      // Kanban Columns
-      getKanbanColumns: (wsId?: number) => Promise<KanbanColumn[]>
-      createKanbanColumn: (data: Partial<KanbanColumn>) => Promise<KanbanColumn>
-      updateKanbanColumn: (id: number, data: Partial<KanbanColumn>) => Promise<KanbanColumn>
-      deleteKanbanColumn: (id: number) => Promise<boolean>
-
-      // Workspaces
-      getWorkspaces: () => Promise<Workspace[]>
-      createWorkspace: (data: Partial<Workspace>) => Promise<Workspace>
-      updateWorkspace: (id: number, data: Partial<Workspace>) => Promise<Workspace>
-      deleteWorkspace: (id: number) => Promise<boolean>
-      getActiveWorkspace: () => Promise<Workspace | null>
-      setActiveWorkspace: (id: number) => Promise<boolean>
-      getWorkspaceEntities: (wsId: number) => Promise<Record<string, number>>
-
-      // Courses
+      gamification: {
+        xp: {
+          get: () => Promise<{ total: number; level: number; currentXp: number; nextLevelXp: number }>
+          add: (amount: number, reason: string) => Promise<{ total: number; level: number; currentXp: number; nextLevelXp: number; leveledUp: boolean }>
+          history: (days?: number) => Promise<Array<{ date: string; xp: number }>>
+        }
+        achievements: {
+          list: () => Promise<Array<{ id: number; key: string; name: string; description: string; icon: string; xp_reward: number; unlocked: number }>>
+          check: () => Promise<{ unlocked: Array<{ id: number; key: string; name: string; icon: string; xp_reward: number }>; leveledUp: boolean; newLevel: number }>
+        }
+        challenges: {
+          list: () => Promise<Challenge[]>
+          updateProgress: (type: string, amount: number) => Promise<void>
+        }
+      }
+      streaks: {
+        get: (name: string) => Promise<Streak | undefined>
+        update: (name: string) => Promise<{ current: number; max: number }>
+      }
+      dailyLogs: {
+        list: (wsId?: number) => Promise<DailyLog[]>
+        get: (date: string) => Promise<DailyLog | undefined>
+        create: (log: Partial<DailyLog>) => Promise<DailyLog>
+        update: (id: number, data: Partial<DailyLog>) => Promise<DailyLog>
+      }
+      trash: {
+        list: () => Promise<{ tasks: Task[]; notes: Note[]; projects: Project[] }>
+        softDelete: (type: string, id: number) => Promise<boolean>
+        restore: (type: string, id: number) => Promise<boolean>
+        deletePermanent: (type: string, id: number) => Promise<boolean>
+        empty: () => Promise<boolean>
+      }
+      export: {
+        data: () => Promise<Record<string, unknown[]>>
+        import: (data: Record<string, unknown[]>) => Promise<boolean>
+        importJSON: (data: unknown) => Promise<boolean>
+        noteMarkdown: (noteId: number) => Promise<string>
+      }
+      searchReindex: () => Promise<boolean>
+      backup: {
+        list: () => Promise<Array<{ date: string; filename: string; size: number }>>
+        restore: (filename: string) => Promise<boolean>
+      }
+      entity: {
+        link: (fromType: string, fromId: number, toType: string, toId: number) => Promise<boolean>
+        getLinks: (type: string, id: number) => Promise<Array<{ id: number; from_type: string; from_id: number; to_type: string; to_id: number }>>
+      }
+      tray: {
+        updateMenu: () => Promise<boolean>
+      }
+      events: {
+        onTrayAction: (callback: (action: string) => void) => () => void
+        onUpdateStatus: (callback: (data: { status: string; percent?: number }) => void) => () => void
+        onWifiDeviceFound: (callback: (data: { name: string; ip: string; port: number }) => void) => () => void
+        subscribe: (channel: string, callback: (data: unknown) => void) => () => void
+      }
+      app: {
+        autoStart: {
+          get: () => Promise<boolean>
+          set: (enabled: boolean) => Promise<boolean>
+        }
+        shortcuts: {
+          register: (accelerator: string, action: string) => Promise<boolean>
+          unregister: (accelerator: string) => Promise<boolean>
+        }
+        updater: {
+          check: () => Promise<void>
+          install: () => Promise<void>
+        }
+        notification: {
+          show: (title: string, body: string, severity?: string) => Promise<boolean>
+        }
+      }
+      wifiSync: {
+        start: () => Promise<{ ok: boolean; port: number }>
+        stop: () => Promise<{ ok: boolean }>
+        discover: () => Promise<Array<{ ip: string; name: string }>>
+        connect: (ip: string) => Promise<{ name: string; app: string; version: string }>
+        pull: (ip: string) => Promise<{ ok: boolean }>
+        push: (ip: string) => Promise<{ ok: boolean }>
+      }
+      utils: {
+        linkEntities: (fromType: string, fromId: number, toType: string, toId: number) => Promise<boolean>
+        getEntityLinks: (type: string, id: number) => Promise<EntityLink[]>
+        importICSEvents: (events: Array<{ title: string; description: string; startDate: string }>) => Promise<Array<{ id: number; title: string }>>
+      }
+      dashboard: {
+        get: () => Promise<DashboardData>
+        activityFeed: () => Promise<Array<{ id: number; type: string; entity_type: string; entity_id: number; description: string; created_at: string }>>
+      }
+      stats: {
+        get: (period: string) => Promise<Stats>
+        weeklyReport: () => Promise<WeeklyReport>
+      }
+      labels: {
+        list: (wsId?: number) => Promise<Array<{ id: number; name: string; color: string; workspace_id: number | null }>>
+        create: (data: { name: string; color: string }) => Promise<{ id: number; name: string; color: string; workspace_id: number | null }>
+        delete: (id: number) => Promise<boolean>
+        addToTask: (taskId: number, labelId: number) => Promise<boolean>
+        removeFromTask: (taskId: number, labelId: number) => Promise<boolean>
+        getByTask: (taskId: number) => Promise<Array<{ id: number; name: string; color: string }>>
+      }
+      activity: {
+        list: (limit?: number) => Promise<Array<{ id: number; type: string; entity_type: string; entity_id: number; description: string; created_at: string }>>
+        getByEntity: (entityType: string, entityId: number) => Promise<Array<{ id: number; type: string; description: string; created_at: string }>>
+      }
+      session: {
+        save: (state: unknown) => Promise<boolean>
+        restore: () => Promise<unknown>
+        onRestored: (callback: (data: unknown) => void) => () => void
+      }
+      automation: {
+        list: (wsId?: number) => Promise<Array<{ id: number; name: string; trigger: string; action: string; workspace_id: number | null; active: number }>>
+        create: (data: Record<string, unknown>) => Promise<{ id: number; name: string }>
+        update: (id: number, data: Record<string, unknown>) => Promise<{ id: number }>
+        delete: (id: number) => Promise<boolean>
+      }
       courses: {
         list: (wsId?: number) => Promise<Course[]>
         create: (data: Partial<Course>) => Promise<Course>
@@ -491,25 +597,73 @@ declare global {
         delete: (id: number) => Promise<boolean>
         get: (id: number) => Promise<Course | null>
       }
-
-      startWifiSync: () => Promise<{ ok: boolean; port: number }>
-      stopWifiSync: () => Promise<{ ok: boolean }>
-      discoverWifiSync: () => Promise<{ ip: string; name: string }[]>
-      connectWifiSync: (ip: string) => Promise<{ name: string; app: string; version: string }>
-      pullWifiSync: (ip: string) => Promise<{ ok: boolean }>
-      pushWifiSync: (ip: string) => Promise<{ ok: boolean }>
-      onWifiSyncDevice?: (callback: (data: { name: string; ip: string; port: number }) => void) => void
-      restoreFromJSON: (data: any) => Promise<boolean>
-      onTrayAction?: (callback: (action: string) => void) => void
-      getAutoStart?: () => Promise<boolean>
-      setAutoStart?: (enabled: boolean) => Promise<boolean>
-      registerShortcut?: (accelerator: string, action: string) => Promise<boolean>
-      unregisterShortcut?: (accelerator: string) => Promise<boolean>
-      checkForUpdates?: () => Promise<void>
-      installUpdate?: () => Promise<void>
-      onUpdateStatus?: (callback: (data: { status: string; percent?: number }) => void) => void
+      templates: {
+        list: (type?: string) => Promise<Array<{ id: number; name: string; type: string; data: string; created_at: string }>>
+        create: (data: { name: string; type: string; data: string }) => Promise<{ id: number; name: string; type: string }>
+        instantiate: (templateId: number, params: Record<string, unknown>) => Promise<{ projects: number[]; studyTopics: number[] }>
+        delete: (id: number) => Promise<boolean>
+      }
+      exams: {
+        list: (courseId?: number) => Promise<Exam[]>
+        create: (data: Record<string, unknown>) => Promise<Exam>
+        update: (id: number, data: Record<string, unknown>) => Promise<Exam>
+        delete: (id: number) => Promise<boolean>
+        gpa: (courseId?: number) => Promise<GpaEntry[] | GpaEntry | null>
+      }
+      examSimulations: {
+        list: (deckId?: number) => Promise<Array<{ id: number; name: string; score: number }>>
+        create: (data: Record<string, unknown>) => Promise<{ id: number; name: string }>
+      }
+      ai: {
+        generateFlashcards: (sourceType: string, sourceId: number) => Promise<Array<{ front: string; back: string }>>
+        weeklySummary: () => Promise<{ summary: string }>
+        tutor: (topicId: number, message: string, history?: Array<{ role: string; content: string }>) => Promise<string>
+        validateKey: () => Promise<{ valid: boolean }>
+      }
+      profiler: {
+        getReport: () => Promise<Record<string, unknown>>
+        reset: () => Promise<boolean>
+      }
+      perf: {
+        getMode: () => Promise<string>
+        setMode: (mode: string) => Promise<boolean>
+        getConfig: () => Promise<Record<string, unknown>>
+        getModes: () => Promise<Array<{ id: string; name: string }>>
+      }
+      perfMonitor: {
+        start: (interval?: number) => Promise<boolean>
+        stop: () => Promise<boolean>
+        getReport: () => Promise<Record<string, unknown>>
+        getLatest: () => Promise<Record<string, unknown>>
+        collectSample: () => Promise<Record<string, unknown>>
+      }
+      preload: {
+        recordTransition: (fromModule: string, toModule: string, wsId?: number) => Promise<boolean>
+        getStats: () => Promise<Record<string, number>>
+        setLevel: (level: string) => Promise<boolean>
+      }
+      pin: {
+        set: (pin: string) => Promise<boolean>
+        verify: (pin: string) => Promise<{ ok: boolean; message?: string; locked?: boolean }>
+        disable: () => Promise<boolean>
+        isEnabled: () => Promise<boolean>
+        isLocked: () => Promise<boolean>
+      }
+      plugins: {
+        list: () => Promise<Array<{ id: string; name: string; version: string }>>
+        get: (id: string) => Promise<{ id: string; name: string; version: string }>
+        load: (id: string) => Promise<boolean>
+        unload: (id: string) => Promise<boolean>
+        isActive: (id: string) => Promise<boolean>
+      }
+      encryption: {
+        encrypt: (text: string) => Promise<string>
+        decrypt: (data: string) => Promise<string>
+        hash: (data: string) => Promise<string>
+        generateKey: () => Promise<string>
+      }
     }
-    __confirmDelete?: (type: string, id: number, title: string) => void
+    __confirmDelete?: (type: string, id: number, title: string, onConfirm?: () => void) => void
     __exitFocusMode?: () => void
     __reminderNotification?: (title: string) => void
   }

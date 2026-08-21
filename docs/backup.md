@@ -49,18 +49,18 @@ Serializa una lista de tablas a JSON (con `_exportDate`).
 ### `db:importData` / `db:restoreFromJSON`
 Recibe el objeto/string JSON y reinserta en transacción (delete + insert).
 
-## Implementaciones duplicadas / código muerto
+## Implementaciones (estado actual)
 
 | Archivo | Estado |
 |---|---|
-| `electron/main.js` `doAutoBackup()` | **Activo** (el que ejecuta `setInterval`). |
-| `electron/handlers/backup.js` `doAutoBackup` | Exportado pero **sin llamador** (duplicado). |
-| `electron/services/BackupService.js` (clase) | **Sin llamadores** — lógica duplicada. |
-| `src/lib/useAutoBackup.ts` (hook renderer) | **Sin llamadores**. Intenta `backup.saveDialog`, que **no existe** en el preload → protegido con `?.`/`typeof`. |
+| `electron/core/auto-backup.js` `doAutoBackup()` | **Activo** (el que ejecuta `setInterval` en `main.js`). Usa `ALL_TABLES`. |
+| `electron/handlers/backup.js` | Handlers IPC `export.data`, `import`, `importJSON`, `list`, `restore`. Usan `ALL_TABLES`. |
+| `electron/core/backup-tables.js` `ALL_TABLES` | **Lista única** de 33 tablas (antes había 13/17/25/33 según el módulo). |
+| `electron/services/BackupService.js` (clase) | **Sin llamadores** — lógica duplicada (candidato a borrar). |
+| `src/lib/useAutoBackup.ts` (hook renderer) | **Eliminado** — llamaba a `backup.saveDialog` que no existe. |
 
 ## Recomendación
 
-Consolidar en una única implementación (`BackupService`) y hacer que el respaldo
-automático y la restauración usen **la misma lista de tablas** (las 34 de
-`database.js`), de modo que tablas nuevas (flashcards, workspaces, time_entries,
-etc.) queden cubiertas.
+Eliminar `electron/services/BackupService.js` y `electron/services/SyncService.js`
+(sin llamadores). El respaldo automático y la restauración ya usan la misma
+lista `ALL_TABLES`.

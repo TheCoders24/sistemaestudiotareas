@@ -4,9 +4,7 @@ import { ChevronLeft, ChevronRight, Calendar, CheckSquare, Clock } from 'lucide-
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { EmptyState } from '@/components/ui/empty-state'
 import { ListSkeleton } from '@/components/ui/loading-skeleton'
-import { useTranslate } from '@/lib/translate'
 
 interface Task {
   id: number; title: string; description: string; completed: number
@@ -24,7 +22,6 @@ const PRIORITY_TEXT: Record<string, string> = {
 }
 
 export default function TaskCalendarView() {
-  const t = useTranslate()
   const today = new Date()
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
   const [currentYear, setCurrentYear] = useState(today.getFullYear())

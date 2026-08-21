@@ -182,22 +182,7 @@ function updateTrayMenu() {
   tray.setContextMenu(contextMenu)
 }
 
-function doAutoBackup() {
-  try {
-    const today = new Date().toISOString().split('T')[0]
-    const lastBackup = getStmt("SELECT value FROM settings WHERE key = 'last_auto_backup'").get()
-    if (lastBackup && lastBackup.value === today) return
-    const backupDir = path.join(app.getPath('userData'), 'backups')
-    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true })
-    const tables = ['settings','projects','tasks','kanban_cards','pomodoro_sessions','study_topics','study_progress','study_files','notes','goals','goal_progress','streaks','daily_logs','snippets','habits','habit_logs','tags','xp_log','achievements','user_achievements','challenges','user_challenges','weekly_reports','subtasks','entity_links']
-    const data = {}
-    for (const t of tables) { try { data[t] = getStmt(`SELECT * FROM ${t}`).all() } catch { data[t] = [] } }
-    fs.writeFileSync(path.join(backupDir, `backup-${today}.json`), JSON.stringify(data, null, 2))
-    const backups = fs.readdirSync(backupDir).filter(f => f.startsWith('backup-')).sort().reverse()
-    if (backups.length > 30) { for (let i = 30; i < backups.length; i++) fs.unlinkSync(path.join(backupDir, backups[i])) }
-    getStmt("INSERT OR REPLACE INTO settings (key, value) VALUES ('last_auto_backup', ?)").run(today)
-  } catch (e) { logger.error('AutoBackup:', e) }
-}
+const { doAutoBackup } = require('./core/auto-backup')
 
 let ipcHandlersRegistered = false
 
@@ -241,6 +226,7 @@ function registerIpcHandlers() {
   require('./handlers/exams').register(ipcMain, allDeps)
   require('./handlers/snippets-execute').register(ipcMain, allDeps)
   require('./handlers/ai').register(ipcMain, allDeps)
+  require('./handlers/entity').register(ipcMain, allDeps)
 
   safeHandle(ipcMain, 'tray:updateMenu', voidSchema(), () => { updateTrayMenu(); return true })
   safeHandle(ipcMain, 'notification:show', z.object({ title: z.string().min(1), body: z.string().min(1), severity: z.string().optional() }), ({ title, body, severity }) => {
@@ -261,38 +247,6 @@ function registerIpcHandlers() {
     return true
   })
   safeHandle(ipcMain, 'session:restore', voidSchema(), () => { return sessionManager.restore() })
-  safeHandle(ipcMain, 'entity:link', z.object({ 0: z.string(), 1: z.number(), 2: z.string(), 3: z.number() }).transform(a => ({ fromType: a[0], fromId: a[1], toType: a[2], toId: a[3] })), ({ fromType, fromId, toType, toId }) => {
-    getStmt('INSERT OR IGNORE INTO entity_links (from_type, from_id, to_type, to_id) VALUES (?, ?, ?, ?)').run(fromType, fromId, toType, toId)
-    return true
-  })
-  safeHandle(ipcMain, 'db:linkEntities', z.object({ 0: z.string(), 1: z.number(), 2: z.string(), 3: z.number() }).transform(a => ({ fromType: a[0], fromId: a[1], toType: a[2], toId: a[3] })), ({ fromType, fromId, toType, toId }) => {
-    getStmt('INSERT OR IGNORE INTO entity_links (from_type, from_id, to_type, to_id) VALUES (?, ?, ?, ?)').run(fromType, fromId, toType, toId)
-    return true
-  })
-  safeHandle(ipcMain, 'entity:getLinks', z.object({ 0: z.string(), 1: z.number() }).transform(a => ({ type: a[0], id: a[1] })), ({ type, id }) => {
-    const links = getStmt('SELECT * FROM entity_links WHERE (from_type = ? AND from_id = ?) OR (to_type = ? AND to_id = ?)').all(type, id, type, id)
-    const result = []
-    for (const link of links) {
-      if (link.from_type === type && link.from_id === id) {
-        try { const row = getDb().prepare(`SELECT id, name FROM ${link.to_type}s WHERE id = ?`).get(link.to_id); if (row) result.push({ ...row, linkType: link.to_type }) } catch {}
-      } else {
-        try { const row = getDb().prepare(`SELECT id, name FROM ${link.from_type}s WHERE id = ?`).get(link.from_id); if (row) result.push({ ...row, linkType: link.from_type }) } catch {}
-      }
-    }
-    return result
-  })
-  safeHandle(ipcMain, 'db:getEntityLinks', z.object({ 0: z.string(), 1: z.number() }).transform(a => ({ type: a[0], id: a[1] })), ({ type, id }) => {
-    const links = getStmt('SELECT * FROM entity_links WHERE (from_type = ? AND from_id = ?) OR (to_type = ? AND to_id = ?)').all(type, id, type, id)
-    const result = []
-    for (const link of links) {
-      if (link.from_type === type && link.from_id === id) {
-        try { const row = getDb().prepare(`SELECT id, name FROM ${link.to_type}s WHERE id = ?`).get(link.to_id); if (row) result.push({ ...row, linkType: link.to_type }) } catch {}
-      } else {
-        try { const row = getDb().prepare(`SELECT id, name FROM ${link.from_type}s WHERE id = ?`).get(link.from_id); if (row) result.push({ ...row, linkType: link.from_type }) } catch {}
-      }
-    }
-    return result
-  })
 }
 
 async function bootstrap() {
@@ -358,24 +312,27 @@ async function bootstrap() {
       metadata: { startupMs: startupProfiler.getTotalMs() },
     })
 
-    try {
-      const { autoUpdater } = require('electron-updater')
-      autoUpdater.autoDownload = true
-      autoUpdater.autoInstallOnAppQuit = true
-      autoUpdater.on('update-available', () => {
-        if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'available' })
-      })
-      autoUpdater.on('download-progress', (progress) => {
-        if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloading', percent: Math.round(progress.percent) })
-      })
-      autoUpdater.on('update-downloaded', () => {
-        if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloaded' })
-      })
-      autoUpdater.on('error', () => {})
-      safeHandle(ipcMain, 'updater:check', voidSchema(), () => { autoUpdater.checkForUpdates().catch(() => {}) })
-      safeHandle(ipcMain, 'updater:install', voidSchema(), () => { autoUpdater.quitAndInstall() })
-      setTimeout(() => { autoUpdater.checkForUpdates().catch(() => {}) }, 5000)
-    } catch {}
+    const updateConfig = path.join(process.resourcesPath, 'app-update.yml')
+    if (fs.existsSync(updateConfig)) {
+      try {
+        const { autoUpdater } = require('electron-updater')
+        autoUpdater.autoDownload = true
+        autoUpdater.autoInstallOnAppQuit = true
+        autoUpdater.on('update-available', () => {
+          if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'available' })
+        })
+        autoUpdater.on('download-progress', (progress) => {
+          if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloading', percent: Math.round(progress.percent) })
+        })
+        autoUpdater.on('update-downloaded', () => {
+          if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloaded' })
+        })
+        autoUpdater.on('error', () => {})
+        safeHandle(ipcMain, 'updater:check', voidSchema(), () => { autoUpdater.checkForUpdates().catch(() => {}) })
+        safeHandle(ipcMain, 'updater:install', voidSchema(), () => { autoUpdater.quitAndInstall() })
+        setTimeout(() => { autoUpdater.checkForUpdates().catch(() => {}) }, 5000)
+      } catch {}
+    }
 
     const SHORTCUTS = {
       'CmdOrCtrl+Shift+N': 'new-note',
@@ -420,7 +377,7 @@ if (!gotTheLock) {
     if (BrowserWindow.getAllWindows().length === 0) bootstrap()
   })
 
-  setInterval(doAutoBackup, 3600000)
+  setInterval(() => doAutoBackup({ getStmt, getDb, app, fs, path, logger }), 3600000)
 
   setInterval(() => {
     try {

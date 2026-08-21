@@ -36,12 +36,12 @@ function register(ipcMain, { getStmt, getDb, safeHandle, schemas, voidSchema, z 
   })
   safeHandle(ipcMain, 'db:reviewFlashcard', z.object({
     id: z.number().int().positive(),
-    ease: z.number().int().min(0).max(3),
+    ease: z.number().int().min(0).max(5),
   }), ({ id, ease }) => {
     const card = getDb().prepare('SELECT * FROM flashcards WHERE id = ?').get(id)
     if (!card) throw new Error('Flashcard not found')
     let { repetitions, interval, ease_factor } = card
-    const qualityMap = [0, 1, 2, 3]
+    const qualityMap = [0, 1, 2, 3, 4, 5]
     const q = qualityMap[ease]
     if (q >= 2) {
       repetitions += 1

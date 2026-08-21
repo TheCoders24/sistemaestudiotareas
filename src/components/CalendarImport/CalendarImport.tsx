@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, Calendar, Link2, PenLine, FileText, CheckCircle2, Clock, Trash2, Plus, ArrowRight } from 'lucide-react'
+import { Upload, Calendar, Link2, PenLine, FileText, CheckCircle2, Clock, Plus, ArrowRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

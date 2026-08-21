@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
-  CalendarDays, Plus, Trash2, Pencil, Clock, Target,
-  Trophy, ArrowLeft, CheckCircle2, AlertTriangle, Award, BookOpen, GraduationCap
+  CalendarDays, Plus, Trash2, Pencil,
+  CheckCircle2, Award, BookOpen, GraduationCap
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -10,11 +10,9 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/use-toast'
-import { useTranslate } from '@/lib/translate'
 
 interface Exam {
   id: number
@@ -46,7 +44,6 @@ interface GpaEntry {
 }
 
 export default function ExamsPage() {
-  const t = useTranslate()
   const [exams, setExams] = useState<Exam[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedCourseId, setSelectedCourseId] = useState<string>('')
@@ -81,7 +78,7 @@ export default function ExamsPage() {
 
   async function loadGpa() {
     const data = await window.electronAPI?.exams.gpa()
-    if (data) setGpaData(data)
+    setGpaData(Array.isArray(data) ? data : data ? [data] : [])
   }
 
   function resetForm() {

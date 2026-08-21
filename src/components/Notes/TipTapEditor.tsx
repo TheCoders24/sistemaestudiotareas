@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, type ReactNode } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -13,7 +13,7 @@ import {
   Undo, Redo,
 } from 'lucide-react'
 
-const MenuButton = ({ onClick, active, children, title }) => (
+const MenuButton = ({ onClick, active, children, title }: { onClick: () => void; active?: boolean; children: ReactNode; title: string }) => (
   <button
     type="button"
     onClick={onClick}
@@ -26,7 +26,7 @@ const MenuButton = ({ onClick, active, children, title }) => (
   </button>
 )
 
-export default function TipTapEditor({ content, onChange, placeholder = 'Escribe algo...' }) {
+export default function TipTapEditor({ content, onChange, placeholder = 'Escribe algo...' }: { content: string; onChange: (html: string) => void; placeholder?: string }) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({

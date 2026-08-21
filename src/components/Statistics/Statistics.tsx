@@ -368,7 +368,7 @@ export default function Statistics() {
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie data={stats.pomodorosByProject.map((d: any, i: number) => ({ name: d.name, value: d.count, fill: ['#ef4444','#3b82f6','#22c55e','#f59e0b','#8b5cf6','#ec4899','#06b7d4','#f97316'][i % 8] }))}
-                    cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                    cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                   </Pie>
                   <Tooltip {...CUSTOM_TOOLTIP} />
                   <Legend />
@@ -388,7 +388,7 @@ export default function Statistics() {
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie data={stats.tasksByPriority.map((d: any) => ({ name: d.priority, value: d.count, fill: d.priority === 'alta' ? '#ef4444' : d.priority === 'media' ? '#f59e0b' : '#22c55e' }))}
-                      cx="50%" cy="50%" outerRadius={85} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                      cx="50%" cy="50%" outerRadius={85} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                     </Pie>
                     <Tooltip {...CUSTOM_TOOLTIP} />
                     <Legend />

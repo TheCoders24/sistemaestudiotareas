@@ -41,7 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (id, data) => ipcRenderer.invoke('db:updateProject', id, data),
     delete: (id) => ipcRenderer.invoke('db:deleteProject', id),
     gitStatus: (id) => ipcRenderer.invoke('projects:gitStatus', id),
-    openInEditor: (id, editor) => ipcRenderer.invoke('projects:openInEditor', id, editor),
+    openInEditor: (id, editor) => ipcRenderer.invoke('projects:openInEditor', { id, editor }),
   },
 
   tasks: {
@@ -154,7 +154,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       create: (data) => ipcRenderer.invoke('db:createFlashcard', data),
       delete: (id) => ipcRenderer.invoke('db:deleteFlashcard', id),
       getDue: (deckId) => ipcRenderer.invoke('db:getDueFlashcards', deckId),
-      review: (id, ease) => ipcRenderer.invoke('db:reviewFlashcard', { id, ease }),
+      review: (data) => ipcRenderer.invoke('db:reviewFlashcard', data),
     },
     stats: {
       deck: (deckId) => ipcRenderer.invoke('db:getFlashcardStats', deckId),
@@ -244,6 +244,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   backup: {
     list: () => ipcRenderer.invoke('db:listBackups'),
     restore: (filename) => ipcRenderer.invoke('db:restoreBackup', filename),
+  },
+
+  entity: {
+    link: (fromType, fromId, toType, toId) => ipcRenderer.invoke('entity:link', fromType, fromId, toType, toId),
+    getLinks: (type, id) => ipcRenderer.invoke('entity:getLinks', type, id),
+  },
+
+  tray: {
+    updateMenu: () => ipcRenderer.invoke('tray:updateMenu'),
   },
 
   events: {

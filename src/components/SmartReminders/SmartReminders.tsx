@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, BellRing, Clock, AlertTriangle, AlertOctagon, Plus, Settings, ChevronDown, ChevronUp, Volume2, VolumeX, CheckCircle2 } from 'lucide-react';
+import { Bell, BellRing, Clock, AlertTriangle, AlertOctagon, Plus, Settings, ChevronDown, Volume2, VolumeX } from 'lucide-react';
 
 interface Task {
   id: number;

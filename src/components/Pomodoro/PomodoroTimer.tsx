@@ -43,7 +43,7 @@ export function PomodoroTimer({ onComplete }: Props) {
   const [settings, setSettings] = useState<PomodoroSettings>(loadSettings)
   const saved = (() => { try { return JSON.parse(localStorage.getItem('pomodoroState') || 'null') } catch { return null } })()
   const [mode, setMode] = useState<'pomodoro' | 'short' | 'long'>(saved?.mode || 'pomodoro')
-  const [timeLeft, setTimeLeft] = useState(() => {
+  const [timeLeft, setTimeLeft] = useState<number>(() => {
     if (saved && saved.running && saved.savedAt) {
       const elapsed = Math.floor((Date.now() - saved.savedAt) / 1000)
       const remaining = saved.timeLeft - elapsed
@@ -74,7 +74,7 @@ export function PomodoroTimer({ onComplete }: Props) {
     }
   }
 
-  const MODES: Record<string, { label: string; duration: number; color: string; icon: typeof Timer }> = {
+  const MODES: Record<'pomodoro' | 'short' | 'long', { label: string; duration: number; color: string; icon: typeof Timer }> = {
     pomodoro: { label: 'Pomodoro', duration: settings.pomodoro * 60, color: 'text-red-500', icon: Timer },
     short: { label: 'Descanso Corto', duration: settings.shortBreak * 60, color: 'text-green-500', icon: Coffee },
     long: { label: 'Descanso Largo', duration: settings.longBreak * 60, color: 'text-blue-500', icon: Coffee },

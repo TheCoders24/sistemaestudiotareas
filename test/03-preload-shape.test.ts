@@ -80,7 +80,9 @@ describe('PASO 3 · Métodos anidados clave existen', () => {
     ['dailyLogs', 'get'],
     ['trash', 'softDelete'], ['trash', 'empty'],
     ['export', 'data'], ['export', 'importJSON'],
-    ['backup', 'list'],
+    ['backup', 'list'], ['backup', 'restore'],
+    ['entity', 'link'], ['entity', 'getLinks'],
+    ['tray', 'updateMenu'],
     ['events', 'onTrayAction'],
     ['app', 'notification', 'show'], ['app', 'shortcuts', 'register'],
     ['app', 'updater', 'check'],
@@ -122,8 +124,8 @@ describe('PASO 4 · El preload envuelve argumentos para handlers con objeto plan
     expect(call.args).toEqual([{ templateId: 3, params: { name: 'X' } }])
   })
 
-  it('flashcards.cards.review(id, ease) -> {id, ease}', async () => {
-    await api.flashcards.cards.review(7, 5)
+  it('flashcards.cards.review(data) -> data', async () => {
+    await api.flashcards.cards.review({ id: 7, ease: 5 })
     const call = harness.invoked[harness.invoked.length - 1]
     expect(call.channel).toBe('db:reviewFlashcard')
     expect(call.args).toEqual([{ id: 7, ease: 5 }])
@@ -141,6 +143,34 @@ describe('PASO 4 · El preload envuelve argumentos para handlers con objeto plan
     const call = harness.invoked[harness.invoked.length - 1]
     expect(call.channel).toBe('ai:generateFlashcards')
     expect(call.args).toEqual([{ sourceType: 'topic', sourceId: 5 }])
+  })
+
+  it('entity.link(fromType, fromId, toType, toId) -> args posicionales', async () => {
+    await api.entity.link('task', 1, 'note', 2)
+    const call = harness.invoked[harness.invoked.length - 1]
+    expect(call.channel).toBe('entity:link')
+    expect(call.args).toEqual(['task', 1, 'note', 2])
+  })
+
+  it('entity.getLinks(type, id) -> args posicionales', async () => {
+    await api.entity.getLinks('task', 1)
+    const call = harness.invoked[harness.invoked.length - 1]
+    expect(call.channel).toBe('entity:getLinks')
+    expect(call.args).toEqual(['task', 1])
+  })
+
+  it('tray.updateMenu() -> channel tray:updateMenu', async () => {
+    await api.tray.updateMenu()
+    const call = harness.invoked[harness.invoked.length - 1]
+    expect(call.channel).toBe('tray:updateMenu')
+    expect(call.args).toEqual([])
+  })
+
+  it('projects.openInEditor(id, editor) -> {id, editor}', async () => {
+    await api.projects.openInEditor(4, 'code')
+    const call = harness.invoked[harness.invoked.length - 1]
+    expect(call.channel).toBe('projects:openInEditor')
+    expect(call.args).toEqual([{ id: 4, editor: 'code' }])
   })
 
   it('wifiSync.connect(ip) -> {ip}', async () => {

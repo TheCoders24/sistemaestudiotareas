@@ -86,7 +86,7 @@ export default function HabitsPage() {
     if (!window.electronAPI) return
     const habit = habits.find(h => h.id === id)
     if (window.__confirmDelete) {
-      window.__confirmDelete('habit', id, habit?.name || '')
+      window.__confirmDelete('habit', id, habit?.name || '', loadHabits)
     } else {
       try {
         await window.electronAPI.trash.softDelete('habit', id)
@@ -112,8 +112,14 @@ export default function HabitsPage() {
   async function toggleHabit(habitId: number, date: string) {
     if (!window.electronAPI) return
     try {
-      await window.electronAPI.habits.logs.toggle(habitId, date)
-      loadHabits()
+      const completed = await window.electronAPI.habits.logs.toggle(habitId, date)
+      setHabitLogs(prev => {
+        const logs = prev[habitId] || []
+        if (completed) {
+          return { ...prev, [habitId]: [{ id: Date.now(), habit_id: habitId, date, completed: 1 }, ...logs] }
+        }
+        return { ...prev, [habitId]: logs.filter((l: any) => !(l.date === date && l.completed)) }
+      })
     } catch {
       toast({ title: 'Error', description: 'No se pudo registrar el hábito', variant: 'destructive' })
     }

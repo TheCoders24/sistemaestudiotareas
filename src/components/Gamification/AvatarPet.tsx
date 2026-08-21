@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Progress } from '@/components/ui/progress'
-import { Zap, Calendar, TrendingUp } from 'lucide-react'
+import { Calendar, TrendingUp } from 'lucide-react'
 
 const PET_STATES: Record<string, string> = {
   new: '🐣',
@@ -54,8 +54,8 @@ function getMoodMessage(mood: string): string {
 export default function AvatarPet({ inline = false }: { inline?: boolean }) {
   const [xp, setXp] = useState(0)
   const [level, setLevel] = useState(1)
-  const [lastStudyDate, setLastStudyDate] = useState<string | null>(() => localStorage.getItem('pet_lastStudyDate'))
-  const [showTooltip, setShowTooltip] = useState(false)
+  const [lastStudyDate] = useState<string | null>(() => localStorage.getItem('pet_lastStudyDate'))
+  const [, setShowTooltip] = useState(false)
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -78,11 +78,11 @@ export default function AvatarPet({ inline = false }: { inline?: boolean }) {
   const currentXp = xp % XP_PER_LEVEL
 
   const bounceAnimation = mood === 'happy'
-    ? { y: [0, -8, 0], transition: { repeat: Infinity, duration: 1.5, ease: 'easeInOut' } }
+    ? { y: [0, -8, 0], transition: { repeat: Infinity, duration: 1.5, ease: 'easeInOut' as const } }
     : mood === 'sad'
-    ? { y: [0, 2, 0], transition: { repeat: Infinity, duration: 3, ease: 'easeInOut' } }
+    ? { y: [0, 2, 0], transition: { repeat: Infinity, duration: 3, ease: 'easeInOut' as const } }
     : mood === 'sleeping'
-    ? { opacity: [1, 0.5, 1], transition: { repeat: Infinity, duration: 2, ease: 'easeInOut' } }
+    ? { opacity: [1, 0.5, 1], transition: { repeat: Infinity, duration: 2, ease: 'easeInOut' as const } }
     : {}
 
   if (inline) {

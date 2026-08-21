@@ -38,7 +38,7 @@ const HANDLER_MODULES = [
   'tasks', 'projects', 'workspaces', 'notes', 'kanban', 'pomodoro', 'study',
   'goals', 'habits', 'snippets', 'dailylogs', 'flashcards', 'automation', 'labels',
   'trash', 'search', 'settings', 'studyfiles', 'newmodules', 'sync', 'backup',
-  'courses', 'templates', 'exams', 'snippets-execute', 'ai',
+  'courses', 'templates', 'exams', 'snippets-execute', 'ai', 'entity',
 ]
 
 /** Módulos que reciben `depExtra` (con los engines de la main). */
@@ -166,6 +166,9 @@ describe('PASO 3 · Canales críticos que el renderer usa a diario existen', () 
     'courses:list', 'templates:instantiate', 'exams:list', 'exams:gpa',
     'ai:tutor', 'ai:validateKey', 'ai:generateFlashcards',
     'notification:show', 'session:save', 'db:linkEntities',
+    'entity:link', 'entity:getLinks', 'db:getEntityLinks', 'tray:updateMenu',
+    'db:importData', 'db:restoreBackup', 'db:restoreFromJSON', 'snippets:execute',
+    'projects:openInEditor',
   ]
 
   const channels = registeredChannels()

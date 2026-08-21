@@ -2,18 +2,16 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BookOpen, Plus, Trash2, Pencil, ChevronRight, BookMarked, Brain,
-  School, GraduationCap, Palette, X, Check, ArrowLeft
+  School, GraduationCap, ArrowLeft
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/use-toast'
-import { useTranslate } from '@/lib/translate'
 import type { Course, StudyTopic, FlashcardDeck } from '@/types'
 
 const COURSE_ICONS = ['book', 'school', 'graduation-cap', 'brain', 'book-marked', 'flask', 'atom', 'calculator', 'music', 'pencil']
@@ -32,7 +30,6 @@ function getIcon(icon: string) {
 }
 
 export default function CoursesPage() {
-  const t = useTranslate()
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ShoppingCart, Check, ChevronDown, ChevronUp, Palette, User, Zap, Shield, RotateCcw, Image, Volume2 } from 'lucide-react'
+import { ShoppingCart, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface ShopItem {

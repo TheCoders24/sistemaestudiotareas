@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Users, Copy, Check, Plus, LogIn, Play, Trophy, Flame, Zap, UserPlus, Clock, Star, Medal } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Users, Copy, Check, Plus, LogIn, Play, Trophy, Flame, Zap, UserPlus, Clock, Star } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

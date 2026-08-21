@@ -1,25 +1,9 @@
-function doAutoBackup({ getStmt, getDb, app, fs, path }) {
-  try {
-    const today = new Date().toISOString().split('T')[0]
-    const lastBackup = getStmt("SELECT value FROM settings WHERE key = 'last_auto_backup'").get()
-    if (lastBackup && lastBackup.value === today) return
-    const backupDir = path.join(app.getPath('userData'), 'backups')
-    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true })
-    const tables = ['settings','projects','tasks','kanban_cards','pomodoro_sessions','study_topics','study_progress','study_files','notes','goals','goal_progress','streaks','daily_logs','snippets','habits','habit_logs','tags','xp_log','achievements','user_achievements','challenges','user_challenges','weekly_reports','subtasks','entity_links']
-    const data = {}
-    for (const t of tables) { try { data[t] = getStmt(`SELECT * FROM ${t}`).all() } catch { data[t] = [] } }
-    fs.writeFileSync(path.join(backupDir, `backup-${today}.json`), JSON.stringify(data, null, 2))
-    const backups = fs.readdirSync(backupDir).filter(f => f.startsWith('backup-')).sort().reverse()
-    if (backups.length > 30) { for (let i = 30; i < backups.length; i++) fs.unlinkSync(path.join(backupDir, backups[i])) }
-    getStmt("INSERT OR REPLACE INTO settings (key, value) VALUES ('last_auto_backup', ?)").run(today)
-  } catch (e) { console.error('[AutoBackup]', e) }
-}
+const { ALL_TABLES } = require('../core/backup-tables')
 
 function register(ipcMain, { getStmt, getDb, app, fs, path, safeHandle, schemas, voidSchema, z }) {
   safeHandle(ipcMain, 'db:importData', z.any(), (data) => {
-    const tables = ['settings', 'projects', 'tasks', 'kanban_cards', 'pomodoro_sessions', 'study_topics', 'study_progress', 'study_files', 'notes', 'goals', 'goal_progress', 'streaks', 'daily_logs', 'snippets', 'habits', 'habit_logs', 'tags']
     const tx = getDb().transaction(() => {
-      for (const table of tables) {
+      for (const table of ALL_TABLES) {
         try {
           getStmt(`DELETE FROM ${table}`).run()
           if (data[table] && data[table].length > 0) {
@@ -56,9 +40,8 @@ function register(ipcMain, { getStmt, getDb, app, fs, path, safeHandle, schemas,
     const backupPath = path.join(app.getPath('userData'), 'backups', filename)
     if (!fs.existsSync(backupPath)) throw new Error('Backup not found')
     const data = JSON.parse(fs.readFileSync(backupPath, 'utf-8'))
-    const tables = ['settings','projects','tasks','kanban_cards','pomodoro_sessions','study_topics','study_progress','study_files','notes','goals','goal_progress','streaks','daily_logs','snippets','habits','habit_logs','tags','xp_log','achievements','user_achievements','challenges','user_challenges','weekly_reports','subtasks','entity_links']
     const tx = getDb().transaction(() => {
-      for (const table of tables) {
+      for (const table of ALL_TABLES) {
         try {
           getStmt(`DELETE FROM ${table}`).run()
           if (data[table] && data[table].length > 0) {
@@ -75,9 +58,8 @@ function register(ipcMain, { getStmt, getDb, app, fs, path, safeHandle, schemas,
   })
 
   function exportAllData() {
-    const tables = ['settings','projects','tasks','kanban_cards','pomodoro_sessions','study_topics','notes','goals','daily_logs','snippets','habits','habit_logs','subtasks']
     const data = {}
-    for (const table of tables) {
+    for (const table of ALL_TABLES) {
       try { data[table] = getDb().prepare(`SELECT * FROM ${table}`).all() } catch { data[table] = [] }
     }
     data._exportDate = new Date().toISOString()
@@ -90,9 +72,8 @@ function register(ipcMain, { getStmt, getDb, app, fs, path, safeHandle, schemas,
 
   safeHandle(ipcMain, 'db:restoreFromJSON', z.any(), (jsonData) => {
     const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
-    const tables = ['settings','projects','tasks','kanban_cards','pomodoro_sessions','study_topics','notes','goals','daily_logs','snippets','habits','habit_logs','subtasks']
     const tx = getDb().transaction(() => {
-      for (const table of tables) {
+      for (const table of ALL_TABLES) {
         try {
           getDb().prepare(`DELETE FROM ${table}`).run()
           if (data[table] && data[table].length > 0) {
@@ -109,4 +90,4 @@ function register(ipcMain, { getStmt, getDb, app, fs, path, safeHandle, schemas,
   })
 }
 
-module.exports = { register, doAutoBackup }
+module.exports = { register }

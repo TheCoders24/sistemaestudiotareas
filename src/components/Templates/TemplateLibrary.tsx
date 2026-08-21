@@ -1,22 +1,17 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
-  LayoutTemplate, Projector, BookOpen, Kanban, Plus, X, Check, Loader
+  LayoutTemplate, Projector, BookOpen, Kanban, Loader
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
 import { toast } from '@/components/ui/use-toast'
-import { useTranslate } from '@/lib/translate'
 
 interface Template {
   id: number
-  type: string
   name: string
-  description: string
-  payload: string
-  is_builtin: number
+  type: string
+  data: string
   created_at: string
 }
 
@@ -24,7 +19,7 @@ interface TemplateLibraryProps {
   type: 'project' | 'kanban_board' | 'study_plan'
   open: boolean
   onOpenChange: (open: boolean) => void
-  onInstantiated?: (result: any) => void
+  onInstantiated?: (result: unknown) => void
   workspaceId?: number
 }
 
@@ -35,7 +30,6 @@ const TYPE_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = {
 }
 
 export default function TemplateLibrary({ type, open, onOpenChange, onInstantiated, workspaceId }: TemplateLibraryProps) {
-  const t = useTranslate()
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(false)
   const [instantiating, setInstantiating] = useState<number | null>(null)
@@ -112,13 +106,7 @@ export default function TemplateLibrary({ type, open, onOpenChange, onInstantiat
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{template.name}</p>
-                        {template.description && (
-                          <p className="text-xs text-muted-foreground truncate">{template.description}</p>
-                        )}
                       </div>
-                      <Badge variant="outline" className="text-[10px]">
-                        {template.is_builtin ? 'Predefinida' : 'Personalizada'}
-                      </Badge>
                       {instantiating === template.id && (
                         <Loader className="h-4 w-4 animate-spin text-indigo-500" />
                       )}

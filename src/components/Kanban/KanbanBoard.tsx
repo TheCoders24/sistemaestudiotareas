@@ -66,7 +66,7 @@ export default function KanbanBoard() {
     if (!window.electronAPI) return
     const card = cards.find(c => c.id === id)
     if (window.__confirmDelete) {
-      window.__confirmDelete('kanban', id, card?.title || '')
+      window.__confirmDelete('kanban', id, card?.title || '', loadCards)
     } else {
       try {
         await window.electronAPI.trash.softDelete('kanban', id)

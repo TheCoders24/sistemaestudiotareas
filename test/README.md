@@ -90,7 +90,7 @@ indicando archivo y línea. Esta es exactamente la clase de bugs corregidos en
 la sesión (FlashcardsPage, SocialPage, TaskList, CloudSync, EnergyPlanning,
 SmartReminders…).
 Excepciones documentadas (guardadas con `typeof === 'function'` porque aún no
-hay handler IPC): `snippets.setTags` y `backup.saveDialog`.
+hay handler IPC): ninguna — el código muerto fue eliminado.
 
 ### `test/05-crud-workflows.test.ts` — Flujos de usuario paso a paso
 Recorridos completos sobre el mock anidado (`createMockApi`), complementando a
@@ -110,18 +110,24 @@ Recorridos completos sobre el mock anidado (`createMockApi`), complementando a
 - `useThemeStore`: el cambio de tema aplica las variables CSS en `<html>`.
 - `useUndoStore`: push/undo/clearExpired de acciones de deshacer.
 
-### `test/07-utils.test.tsx` — Utilidades puras
-- `cn()`: concatenación, valores falsy, **merge de conflictos tailwind**
-  (gana la última clase) y condicionales.
-- i18n `t()` / `useTranslate()`: ES/EN, fallback a la clave, y **reactividad**
-  al idioma del store (probada renderizando un componente).
-- Constantes: `PRIORITY_COLORS`, `TABS` (≥ 10, sin duplicados) y
-  `KEYBOARD_SHORTCUTS`.
+### `test/11-backup-export.test.ts` — Backup/export con SQLite real
+Usa `node:sqlite` (SQLite real, no mock) y registra los handlers reales:
+- `export.data()` incluye **todas las tablas de `ALL_TABLES`** (regresión del
+  bug donde solo se exportaban 13 y se perdían xp/achievements/retos/etc.).
+- Roundtrips `export → importJSON` y `export → import` restauran los datos.
+- `doAutoBackup` (core/auto-backup.js): escribe `backup-YYYY-MM-DD.json`,
+  **deduplica por día**, `listBackups` lo lista y `restoreBackup` restaura.
+- Casos de error (archivo inexistente, JSON inválido).
 
-### `test/08-ui-render.test.tsx` — Primitivos de UI
-Render real con React Testing Library en JSDOM: `Button` (variantes, `asChild`,
-`disabled`), `Badge`, `Card`/`CardHeader`/`CardTitle`/`CardContent`, `Input`,
-`Checkbox` y `Switch` (toggles de estado).
+### `test/09-study-map-courses.test.ts` — Mapa de estudio y cursos
+
+### `test/12-handler-fixes.test.ts` — Fixes de handlers sobre SQLite real
+- `entity:link`/`entity:getLinks`/`db:linkEntities`/`db:getEntityLinks`:
+  roundtrip sobre la tabla real (con UNIQUE) y resultados enriquecidos.
+- `tray:updateMenu` responde `true` y llama a `updateTrayMenu`.
+- `snippets:execute` acepta id posicional (regresión del schema `{id}`).
+- `projects:openInEditor` espera objeto `{ id, editor }`; rechaza posicional.
+- `db:reviewFlashcard` acepta `ease: 5` ("Fácil", antes `max(3)`) y rechaza 6.
 
 ---
 

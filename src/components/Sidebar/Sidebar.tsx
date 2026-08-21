@@ -20,7 +20,7 @@ interface SidebarProps {
   denseMode?: boolean
 }
 
-export default function Sidebar({ activeTab, onNavigate, onClose, onOpenSettings, userName = '', fontSize = 'base', denseMode = false }: SidebarProps) {
+export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userName = '', fontSize = 'base', denseMode = false }: SidebarProps) {
   const [notes, setNotes] = useState<any[]>([])
   const [goals, setGoals] = useState<any[]>([])
   const [goalProgress, setGoalProgress] = useState<Record<number, number>>({})

@@ -144,7 +144,7 @@ export default function TaskList() {
     if (!window.electronAPI) return
     const task = tasks.find(t => t.id === id)
     if (window.__confirmDelete) {
-      window.__confirmDelete('task', id, task?.title || '')
+      window.__confirmDelete('task', id, task?.title || '', loadTasks)
     } else {
       await window.electronAPI.trash.softDelete('task', id)
       loadTasks()

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Battery, BatteryCharging, BatteryLow, BatteryWarning, Moon, Sun, Sunset, Clock, Zap, AlertCircle } from 'lucide-react';
+import { Battery, BatteryCharging, BatteryLow, Moon, Sun, Sunset, Clock, Zap, AlertCircle } from 'lucide-react';
 
 type EnergyLevel = 'alta' | 'media' | 'baja' | 'descanso';
 type TimeBlock = 'manana' | 'tarde' | 'noche' | 'madrugada';

@@ -30,12 +30,14 @@ Documentación detallada de cada suite nueva: `test/README.md`.
 | `01-ipc-contract.test.ts` | Contrato de `safe-handle.js`: valor crudo, parse dual, `voidSchema()`, re-lanzamiento de errores, registro idempotente, y regresión de `workspace_id` opcional en `tasks.create`/`study.topics.create`. |
 | `02-handler-registration.test.ts` | Registro de los 27 módulos de `electron/handlers/` con stubs: ninguno lanza, ≥ 100 canales, canales críticos presentes. |
 | `03-preload-shape.test.ts` | Forma del API real expuesto por `preload.js` (cargado fuera de Electron): namespaces, métodos anidados, envoltura de argumentos. |
-| `04-component-api-consistency.test.ts` | **Meta-test**: escanea `src/` y valida que cada `window.electronAPI.x.y.z()` exista en el preload. Excepciones guardadas: `snippets.setTags`, `backup.saveDialog`. |
+| `04-component-api-consistency.test.ts` | **Meta-test**: escanea `src/` y valida que cada `window.electronAPI.x.y.z()` exista en el preload. Excepciones guardadas: ninguna (código muerto eliminado). |
 | `05-crud-workflows.test.ts` | Flujos de usuario paso a paso sobre el mock anidado (subtareas, etiquetas, hábitos/rachas, pomodoro/XP, dashboard, kanban, papelera, export). |
 | `06-stores.test.ts` | `appStore`, `themeStore`, `undoStore`. |
 | `07-utils.test.tsx` | `cn()`, i18n `t()`/`useTranslate()`, constantes. |
 | `08-ui-render.test.tsx` | Render real (RTL) de primitivos UI: Button, Badge, Card, Input, Checkbox, Switch. |
 | `09-study-map-courses.test.ts` | Materias en el StudyMap: crear materia, persistir `course_id`, agrupar por materia + "Sin materia", reasignar, reordenar y niveles. Parte B: SQL dinámico del INSERT. |
+| `11-backup-export.test.ts` | Backup/export con SQLite real (`node:sqlite`): `export.data` cubre las 33 tablas, roundtrips `import`/`importJSON`, auto-backup diario con dedupe/restauración, errores. |
+| `12-handler-fixes.test.ts` | Fixes de handlers: `entity:link`/`entity:getLinks`/alias, `tray:updateMenu`, `snippets:execute` posicional, `projects:openInEditor` objeto, `reviewFlashcard` ease 5. |
 
 > Feature completa documentada en [`docs/materias-en-studymap.md`](materias-en-studymap.md),
 > incluye la verificación end-to-end real con `npx electron scripts/verify-study-course.js`.

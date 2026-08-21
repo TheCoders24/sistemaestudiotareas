@@ -1,0 +1,17 @@
+#!/bin/sh
+# Se ejecuta antes de cada commit. Verifica tipos y corre todos los tests.
+# Si algo falla, el commit se aborta.
+
+echo "[pre-commit] typecheck..."
+if ! npx tsc --noEmit; then
+  echo "[pre-commit] ERROR: typecheck failed"
+  exit 1
+fi
+
+echo "[pre-commit] running tests (src + handlers)..."
+if ! npx vitest run src/__tests__ test; then
+  echo "[pre-commit] ERROR: tests failed"
+  exit 1
+fi
+
+echo "[pre-commit] OK"

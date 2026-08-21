@@ -1,6 +1,16 @@
 import { toast } from '@/components/ui/use-toast'
 
-type IpcMethod = keyof Window['electronAPI']
+type IsFunction<T> = T extends (...args: never[]) => unknown ? true : false
+
+type NestedMethod<T> = {
+  [K in keyof T & string]: IsFunction<T[K]> extends true
+    ? K
+    : T[K] extends object
+      ? `${K}.${NestedMethod<T[K]>}`
+      : never
+}[keyof T & string]
+
+type IpcMethod = NestedMethod<Window['electronAPI']>
 
 interface CacheEntry<T> {
   data: T
@@ -31,6 +41,16 @@ export function clearIpcCache() {
   cache.clear()
 }
 
+function resolvePath(obj: Record<string, unknown>, path: string): ((...args: unknown[]) => unknown) | null {
+  const parts = path.split('.')
+  let cur: unknown = obj
+  for (const part of parts) {
+    if (cur == null || typeof cur !== 'object') return null
+    cur = (cur as Record<string, unknown>)[part]
+  }
+  return typeof cur === 'function' ? (cur as (...args: unknown[]) => unknown) : null
+}
+
 export async function safeIpc<T>(method: IpcMethod, ...args: unknown[]): Promise<T | null> {
   if (!window.electronAPI) return null
 
@@ -41,8 +61,9 @@ export async function safeIpc<T>(method: IpcMethod, ...args: unknown[]): Promise
   let lastError: unknown
   for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
     try {
-      const api = window.electronAPI[method] as (...a: unknown[]) => Promise<T>
-      const result: T = await api(...args)
+      const api = resolvePath(window.electronAPI as unknown as Record<string, unknown>, method)
+      if (!api) return null
+      const result = (await api(...args)) as T
       if (args.length === 0 || (args.length === 1 && typeof args[0] === 'string' && method.startsWith('get'))) {
         setCache(cacheKey, result)
       }

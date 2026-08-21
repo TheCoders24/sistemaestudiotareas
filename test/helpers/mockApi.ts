@@ -241,7 +241,6 @@ export function createMockApi(): MockElectronApi {
           created_at: nowIso(),
           updated_at: nowIso(),
           ...task,
-          id: taskId,
         }
         tasks.push(t)
         return t

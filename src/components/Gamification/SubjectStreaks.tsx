@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Flame, Calendar, TrendingUp, BookOpen } from 'lucide-react'
+import { Flame, TrendingUp, BookOpen } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Project, PomodoroSession } from '@/types'
 

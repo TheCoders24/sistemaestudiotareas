@@ -258,7 +258,7 @@ describe('Streaks', () => {
     await window.electronAPI.streaks.update('daily_study')
     const streak = await window.electronAPI.streaks.get('daily_study')
     expect(streak).not.toBeNull()
-    expect(streak.current).toBe(1)
+    expect(streak!.current).toBe(1)
   })
 
   it('returns null for missing streak', async () => {
@@ -272,7 +272,7 @@ describe('Daily Logs', () => {
     const log = await window.electronAPI.dailyLogs.create({ date: '2026-07-23', content: 'Good day', focus: 'Study', blockers: 'None' })
     expect(log.date).toBe('2026-07-23')
     const retrieved = await window.electronAPI.dailyLogs.get('2026-07-23')
-    expect(retrieved.content).toBe('Good day')
+    expect(retrieved!.content).toBe('Good day')
   })
 
   it('get all daily logs', async () => {
@@ -391,6 +391,14 @@ describe('QuickAdd button fix (window.__quickAdd)', () => {
     ;(window as any).__confirmDelete = (type: string, id: number, title: string) => { calledWith = { type, id, title } }
     ;(window as any).__confirmDelete('task', 42, 'My Task')
     expect(calledWith).toEqual({ type: 'task', id: 42, title: 'My Task' })
+    delete (window as any).__confirmDelete
+  })
+
+  it('__confirmDelete accepts an onConfirm callback (refresco tras eliminar)', () => {
+    let refreshCalled = false
+    ;(window as any).__confirmDelete = (_type: string, _id: number, _title: string, onConfirm?: () => void) => { onConfirm?.(); refreshCalled = true }
+    ;(window as any).__confirmDelete('task', 42, 'My Task', () => { refreshCalled = true })
+    expect(refreshCalled).toBe(true)
     delete (window as any).__confirmDelete
   })
 

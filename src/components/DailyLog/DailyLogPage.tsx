@@ -30,7 +30,7 @@ export default function DailyLogPage() {
   async function loadLogForDate(date: string) {
     if (!window.electronAPI) return
     const log = await window.electronAPI.dailyLogs.get(date)
-    setCurrentLog(log)
+    setCurrentLog(log ?? null)
     if (log) {
       setContent(log.content)
       setFocus(log.focus)

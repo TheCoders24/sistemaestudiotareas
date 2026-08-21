@@ -4,9 +4,7 @@ import { ChevronLeft, ChevronRight, GanttChart, GripVertical } from 'lucide-reac
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { EmptyState } from '@/components/ui/empty-state'
 import { ListSkeleton } from '@/components/ui/loading-skeleton'
-import { useTranslate } from '@/lib/translate'
 
 interface Task {
   id: number; title: string; completed: number; priority: string
@@ -22,7 +20,6 @@ const PRIORITY_BG_MUTED: Record<string, string> = {
 const DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
 export default function TaskTimelineView() {
-  const t = useTranslate()
   const [tasks, setTasks] = useState<Task[]>([])
   const [weekOffset, setWeekOffset] = useState(0)
   const [loading, setLoading] = useState(true)

@@ -297,7 +297,7 @@ export default function ProjectsPage() {
         type="project"
         open={templateDialogOpen}
         onOpenChange={setTemplateDialogOpen}
-        onInstantiated={(result) => { loadProjects() }}
+        onInstantiated={() => { loadProjects() }}
       />
 
       <ConfirmDialog

@@ -117,7 +117,11 @@ export function installFaultTolerance(): void {
   wrapped[INSTALLED] = true
 
   const before = window.electronAPI
-  window.electronAPI = wrapped as unknown as Window['electronAPI']
+  try {
+    ;(window as { electronAPI: unknown }).electronAPI = wrapped
+  } catch {
+    // contextBridge expone electronAPI como propiedad de solo lectura; no se puede reemplazar
+  }
   if (window.electronAPI === before) {
     console.warn('[fault-tolerance] no se pudo reemplazar window.electronAPI; solo quedan los handlers globales activos')
   }

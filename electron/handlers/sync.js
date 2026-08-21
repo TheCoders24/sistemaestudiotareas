@@ -3,8 +3,10 @@ let syncUdpBroadcast = null
 const SYNC_PORT = 27345
 const SYNC_HTTP_PORT = 27346
 
+const { ALL_TABLES } = require('../core/backup-tables')
+
 function exportAllData(getDb) {
-  const tables = ['settings','projects','tasks','kanban_cards','pomodoro_sessions','study_topics','notes','goals','daily_logs','snippets','habits','habit_logs','subtasks']
+  const tables = ALL_TABLES
   const data = {}
   for (const table of tables) {
     try { data[table] = getDb().prepare(`SELECT * FROM ${table}`).all() } catch { data[table] = [] }

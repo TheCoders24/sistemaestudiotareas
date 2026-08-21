@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings2, Download, Upload, Eye, Volume2, VolumeX, Palette, Timer, Keyboard, RotateCcw, HardDrive, AlertTriangle, User, Brain, Key, Check, X, Loader } from 'lucide-react'
+import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
-import { Slider } from '@/components/ui/slider'
 import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -31,21 +30,19 @@ interface BackupEntry {
 
 export default function Settings({ open: externalOpen, onOpenChange: externalOnOpenChange }: { open?: boolean; onOpenChange?: (o: boolean) => void } = {}) {
   const t = useTranslate()
-  const [eyeRestEnabled, setEyeRestEnabled] = useState(true)
-  const [eyeRestInterval, setEyeRestInterval] = useState(20)
+  const [eyeRestEnabled] = useState(true)
+  const [eyeRestInterval] = useState(20)
   const [pomodoroPreset, setPomodoroPreset] = useState('default')
   const [focusTime, setFocusTime] = useState(25)
   const { soundEnabled, setSoundEnabled } = useSound()
   const { themeId, setThemeId } = useThemeStore()
   const { autoDarkMode, setAutoDarkMode, autoDarkStart, setAutoDarkStart, autoDarkEnd, setAutoDarkEnd } = useAppStore()
-  const { shortcuts, setShortcut, resetDefaults } = useShortcutsStore()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { shortcuts, setShortcut } = useShortcutsStore()
   const eyeRestTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [recordingTabId, setRecordingTabId] = useState<string | null>(null)
   const [backups, setBackups] = useState<BackupEntry[]>([])
   const [backupsLoading, setBackupsLoading] = useState(false)
   const [restoreConfirm, setRestoreConfirm] = useState<BackupEntry | null>(null)
-  const [developerMode, setDeveloperMode] = useState(false)
   const [userProfile, setUserProfile] = useState('custom')
   const [aiApiKey, setAiApiKey] = useState('')
   const [aiKeyValid, setAiKeyValid] = useState<boolean | null>(null)
@@ -58,9 +55,6 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
       })
       window.electronAPI.settings.get('pomodoro_focus').then((val: string | null) => {
         if (val) setFocusTime(Number(val))
-      })
-      window.electronAPI.settings.get('developerMode').then((val: string | null) => {
-        if (val) setDeveloperMode(val === 'true')
       })
       window.electronAPI.settings.get('userProfile').then((val: string | null) => {
         if (val) setUserProfile(val)
@@ -139,46 +133,6 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
     } catch {
       toast({ title: t('settings.backups_restore_error'), variant: 'destructive' })
     }
-  }
-
-  async function handleExport() {
-    if (!window.electronAPI) return
-    const data = await window.electronAPI.export.data()
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `backup-estudio-${new Date().toISOString().split('T')[0]}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    toast({ title: t('settings.export_success'), description: t('settings.export_success_desc') })
-  }
-
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      try {
-        const data = JSON.parse(event.target?.result as string)
-        if (window.electronAPI) {
-          await window.electronAPI.export.import(data)
-          toast({ title: '✅ ' + t('settings.import_success'), description: t('settings.import_success_desc') })
-        }
-      } catch {
-        toast({ title: '❌ ' + t('common.error', 'Error'), description: t('settings.import_error'), variant: 'destructive' })
-      }
-    }
-    reader.readAsText(file)
-    e.target.value = ''
-  }
-
-  function formatSize(bytes: number) {
-    if (bytes < 1024) return bytes + ' B'
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-    return (bytes / 1024 / 1024).toFixed(1) + ' MB'
   }
 
   return (
@@ -337,6 +291,40 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
             <p className="text-xs text-muted-foreground">
               Tu API key se almacena localmente y solo se usa para llamadas a la API de Anthropic.
             </p>
+          </div>
+
+          <Separator />
+
+          {/* Copias de seguridad */}
+          <div className="bg-accent/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-green-500" />
+              <span className="text-sm font-medium">Copias de seguridad</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Backups automáticos diarios de tu información. Elegí uno para restaurarlo.
+            </p>
+            {backupsLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader className="h-3 w-3 animate-spin" /> Cargando...
+              </div>
+            ) : backups.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Aún no hay backups. Se creará uno automáticamente cada día.</p>
+            ) : (
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {backups.map(b => (
+                  <div key={b.filename} className="flex items-center justify-between gap-2 p-2 rounded border bg-background/50">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium">{b.date}</p>
+                      <p className="text-[10px] text-muted-foreground">{(b.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setRestoreConfirm(b)}>
+                      <ArchiveRestore className="h-3 w-3" /> Restaurar
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
         </div>

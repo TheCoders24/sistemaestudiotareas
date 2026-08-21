@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { BookOpen, Plus, Trash2, ChevronRight, ChevronDown, Search, Link, ArrowUp, ArrowDown, CheckCircle2, RefreshCw, Clock, ChevronsDown, ChevronsUpDown, Paperclip, FileText, File, ExternalLink, LayoutTemplate, Sparkles, Loader, GraduationCap } from 'lucide-react'
+import { BookOpen, Plus, Trash2, ChevronRight, ChevronDown, Search, Link, ArrowUp, ArrowDown, CheckCircle2, RefreshCw, Clock, ChevronsDown, ChevronsUpDown, Paperclip, ExternalLink, LayoutTemplate, Sparkles, Loader, GraduationCap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -65,7 +65,6 @@ export default function StudyMap() {
   const [uploadingTopic, setUploadingTopic] = useState<number | null>(null)
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
   const [generatingFlashcards, setGeneratingFlashcards] = useState<number | null>(null)
-  const [generatedFlashcards, setGeneratedFlashcards] = useState<Record<number, any[]>>({})
   const [viewMode, setViewMode] = useState<'all' | 'byCourse'>('all')
   const [showCourseDialog, setShowCourseDialog] = useState(false)
   const [courseFormName, setCourseFormName] = useState('')
@@ -155,7 +154,6 @@ export default function StudyMap() {
     setGeneratingFlashcards(topicId)
     try {
       const cards = await window.electronAPI.ai.generateFlashcards('topic', topicId)
-      setGeneratedFlashcards(prev => ({ ...prev, [topicId]: cards }))
       toast({ title: 'Flashcards generadas', description: `${cards.length} tarjetas generadas con IA. Revisalas y confirmá en la sección Flashcards.` })
     } catch (err) {
       toast({ title: 'Error', description: String(err), variant: 'destructive' })
@@ -340,7 +338,6 @@ export default function StudyMap() {
                     `}
                     style={{
                       backgroundColor: (isActive || isPast) ? lvl.color : undefined,
-                      ringColor: isActive ? lvl.color : undefined,
                     }}
                     aria-label={`${lvl.label}${isActive ? ' (actual)' : ''}`}
                   >
@@ -568,9 +565,6 @@ export default function StudyMap() {
 
   function renderProgressHeader() {
     const total = stats?.total ?? topics.length
-    const c0 = countByLevel(0)
-    const c1 = countByLevel(1)
-    const c2 = countByLevel(2)
     const c3 = countByLevel(3)
     const completed = c3
     const pct = total > 0 ? Math.round((completed / total) * 100) : 0
@@ -586,7 +580,7 @@ export default function StudyMap() {
           <div className="flex items-center gap-3 mt-2.5 text-xs flex-wrap">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-gray-400" />
-              Sin iniciar <span className="font-medium tabular-nums">{c0}</span>
+              Sin iniciar <span className="font-medium tabular-nums">{countByLevel(0)}</span>
             </span>
             {LEVELS.slice(1).map(lvl => (
               <span key={lvl.value} className="flex items-center gap-1.5">

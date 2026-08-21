@@ -45,10 +45,7 @@ export default function SnippetsPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim() || !code.trim() || !window.electronAPI) return
-    const snippet = await window.electronAPI.snippets.create({ title, code, language, description })
-    if (snippet && tagIds.length > 0 && typeof window.electronAPI.snippets.setTags === 'function') {
-      await window.electronAPI.snippets.setTags(snippet.id, tagIds)
-    }
+    await window.electronAPI.snippets.create({ title, code, language, description })
     setTitle(''); setCode(''); setDescription(''); setTagIds([])
     setOpen(false)
     loadSnippets()
@@ -90,7 +87,7 @@ export default function SnippetsPage() {
     if (filterLang !== 'all' && s.language !== filterLang) return false
     if (search) {
       const q = search.toLowerCase()
-      const matchesTags = Array.isArray(s.tags) ? s.tags.some((t: any) => t.name?.toLowerCase().includes(q)) : false
+      const matchesTags = Array.isArray(s.tags) ? s.tags.some((tag: { name?: string }) => tag.name?.toLowerCase().includes(q)) : false
       return s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q) || matchesTags
     }
     return true
@@ -188,7 +185,7 @@ export default function SnippetsPage() {
                 </div>
                 {Array.isArray(snippet.tags) && snippet.tags.length > 0 && (
                   <div className="flex gap-1 mt-2 flex-wrap">
-                    {snippet.tags.map((tag: any) => (
+                    {snippet.tags.map((tag: { id: number; name: string; color: string }) => (
                       <TagBadge key={tag.id} name={tag.name} color={tag.color} />
                     ))}
                   </div>
@@ -207,13 +204,13 @@ export default function SnippetsPage() {
                 </div>
                 {output[snippet.id] && (
                   <div className="mt-2 rounded-md bg-black/90 p-3 text-xs font-mono">
-                    {output[snippet.id].stdout && (
-                      <pre className="text-green-400 whitespace-pre-wrap">{output[snippet.id].stdout}</pre>
+                    {output[snippet.id]!.stdout && (
+                      <pre className="text-green-400 whitespace-pre-wrap">{output[snippet.id]!.stdout}</pre>
                     )}
-                    {output[snippet.id].stderr && (
-                      <pre className="text-red-400 whitespace-pre-wrap">{output[snippet.id].stderr}</pre>
+                    {output[snippet.id]!.stderr && (
+                      <pre className="text-red-400 whitespace-pre-wrap">{output[snippet.id]!.stderr}</pre>
                     )}
-                    <div className="text-[10px] text-muted-foreground mt-1">Exit code: {output[snippet.id].exitCode}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1">Exit code: {output[snippet.id]!.exitCode}</div>
                   </div>
                 )}
               </CardContent>

@@ -1,9 +1,7 @@
 const { execFile } = require('child_process')
 
 function register(ipcMain, { getStmt, safeHandle, schemas, z }) {
-  safeHandle(ipcMain, 'snippets:execute', z.object({
-    id: z.number().int().positive(),
-  }).transform(a => a), async ({ id }) => {
+  safeHandle(ipcMain, 'snippets:execute', z.number().int().positive(), async (id) => {
     const snippet = getStmt('SELECT * FROM snippets WHERE id = ?').get(id)
     if (!snippet) throw new Error('Snippet not found')
     const code = snippet.code

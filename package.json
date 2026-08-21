@@ -1,6 +1,6 @@
 {
   "name": "sistema-estudio-tareas",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Sistema de estudio y tareas con Pomodoro, Kanban, Mapa de estudio y más",
   "main": "electron/main.js",
   "scripts": {
@@ -13,7 +13,11 @@
     "lint": "eslint src --ext .ts,.tsx --max-warnings 150",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run src/__tests__ test",
+    "test:src": "vitest run src/__tests__",
+    "test:handlers": "vitest run test",
+    "test:watch": "vitest src/__tests__ test"
   },
   "keywords": [
     "pomodoro",

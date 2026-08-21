@@ -2,6 +2,10 @@ appId: com.sistema.estudio-tareas
 productName: Sistema Estudio y Tareas
 directories:
   output: release
+files:
+  - "dist/**/*"
+  - "electron/**/*"
+  - "package.json"
 win:
   target:
     - portable

@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Wifi, WifiOff, RefreshCw, CheckCircle2, Monitor, ArrowDownToLine, ArrowUpFromLine, Download, Upload, Search, Loader2, Smartphone } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Wifi, WifiOff, Monitor, ArrowDownToLine, ArrowUpFromLine, Download, Upload, Search, Loader2, Smartphone } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { toast } from '@/components/ui/use-toast'
 
 interface Device { name: string; ip: string; port?: number }
