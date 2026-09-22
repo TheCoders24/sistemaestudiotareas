@@ -7,7 +7,9 @@ function removeCrossoriginPlugin() {
     name: 'remove-crossorigin',
     enforce: 'post',
     transformIndexHtml(html) {
-      return html.replace(/crossorigin\s*/g, '')
+      return html
+        .replace(/crossorigin\s*/g, '')
+        .replace(/<link rel="modulepreload" href="\.\/assets\/js\/(?:charts|markdown)-[^"]*">\s*/g, '')
     },
   }
 }
@@ -24,6 +26,10 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     target: 'es2020',
+    minify: 'oxc',
+    cssCodeSplit: true,
+    reportCompressedSize: false,
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -37,9 +43,24 @@ export default defineConfig({
           if (id.includes('@dnd-kit')) return 'dnd'
           if (id.includes('@radix-ui')) return 'ui-radix'
           if (id.includes('node_modules/canvas-confetti') || id.includes('node_modules/class-variance-authority') || id.includes('node_modules/clsx') || id.includes('node_modules/tailwind-merge') || id.includes('node_modules/tailwindcss-animate')) return 'utils'
+          if (id.includes('node_modules/better-sqlite3')) return 'sqlite'
+          if (id.includes('node_modules/@tanstack/')) return 'tanstack'
+          if (id.includes('node_modules/zod')) return 'zod'
+        },
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        entryFileNames: 'assets/js/[name]-[hash].js',
+        assetFileNames: (info) => {
+          const ext = info.name.split('.').pop()
+          if (/\.(png|jpe?g|gif|svg|webp|ico)$/.test(info.name)) return `assets/img/[name]-[hash].${ext}`
+          if (/\.(woff2?|eot|ttf|otf)$/.test(info.name)) return `assets/fonts/[name]-[hash].${ext}`
+          if (/\.css$/.test(info.name)) return `assets/css/[name]-[hash].${ext}`
+          return `assets/[ext]/[name]-[hash].${ext}`
         },
       },
     },
+  },
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' },
   },
   server: {
     port: 5173,

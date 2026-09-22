@@ -1,5 +1,8 @@
 const { execFile } = require('child_process')
 
+const ALLOWED_LANGUAGES = new Set(['javascript', 'js', 'typescript', 'ts', 'python', 'bash'])
+const SANITIZED_ENV = { PATH: process.env.PATH, HOME: process.env.HOME || '', USERPROFILE: process.env.USERPROFILE || '', TEMP: process.env.TEMP || '', TMP: process.env.TMP || '', LANG: process.env.LANG || '' }
+
 function register(ipcMain, { getStmt, safeHandle, schemas, z }) {
   safeHandle(ipcMain, 'snippets:execute', z.number().int().positive(), async (id) => {
     const snippet = getStmt('SELECT * FROM snippets WHERE id = ?').get(id)
@@ -7,21 +10,23 @@ function register(ipcMain, { getStmt, safeHandle, schemas, z }) {
     const code = snippet.code
     const lang = snippet.language
 
+    if (!ALLOWED_LANGUAGES.has(lang)) {
+      throw new Error(`Execution not supported for language: ${lang}`)
+    }
+
     let cmd, args
     switch (lang) {
       case 'javascript': case 'js': cmd = 'node'; args = ['-e', code]; break
       case 'typescript': case 'ts': cmd = 'npx'; args = ['tsx', '-e', code]; break
       case 'python': cmd = 'python3'; args = ['-c', code]; break
       case 'bash': cmd = 'bash'; args = ['-c', code]; break
-      default:
-        throw new Error(`Execution not supported for language: ${lang}`)
     }
 
     return new Promise((resolve, reject) => {
       const child = execFile(cmd, args, {
         timeout: 10000,
         maxBuffer: 1024 * 1024,
-        env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=64' },
+        env: SANITIZED_ENV,
       }, (error, stdout, stderr) => {
         if (error) {
           if (error.killed) {

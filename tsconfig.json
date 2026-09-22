@@ -17,6 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".tscache/build-info",
     "paths": {
       "@/*": ["./src/*"]
     }

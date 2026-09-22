@@ -1,3 +1,4 @@
+require('v8-compile-cache')
 const { app, BrowserWindow, ipcMain, Notification, dialog, shell, Tray, Menu, nativeImage, globalShortcut, session } = require('electron')
 const path = require('path')
 const fs = require('fs')
@@ -185,13 +186,46 @@ function updateTrayMenu() {
 const { doAutoBackup } = require('./core/auto-backup')
 
 let ipcHandlersRegistered = false
+let essentialHandlersRegistered = false
+let nonEssentialHandlersRegistered = false
 
 function registerIpcHandlers() {
-  if (ipcHandlersRegistered) {
-    logger.warn('registerIpcHandlers called more than once. Skipping.')
+  registerEssentialIpcHandlers()
+  registerNonEssentialIpcHandlers()
+}
+
+function registerEssentialIpcHandlers() {
+  if (essentialHandlersRegistered) {
+    logger.warn('registerEssentialIpcHandlers called more than once. Skipping.')
     return
   }
-  ipcHandlersRegistered = true
+  essentialHandlersRegistered = true
+
+  const coreDeps = { getStmt, getDb, safeUpdate, wsFilter, wsParams, validate, safeHandle, schemas, voidSchema, z, app, mainWindow, dialog, shell, fs, path, crypto, globalShortcut, updateTrayMenu, notificationManager }
+
+  require('./handlers/settings').register(ipcMain, coreDeps)
+  require('./handlers/workspaces').register(ipcMain, coreDeps)
+  require('./handlers/tasks').register(ipcMain, coreDeps)
+  require('./handlers/notes').register(ipcMain, coreDeps)
+
+  safeHandle(ipcMain, 'tray:updateMenu', voidSchema(), () => { updateTrayMenu(); return true })
+  safeHandle(ipcMain, 'notification:show', z.object({ title: z.string().min(1), body: z.string().min(1), severity: z.string().optional() }), ({ title, body, severity }) => {
+    notificationManager.show(title, body, severity)
+    return true
+  })
+  safeHandle(ipcMain, 'session:save', z.object({ activeTab: z.string().optional(), sidebarOpen: z.boolean().optional(), scrollPositions: z.record(z.number()).optional() }).passthrough(), (state) => {
+    sessionManager.save(state)
+    return true
+  })
+  safeHandle(ipcMain, 'session:restore', voidSchema(), () => { return sessionManager.restore() })
+}
+
+function registerNonEssentialIpcHandlers() {
+  if (nonEssentialHandlersRegistered) {
+    logger.warn('registerNonEssentialIpcHandlers called more than once. Skipping.')
+    return
+  }
+  nonEssentialHandlersRegistered = true
 
   const coreDeps = { getStmt, getDb, safeUpdate, wsFilter, wsParams, validate, safeHandle, schemas, voidSchema, z, app, mainWindow, dialog, shell, fs, path, crypto, globalShortcut, updateTrayMenu, notificationManager }
 
@@ -200,10 +234,7 @@ function registerIpcHandlers() {
   const allDeps = { ...coreDeps, addXp, updateChallengeProgress }
   const depExtra = { ...allDeps, automationEngine, startupProfiler, performanceModes, performanceMonitor, smartPreload, pinLock, pluginSystem, encryption, mainWindow }
 
-  require('./handlers/tasks').register(ipcMain, allDeps)
   require('./handlers/projects').register(ipcMain, allDeps)
-  require('./handlers/workspaces').register(ipcMain, allDeps)
-  require('./handlers/notes').register(ipcMain, allDeps)
   require('./handlers/kanban').register(ipcMain, allDeps)
   require('./handlers/pomodoro').register(ipcMain, allDeps)
   require('./handlers/study').register(ipcMain, depExtra)
@@ -216,7 +247,6 @@ function registerIpcHandlers() {
   require('./handlers/labels').register(ipcMain, allDeps)
   require('./handlers/trash').register(ipcMain, allDeps)
   require('./handlers/search').register(ipcMain, allDeps)
-  require('./handlers/settings').register(ipcMain, allDeps)
   require('./handlers/studyfiles').register(ipcMain, allDeps)
   require('./handlers/newmodules').register(ipcMain, depExtra)
   require('./handlers/sync').register(ipcMain, allDeps)
@@ -228,11 +258,6 @@ function registerIpcHandlers() {
   require('./handlers/ai').register(ipcMain, allDeps)
   require('./handlers/entity').register(ipcMain, allDeps)
 
-  safeHandle(ipcMain, 'tray:updateMenu', voidSchema(), () => { updateTrayMenu(); return true })
-  safeHandle(ipcMain, 'notification:show', z.object({ title: z.string().min(1), body: z.string().min(1), severity: z.string().optional() }), ({ title, body, severity }) => {
-    notificationManager.show(title, body, severity)
-    return true
-  })
   safeHandle(ipcMain, 'db:importICSEvents', z.object({ events: z.array(z.object({ title: z.string(), description: z.string().optional(), startDate: z.string() })) }), ({ events }) => {
     const results = []
     for (const evt of events) {
@@ -242,11 +267,6 @@ function registerIpcHandlers() {
     }
     return results
   })
-  safeHandle(ipcMain, 'session:save', z.object({ activeTab: z.string().optional(), sidebarOpen: z.boolean().optional(), scrollPositions: z.record(z.number()).optional() }).passthrough(), (state) => {
-    sessionManager.save(state)
-    return true
-  })
-  safeHandle(ipcMain, 'session:restore', voidSchema(), () => { return sessionManager.restore() })
 }
 
 async function bootstrap() {
@@ -271,37 +291,15 @@ async function bootstrap() {
     await createWindow()
     logger.info('window created')
     startupProfiler.mark('window-created')
+
+    logger.info('registering essential IPC handlers...')
+    registerEssentialIpcHandlers()
+    logger.info('essential IPC handlers registered')
+
     createTray()
 
-    logger.info('registering IPC handlers...')
-    registerIpcHandlers()
-    logger.info('all IPC handlers registered')
-
-    smartPreload = new SmartPreload(getDb, { level: 'basic' })
-    performanceModes = new PerformanceModes('balanceado')
-    performanceMonitor = new PerformanceMonitor({ eventBus, getDb })
-    pinLock = new PinLock(
-      (key) => { const r = getStmt('SELECT value FROM settings WHERE key = ?').get(key); return r ? r.value : null },
-      (key, value) => { getStmt('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value) }
-    )
-    encryption = new Encryption()
-    dbEncryption = new DbEncryption(encryption, getDb)
-    pluginSystem = new PluginSystem({ getDb, eventBus, logger })
-    pluginSystem.init().catch(() => {})
-    startupProfiler.mark('settings-loaded')
-    automationEngine = new AutomationEngine(eventBus, getDb)
-    automationEngine.init()
-
-    setInterval(() => {
-      try {
-        const db = getDb()
-        if (db) db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('last_active', ?)").run(new Date().toISOString())
-      } catch {}
-    }, 60000)
-    setInterval(() => outbox.dispatchPending(), 30000)
-
     startupProfiler.mark('shell-rendered')
-    startupProfiler.measure('app-start', 'shell-rendered', 'Startup total')
+    startupProfiler.measure('app-start', 'shell-rendered', 'Startup total (to window)')
 
     eventBus.publish({
       id: crypto.randomUUID(),
@@ -312,43 +310,71 @@ async function bootstrap() {
       metadata: { startupMs: startupProfiler.getTotalMs() },
     })
 
-    const updateConfig = path.join(process.resourcesPath, 'app-update.yml')
-    if (fs.existsSync(updateConfig)) {
-      try {
-        const { autoUpdater } = require('electron-updater')
-        autoUpdater.autoDownload = true
-        autoUpdater.autoInstallOnAppQuit = true
-        autoUpdater.on('update-available', () => {
-          if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'available' })
-        })
-        autoUpdater.on('download-progress', (progress) => {
-          if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloading', percent: Math.round(progress.percent) })
-        })
-        autoUpdater.on('update-downloaded', () => {
-          if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloaded' })
-        })
-        autoUpdater.on('error', () => {})
-        safeHandle(ipcMain, 'updater:check', voidSchema(), () => { autoUpdater.checkForUpdates().catch(() => {}) })
-        safeHandle(ipcMain, 'updater:install', voidSchema(), () => { autoUpdater.quitAndInstall() })
-        setTimeout(() => { autoUpdater.checkForUpdates().catch(() => {}) }, 5000)
-      } catch {}
-    }
+    setImmediate(() => {
+      registerNonEssentialIpcHandlers()
+      logger.info('non-essential IPC handlers registered')
 
-    const SHORTCUTS = {
-      'CmdOrCtrl+Shift+N': 'new-note',
-      'CmdOrCtrl+Shift+T': 'new-task',
-      'CmdOrCtrl+Shift+P': 'pomodoro',
-      'CmdOrCtrl+Shift+F': 'search',
-    }
-    for (const [accelerator, action] of Object.entries(SHORTCUTS)) {
-      globalShortcut.register(accelerator, () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.show()
-          mainWindow.focus()
-          mainWindow.webContents.send('tray:action', action)
-        }
-      })
-    }
+      smartPreload = new SmartPreload(getDb, { level: 'basic' })
+      performanceModes = new PerformanceModes('balanceado')
+      performanceMonitor = new PerformanceMonitor({ eventBus, getDb })
+      pinLock = new PinLock(
+        (key) => { const r = getStmt('SELECT value FROM settings WHERE key = ?').get(key); return r ? r.value : null },
+        (key, value) => { getStmt('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value) }
+      )
+      encryption = new Encryption(app.getPath('userData'))
+      dbEncryption = new DbEncryption(encryption, getDb)
+      pluginSystem = new PluginSystem({ getDb, eventBus, logger })
+      pluginSystem.init().catch(() => {})
+      startupProfiler.mark('settings-loaded')
+      automationEngine = new AutomationEngine(eventBus, getDb)
+      automationEngine.init()
+
+      setInterval(() => {
+        try {
+          const db = getDb()
+          if (db) db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('last_active', ?)").run(new Date().toISOString())
+        } catch {}
+      }, 60000)
+      setInterval(() => outbox.dispatchPending(), 30000)
+
+      const updateConfig = path.join(process.resourcesPath, 'app-update.yml')
+      if (fs.existsSync(updateConfig)) {
+        try {
+          const { autoUpdater } = require('electron-updater')
+          autoUpdater.autoDownload = true
+          autoUpdater.autoInstallOnAppQuit = true
+          autoUpdater.on('update-available', () => {
+            if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'available' })
+          })
+          autoUpdater.on('download-progress', (progress) => {
+            if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloading', percent: Math.round(progress.percent) })
+          })
+          autoUpdater.on('update-downloaded', () => {
+            if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloaded' })
+          })
+          autoUpdater.on('error', () => {})
+          safeHandle(ipcMain, 'updater:check', voidSchema(), () => { autoUpdater.checkForUpdates().catch(() => {}) })
+          safeHandle(ipcMain, 'updater:install', voidSchema(), () => { autoUpdater.quitAndInstall() })
+          setTimeout(() => { autoUpdater.checkForUpdates().catch(() => {}) }, 5000)
+        } catch {}
+      }
+
+      const SHORTCUTS = {
+        'CmdOrCtrl+Shift+N': 'new-note',
+        'CmdOrCtrl+Shift+T': 'new-task',
+        'CmdOrCtrl+Shift+P': 'pomodoro',
+        'CmdOrCtrl+Shift+F': 'search',
+      }
+      for (const [accelerator, action] of Object.entries(SHORTCUTS)) {
+        globalShortcut.register(accelerator, () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show()
+            mainWindow.focus()
+            mainWindow.webContents.send('tray:action', action)
+          }
+        })
+      }
+    })
   } catch (error) {
     logger.error('bootstrap failed:', error)
   }
@@ -386,7 +412,7 @@ if (!gotTheLock) {
       const tasks = getStmt("SELECT id, title, reminder FROM tasks WHERE deleted = 0 AND completed = 0 AND reminder IS NOT NULL AND reminder >= ? AND reminder < ?").all(now, soon)
       for (const t of tasks) {
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.executeJavaScript(`window.__reminderNotification?.('${t.title.replace(/'/g, "\\'")}')`)
+          mainWindow.webContents.send('reminder:notification', { id: t.id, title: t.title })
         }
         if (Notification.isSupported()) {
           new Notification({ title: '\u23F0 Recordatorio de tarea', body: t.title }).show()

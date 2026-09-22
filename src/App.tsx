@@ -138,11 +138,11 @@ function AppInner() {
   }, [])
 
   useEffect(() => {
-    ;(window as any).__reminderNotification = (title: string) => {
-      toast({ title: `⏰ ${title}`, description: 'Es hora de revisar esta tarea' })
+    const unsub = window.electronAPI?.events?.onReminderNotification?.((data: { id: number; title: string }) => {
+      toast({ title: `⏰ ${data.title}`, description: 'Es hora de revisar esta tarea' })
       if (soundEnabled) playSound('complete')
-    }
-    return () => { delete (window as any).__reminderNotification }
+    })
+    return () => { if (typeof unsub === 'function') unsub() }
   }, [soundEnabled, playSound])
 
   useEffect(() => {

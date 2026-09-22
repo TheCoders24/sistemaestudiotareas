@@ -527,6 +527,7 @@ declare global {
         onTrayAction: (callback: (action: string) => void) => () => void
         onUpdateStatus: (callback: (data: { status: string; percent?: number }) => void) => () => void
         onWifiDeviceFound: (callback: (data: { name: string; ip: string; port: number }) => void) => () => void
+        onReminderNotification: (callback: (data: { id: number; title: string }) => void) => () => void
         subscribe: (channel: string, callback: (data: unknown) => void) => () => void
       }
       app: {
@@ -665,6 +666,5 @@ declare global {
     }
     __confirmDelete?: (type: string, id: number, title: string, onConfirm?: () => void) => void
     __exitFocusMode?: () => void
-    __reminderNotification?: (title: string) => void
   }
 }

@@ -13,5 +13,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     pool: 'threads',
+    cache: {
+      dir: '.vitest-cache',
+    },
   },
 })

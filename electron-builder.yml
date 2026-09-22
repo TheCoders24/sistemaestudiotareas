@@ -11,7 +11,7 @@ win:
     - portable
   icon: build/icon.ico
   signExecutable: false
-compression: maximum
+compression: normal
 portable:
   artifactName: "${productName}-${version}-portable.${ext}"
 mac:

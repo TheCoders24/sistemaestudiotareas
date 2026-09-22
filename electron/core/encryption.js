@@ -1,4 +1,6 @@
 const crypto = require('crypto')
+const fs = require('fs')
+const path = require('path')
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
@@ -6,11 +8,29 @@ const TAG_LENGTH = 16
 const KEY_ITERATIONS = 100000
 const KEY_LENGTH = 32
 const KEY_DIGEST = 'sha512'
+const LEGACY_KEY = 'default-app-encryption-key-change-me'
+const KEY_FILE = 'encryption.key'
 
 class Encryption {
-  constructor(masterKey) {
-    this.masterKey = masterKey || 'default-app-encryption-key-change-me'
+  constructor(masterKeyOrDir) {
+    if (masterKeyOrDir && !masterKeyOrDir.includes(path.sep) && !masterKeyOrDir.includes('/')) {
+      this.masterKey = masterKeyOrDir
+      this._isLegacy = (masterKeyOrDir === LEGACY_KEY)
+      return
+    }
+    const dir = masterKeyOrDir || ''
+    const keyPath = dir ? path.join(dir, KEY_FILE) : null
+    if (keyPath && fs.existsSync(keyPath)) {
+      try { this.masterKey = fs.readFileSync(keyPath, 'utf8').trim(); this._isLegacy = false; return } catch {}
+    }
+    this.masterKey = crypto.randomBytes(KEY_LENGTH).toString('hex')
+    this._isLegacy = false
+    if (keyPath) {
+      try { fs.mkdirSync(path.dirname(keyPath), { recursive: true }); fs.writeFileSync(keyPath, this.masterKey, { mode: 0o600 }) } catch {}
+    }
   }
+
+  get isLegacy() { return this._isLegacy }
 
   encrypt(text) {
     const iv = crypto.randomBytes(IV_LENGTH)

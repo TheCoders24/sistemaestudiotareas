@@ -259,6 +259,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onTrayAction: (callback) => on('tray:action', callback),
     onUpdateStatus: (callback) => on('updater:status', callback),
     onWifiDeviceFound: (callback) => on('wifi-sync:device-found', callback),
+    onReminderNotification: (callback) => on('reminder:notification', callback),
     subscribe: (channel, callback) => on(channel, callback),
   },
 

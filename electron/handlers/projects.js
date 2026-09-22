@@ -53,18 +53,15 @@ function register(ipcMain, { getStmt, getDb, safeUpdate, wsFilter, wsParams, add
     if (!project) throw new Error('Project not found')
     const repoPath = project.repo_url
     if (!repoPath) throw new Error('No repo URL configured')
-    try {
-      const { execSync } = require('child_process')
-      const cmd = process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open'
-      if (editor === 'code') {
-        execSync(`"${cmd}" code "${repoPath}"`, { timeout: 5000 })
-      } else {
-        execSync(`"${cmd}" claude "${repoPath}"`, { timeout: 5000 })
-      }
-      return true
-    } catch (e) {
-      throw new Error(`${editor} not found in PATH. Is it installed?`)
-    }
+    const { execFile } = require('child_process')
+    const resolved = require('path').resolve(repoPath)
+    return new Promise((resolve, reject) => {
+      const cmd = editor === 'code' ? 'code' : 'claude'
+      execFile(cmd, [resolved], { timeout: 5000 }, (error) => {
+        if (error) reject(new Error(`${editor} not found in PATH. Is it installed?`))
+        else resolve(true)
+      })
+    })
   })
 }
 
