@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore } from 'lucide-react'
+import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore, Keyboard, MousePointer2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -11,7 +11,7 @@ import { toast } from '@/components/ui/use-toast'
 import { useSound } from '@/hooks/useSound'
 import { THEMES, useThemeStore } from '@/stores/themeStore'
 import { useShortcutsStore } from '@/stores/shortcutsStore'
-import { TABS } from '@/constants/tabs'
+import { TABS, KEYBOARD_SHORTCUTS } from '@/constants/tabs'
 import { useTranslate } from '@/lib/translate'
 import { useAppStore } from '@/stores/appStore'
 
@@ -115,6 +115,17 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
       return () => window.removeEventListener('keydown', handler, true)
     }
   }, [recordingTabId, shortcuts, setShortcut, t])
+
+  // Persist shortcuts to DB when they change
+  useEffect(() => {
+    if (!window.electronAPI) return
+    const customShortcuts = Object.entries(shortcuts).filter(([k, v]) => KEYBOARD_SHORTCUTS[k] !== v)
+    if (Object.keys(customShortcuts).length > 0) {
+      window.electronAPI.settings.set('custom_shortcuts', JSON.stringify(Object.fromEntries(customShortcuts)))
+    } else {
+      window.electronAPI.settings.set('custom_shortcuts', '')
+    }
+  }, [shortcuts])
 
   async function loadBackups() {
     if (!window.electronAPI) return
@@ -291,6 +302,52 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
             <p className="text-xs text-muted-foreground">
               Tu API key se almacena localmente y solo se usa para llamadas a la API de Anthropic.
             </p>
+          </div>
+
+          <Separator />
+
+          {/* Atajos de teclado personalizables */}
+          <div className="bg-accent/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Keyboard className="h-4 w-4 text-indigo-500" />
+              <span className="text-sm font-medium">Atajos de teclado</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Personalizá los atajos para navegar rápido. Hacé clic en un atajo y presioná la nueva combinación.
+            </p>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {TABS.filter(t => KEYBOARD_SHORTCUTS[t.id]).map(tab => (
+                <div key={tab.id} className="flex items-center justify-between gap-2 p-2 rounded border bg-background/50">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <MousePointer2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium truncate">{tab.label}</span>
+                  </div>
+                  <button
+                    onClick={() => setRecordingTabId(tab.id)}
+                    className={`flex items-center gap-2 px-2 py-1 rounded border text-sm font-mono transition-colors ${
+                      recordingTabId === tab.id
+                        ? 'bg-primary/10 border-primary text-primary animate-pulse'
+                        : 'bg-background border-border hover:bg-accent'
+                    }`}
+                    style={{ minWidth: '140px' }}
+                    disabled={recordingTabId !== null && recordingTabId !== tab.id}
+                  >
+                    {recordingTabId === tab.id ? (
+                      <>
+                        <Keyboard className="h-3 w-3" /> Presioná combinación...
+                      </>
+                    ) : (
+                      shortcuts[tab.id] || '—'
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => { shortcuts && Object.keys(shortcuts).forEach(k => setShortcut(k, KEYBOARD_SHORTCUTS[k])); toast({ title: 'Atajos restaurados' }) }}>
+                Restaurar por defecto
+              </Button>
+            </div>
           </div>
 
           <Separator />

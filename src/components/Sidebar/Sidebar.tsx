@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 import WorkspaceSwitcher from '@/components/WorkspaceSwitcher/WorkspaceSwitcher'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { preloadRouteByName } from '@/components/ui/route-suspense'
 
 interface SidebarProps {
   activeTab: string
@@ -82,6 +83,7 @@ export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userNam
       <button
         key={tab.id}
         onClick={() => onNavigate(tab.id)}
+        onMouseEnter={() => preloadRouteByName(tab.id)}
         className={cn(
           'flex items-center gap-3 w-full text-left transition-colors',
           navItemPad,
@@ -121,6 +123,7 @@ export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userNam
             <button
               key={tab.id}
               onClick={() => onNavigate(tab.id)}
+              onMouseEnter={() => preloadRouteByName(tab.id)}
               title={tab.label}
               className={cn(
                 'p-2 rounded-md transition-colors',

@@ -15,6 +15,7 @@ interface InitSettings {
   autoDarkMode?: boolean
   autoDarkStart?: string
   autoDarkEnd?: string
+  firstRun?: boolean
 }
 
 interface AppState {
@@ -85,5 +86,6 @@ export const useAppStore = create<AppState>((set) => ({
     ...(settings.autoDarkMode !== undefined && { autoDarkMode: settings.autoDarkMode }),
     ...(settings.autoDarkStart !== undefined && { autoDarkStart: settings.autoDarkStart }),
     ...(settings.autoDarkEnd !== undefined && { autoDarkEnd: settings.autoDarkEnd }),
+    ...(settings.firstRun !== undefined && { firstRun: settings.firstRun }),
   }),
 }))

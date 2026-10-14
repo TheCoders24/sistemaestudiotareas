@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { toast } from '@/components/ui/use-toast'
 import { useThemeStore } from '@/stores/themeStore'
@@ -14,56 +14,62 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { RouteSuspense, createLazyRoute, registerRoutePreloader } from '@/components/ui/route-suspense'
 import { UndoToast } from '@/components/ui/undo-toast'
 import { SoundProvider, useSound } from '@/hooks/useSound'
 import { TABS } from '@/constants/tabs'
 import { useShortcutsStore } from '@/stores/shortcutsStore'
 
-const Dashboard = lazy(() => import('./components/Dashboard/Dashboard'))
-const PomodoroTimer = lazy(() => import('./components/Pomodoro/PomodoroTimer').then(m => ({ default: m.PomodoroTimer })))
-const KanbanBoard = lazy(() => import('./components/Kanban/KanbanBoard'))
-const TaskList = lazy(() => import('./components/TaskList/TaskList'))
-const StudyMap = lazy(() => import('./components/StudyMap/StudyMap'))
-const Statistics = lazy(() => import('./components/Statistics/Statistics'))
-const QuickNotes = lazy(() => import('./components/QuickNotes/QuickNotes'))
-const Goals = lazy(() => import('./components/Goals/Goals'))
-const SidebarNav = lazy(() => import('./components/Sidebar/Sidebar'))
-const Settings = lazy(() => import('./components/Settings/Settings'))
-const ProjectsPage = lazy(() => import('./components/Projects/ProjectsPage'))
-const DailyLogPage = lazy(() => import('./components/DailyLog/DailyLogPage'))
-const SnippetsPage = lazy(() => import('./components/Snippets/SnippetsPage'))
-const HabitsPage = lazy(() => import('./components/Habits/HabitsPage'))
-const SearchDialog = lazy(() => import('./components/Search/SearchDialog'))
-const AchievementsGallery = lazy(() => import('./components/Achievements/AchievementsGallery'))
-const CalendarView = lazy(() => import('./components/Calendar/CalendarView'))
-const TrashPage = lazy(() => import('./components/Trash/TrashPage'))
-const ChallengesPage = lazy(() => import('./components/Challenges/ChallengesPage'))
-const FocusModePage = lazy(() => import('./components/FocusMode/FocusMode').then(m => ({ default: m.FocusMode })))
-const WeeklyReviewPage = lazy(() => import('./components/WeeklyReview/WeeklyReviewPage'))
-const HeaderPomodoro = lazy(() => import('./components/HeaderPomodoro/HeaderPomodoro').then(m => ({ default: m.HeaderPomodoro })))
-const CommandPalette = lazy(() => import('./components/CommandPalette/CommandPalette'))
-const WelcomeWizard = lazy(() => import('./components/WelcomeWizard/WelcomeWizard').then(m => ({ default: m.WelcomeWizard })))
-const ReviewDashboard = lazy(() => import('./components/SpacedRepetition/ReviewDashboard'))
-const QuickCapture = lazy(() => import('./components/QuickCapture/QuickCapture'))
-const TaskCalendarView = lazy(() => import('./components/TaskViews/TaskCalendarView'))
-const TaskTimelineView = lazy(() => import('./components/TaskViews/TaskTimelineView'))
-const TaskTableView = lazy(() => import('./components/TaskViews/TaskTableView'))
-const EnergyPlanning = lazy(() => import('./components/EnergyPlanning/EnergyPlanning'))
-const SmartReminders = lazy(() => import('./components/SmartReminders/SmartReminders'))
-const SocialPage = lazy(() => import('./components/Social/SocialPage'))
-const AvatarPet = lazy(() => import('./components/Gamification/AvatarPet'))
-const AchievementShop = lazy(() => import('./components/Gamification/AchievementShop'))
-const SubjectStreaks = lazy(() => import('./components/Gamification/SubjectStreaks'))
-const WebsiteBlocker = lazy(() => import('./components/FocusMode/WebsiteBlocker'))
-const DistractionStats = lazy(() => import('./components/FocusMode/DistractionStats'))
-const CloudSync = lazy(() => import('./components/Sync/CloudSync'))
-const WeeklyPDFReport = lazy(() => import('./components/Reports/WeeklyPDFReport'))
-const CalendarImport = lazy(() => import('./components/CalendarImport/CalendarImport'))
-const AutomationRules = lazy(() => import('./components/Automation/AutomationRules'))
-const Flashcards = lazy(() => import('./components/Flashcards/FlashcardsPage'))
-const CoursesPage = lazy(() => import('./components/Courses/CoursesPage'))
-const ExamsPage = lazy(() => import('./components/Exams/ExamsPage'))
-const TutorPage = lazy(() => import('./components/Tutor/TutorPage'))
+const Dashboard = createLazyRoute(() => import('./components/Dashboard/Dashboard'), { name: 'Dashboard' })
+const PomodoroTimer = createLazyRoute(() => import('./components/Pomodoro/PomodoroTimer').then(m => ({ default: m.PomodoroTimer })), { name: 'Pomodoro' })
+const KanbanBoard = createLazyRoute(() => import('./components/Kanban/KanbanBoard'), { name: 'Kanban' })
+const TaskList = createLazyRoute(() => import('./components/TaskList/TaskList'), { name: 'TaskList' })
+const StudyMap = createLazyRoute(() => import('./components/StudyMap/StudyMap'), { name: 'StudyMap' })
+const Statistics = createLazyRoute(() => import('./components/Statistics/Statistics'), { name: 'Statistics' })
+const QuickNotes = createLazyRoute(() => import('./components/QuickNotes/QuickNotes'), { name: 'QuickNotes' })
+const Goals = createLazyRoute(() => import('./components/Goals/Goals'), { name: 'Goals' })
+const SidebarNav = createLazyRoute(() => import('./components/Sidebar/Sidebar'), { name: 'Sidebar' })
+const Settings = createLazyRoute(() => import('./components/Settings/Settings'), { name: 'Settings' })
+const ProjectsPage = createLazyRoute(() => import('./components/Projects/ProjectsPage'), { name: 'Projects' })
+const DailyLogPage = createLazyRoute(() => import('./components/DailyLog/DailyLogPage'), { name: 'DailyLog' })
+const SnippetsPage = createLazyRoute(() => import('./components/Snippets/SnippetsPage'), { name: 'Snippets' })
+const HabitsPage = createLazyRoute(() => import('./components/Habits/HabitsPage'), { name: 'Habits' })
+const SearchDialog = createLazyRoute(() => import('./components/Search/SearchDialog'), { name: 'Search' })
+const AchievementsGallery = createLazyRoute(() => import('./components/Achievements/AchievementsGallery'), { name: 'Achievements' })
+const CalendarView = createLazyRoute(() => import('./components/Calendar/CalendarView'), { name: 'Calendar' })
+const TrashPage = createLazyRoute(() => import('./components/Trash/TrashPage'), { name: 'Trash' })
+const ChallengesPage = createLazyRoute(() => import('./components/Challenges/ChallengesPage'), { name: 'Challenges' })
+const FocusModePage = createLazyRoute(() => import('./components/FocusMode/FocusMode').then(m => ({ default: m.FocusMode })), { name: 'FocusMode' })
+const WeeklyReviewPage = createLazyRoute(() => import('./components/WeeklyReview/WeeklyReviewPage'), { name: 'WeeklyReview' })
+const HeaderPomodoro = createLazyRoute(() => import('./components/HeaderPomodoro/HeaderPomodoro').then(m => ({ default: m.HeaderPomodoro })), { name: 'HeaderPomodoro' })
+const CommandPalette = createLazyRoute(() => import('./components/CommandPalette/CommandPalette'), { name: 'CommandPalette' })
+const WelcomeWizard = createLazyRoute(() => import('./components/WelcomeWizard/WelcomeWizard').then(m => ({ default: m.WelcomeWizard })), { name: 'WelcomeWizard' })
+const ReviewDashboard = createLazyRoute(() => import('./components/SpacedRepetition/ReviewDashboard'), { name: 'ReviewDashboard' })
+const QuickCapture = createLazyRoute(() => import('./components/QuickCapture/QuickCapture'), { name: 'QuickCapture' })
+const TaskCalendarView = createLazyRoute(() => import('./components/TaskViews/TaskCalendarView'), { name: 'TaskCalendar' })
+const TaskTimelineView = createLazyRoute(() => import('./components/TaskViews/TaskTimelineView'), { name: 'TaskTimeline' })
+const TaskTableView = createLazyRoute(() => import('./components/TaskViews/TaskTableView'), { name: 'TaskTable' })
+const EnergyPlanning = createLazyRoute(() => import('./components/EnergyPlanning/EnergyPlanning'), { name: 'EnergyPlanning' })
+const SmartReminders = createLazyRoute(() => import('./components/SmartReminders/SmartReminders'), { name: 'SmartReminders' })
+const SocialPage = createLazyRoute(() => import('./components/Social/SocialPage'), { name: 'Social' })
+const AvatarPet = createLazyRoute(() => import('./components/Gamification/AvatarPet'), { name: 'AvatarPet' })
+const AchievementShop = createLazyRoute(() => import('./components/Gamification/AchievementShop'), { name: 'AchievementShop' })
+const SubjectStreaks = createLazyRoute(() => import('./components/Gamification/SubjectStreaks'), { name: 'SubjectStreaks' })
+const WebsiteBlocker = createLazyRoute(() => import('./components/FocusMode/WebsiteBlocker'), { name: 'WebsiteBlocker' })
+const DistractionStats = createLazyRoute(() => import('./components/FocusMode/DistractionStats'), { name: 'DistractionStats' })
+const CloudSync = createLazyRoute(() => import('./components/Sync/CloudSync'), { name: 'CloudSync' })
+const WeeklyPDFReport = createLazyRoute(() => import('./components/Reports/WeeklyPDFReport'), { name: 'WeeklyPDFReport' })
+const CalendarImport = createLazyRoute(() => import('./components/CalendarImport/CalendarImport'), { name: 'CalendarImport' })
+const AutomationRules = createLazyRoute(() => import('./components/Automation/AutomationRules'), { name: 'AutomationRules' })
+const Flashcards = createLazyRoute(() => import('./components/Flashcards/FlashcardsPage'), { name: 'Flashcards' })
+const CoursesPage = createLazyRoute(() => import('./components/Courses/CoursesPage'), { name: 'Courses' })
+const ExamsPage = createLazyRoute(() => import('./components/Exams/ExamsPage'), { name: 'Exams' })
+const TutorPage = createLazyRoute(() => import('./components/Tutor/TutorPage'), { name: 'Tutor' })
+
+registerRoutePreloader('Dashboard', () => import('./components/Dashboard/Dashboard'))
+registerRoutePreloader('TaskList', () => import('./components/TaskList/TaskList'))
+registerRoutePreloader('Pomodoro', () => import('./components/Pomodoro/PomodoroTimer'))
+registerRoutePreloader('Calendar', () => import('./components/Calendar/CalendarView'))
 
 console.log('[APP] App module loaded')
 
@@ -188,12 +194,14 @@ function AppInner() {
           window.electronAPI.settings.get('auto_dark_mode').catch(() => null),
           window.electronAPI.settings.get('auto_dark_start').catch(() => null),
           window.electronAPI.settings.get('auto_dark_end').catch(() => null),
+          window.electronAPI.settings.get('firstRun').catch(() => null),
+          window.electronAPI.settings.get('custom_shortcuts').catch(() => null),
           window.electronAPI.streaks.get('daily_study').catch(() => null),
         ])
 
         if (!active) return
 
-        const [theme, themeColor, userName, fontSz, lang, dense, autoDark, autoDarkSt, autoDarkEn, streak] = results
+        const [theme, themeColor, userName, fontSz, lang, dense, autoDark, autoDarkSt, autoDarkEn, firstRunSetting, customShortcuts, streak] = results
 
         setInitialSettings({
           ...(theme !== null && { darkMode: theme === 'dark' }),
@@ -204,7 +212,20 @@ function AppInner() {
           ...(autoDark !== null && { autoDarkMode: autoDark === 'true' }),
           ...(autoDarkSt !== null && { autoDarkStart: autoDarkSt }),
           ...(autoDarkEn !== null && { autoDarkEnd: autoDarkEn }),
+          ...(firstRunSetting !== null && { firstRun: firstRunSetting === 'true' }),
         })
+
+        setWelcomeOpen(firstRunSetting === null ? true : firstRunSetting === 'true')
+
+        // Load custom shortcuts
+        if (customShortcuts) {
+          try {
+            const parsed = JSON.parse(customShortcuts)
+            Object.entries(parsed).forEach(([k, v]) => {
+              useShortcutsStore.getState().setShortcut(k, v as string)
+            })
+          } catch {}
+        }
 
         if (themeColor) setThemeId(themeColor)
         if (streak) setStreak(streak)
@@ -353,16 +374,26 @@ function AppInner() {
     }
   }
 
+  function markWelcomeSeen() {
+    if (window.electronAPI) window.electronAPI.settings.set('firstRun', 'false')
+    setFirstRun(false)
+  }
+
   function handleWelcomeComplete() {
     if (window.electronAPI) {
       window.electronAPI.settings.set('userProfile', userProfile)
     }
-    setFirstRun(false)
+    markWelcomeSeen()
     setWelcomeOpen(false)
   }
 
+  function handleWelcomeOpenChange(open: boolean) {
+    setWelcomeOpen(open)
+    if (!open) markWelcomeSeen()
+  }
+
   const sidebarContent = (
-    <Suspense fallback={<div className="animate-pulse bg-muted h-full rounded" />}>
+    <RouteSuspense fallback={<div className="animate-pulse bg-muted h-full rounded" />}>
       <SidebarNav
         activeTab={activeTab}
         onNavigate={(tab) => { setActiveTab(tab); setSidebarOpen(false) }}
@@ -372,7 +403,7 @@ function AppInner() {
         fontSize={fontSize}
         denseMode={denseMode}
       />
-    </Suspense>
+    </RouteSuspense>
   )
 
   if (initError) return <ErrorScreen message={initError} onRetry={() => setInitRetry(c => c + 1)} />
@@ -381,6 +412,13 @@ function AppInner() {
   return (
     <TooltipProvider>
       <div className="h-screen flex flex-col bg-background text-foreground">
+        {/* Skip link for keyboard navigation */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50 px-4 py-2 bg-primary text-primary-foreground rounded-md"
+        >
+          Saltar al contenido principal
+        </a>
         <header className="flex items-center h-14 px-4 border-b bg-card shrink-0 gap-2 z-40">
           <div className="md:hidden">
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
@@ -408,9 +446,7 @@ function AppInner() {
                 <Search className="h-5 w-5" />
               </Button>
             </TooltipTrigger><TooltipContent side="bottom">Buscar (Ctrl+B)</TooltipContent></Tooltip>
-            <Suspense fallback={null}>
-              <HeaderPomodoro onOpenPomodoro={() => setActiveTab('pomodoro')} />
-            </Suspense>
+            <HeaderPomodoro onOpenPomodoro={() => setActiveTab('pomodoro')} />
             <Tooltip><TooltipTrigger asChild>
               <Button variant="ghost" size="icon" onClick={() => setFocusMode(true)} className="text-indigo-400" aria-label="Modo enfoque">
                 <Zap className="h-5 w-5" />
@@ -424,7 +460,7 @@ function AppInner() {
                 <Keyboard className="h-5 w-5" />
               </Button>
             </TooltipTrigger><TooltipContent side="bottom">Atajos (Ctrl+/)</TooltipContent></Tooltip>
-            <Suspense fallback={null}><Settings open={settingsOpen} onOpenChange={setSettingsOpen} /></Suspense>
+            <RouteSuspense fallback={null}><Settings open={settingsOpen} onOpenChange={setSettingsOpen} /></RouteSuspense>
           </div>
         </header>
 
@@ -432,46 +468,44 @@ function AppInner() {
           <aside className="w-60 shrink-0 border-r bg-card overflow-hidden hidden md:flex flex-col" style={sidebarOpen ? {} : { display: 'none' }}>
             {sidebarContent}
           </aside>
-          <main className="flex-1 overflow-y-auto p-6">
+          <main id="main-content" className="flex-1 overflow-y-auto p-6" role="main">
             <div key={activeTab} className="animate-fade-slide-in">
-              <Suspense fallback={<div className="flex items-center justify-center h-64 text-muted-foreground"><Loader className="h-6 w-6 animate-spin" /></div>}>
-                {activeTab === 'inicio' && <ErrorBoundary name="Dashboard"><Dashboard /></ErrorBoundary>}
-                {activeTab === 'pomodoro' && <ErrorBoundary name="Pomodoro"><PomodoroTimer onComplete={handleStreakUpdate} /></ErrorBoundary>}
-                {activeTab === 'kanban' && <ErrorBoundary name="Kanban"><KanbanBoard /></ErrorBoundary>}
-                {activeTab === 'tareas' && <ErrorBoundary name="Tareas"><TaskList /></ErrorBoundary>}
-                {activeTab === 'proyectos' && <ErrorBoundary name="Proyectos"><ProjectsPage /></ErrorBoundary>}
-                {activeTab === 'diario' && <ErrorBoundary name="Diario"><DailyLogPage /></ErrorBoundary>}
-                {activeTab === 'calendario' && <ErrorBoundary name="Calendario"><CalendarView /></ErrorBoundary>}
-                {activeTab === 'snippets' && <ErrorBoundary name="Snippets"><SnippetsPage /></ErrorBoundary>}
-                {activeTab === 'habitos' && <ErrorBoundary name="Hábitos"><HabitsPage /></ErrorBoundary>}
-                {activeTab === 'logros' && <ErrorBoundary name="Logros"><AchievementsGallery /></ErrorBoundary>}
-                {activeTab === 'desafios' && <ErrorBoundary name="Desafíos"><ChallengesPage /></ErrorBoundary>}
-                {activeTab === 'mapa' && <ErrorBoundary name="Estudio"><StudyMap /></ErrorBoundary>}
-                {activeTab === 'stats' && <ErrorBoundary name="Stats"><Statistics /></ErrorBoundary>}
-                {activeTab === 'notas' && <ErrorBoundary name="Notas"><QuickNotes /></ErrorBoundary>}
-                {activeTab === 'metas' && <ErrorBoundary name="Metas"><Goals /></ErrorBoundary>}
-                {activeTab === 'reporte' && <ErrorBoundary name="Reporte"><WeeklyReviewPage /></ErrorBoundary>}
-                {activeTab === 'papelera' && <ErrorBoundary name="Papelera"><TrashPage /></ErrorBoundary>}
-                {activeTab === 'flashcards' && <ErrorBoundary name="Flashcards"><Flashcards /></ErrorBoundary>}
-                {activeTab === 'repaso' && <ErrorBoundary name="Repaso"><ReviewDashboard /></ErrorBoundary>}
-                {activeTab === 'tareas' && taskViewMode === 'calendar' && <ErrorBoundary name="Calendario Tareas"><TaskCalendarView /></ErrorBoundary>}
-                {activeTab === 'tareas' && taskViewMode === 'timeline' && <ErrorBoundary name="Timeline Tareas"><TaskTimelineView /></ErrorBoundary>}
-                {activeTab === 'tareas' && taskViewMode === 'table' && <ErrorBoundary name="Tabla Tareas"><TaskTableView /></ErrorBoundary>}
-                {activeTab === 'energia' && <ErrorBoundary name="Energía"><EnergyPlanning /></ErrorBoundary>}
-                {activeTab === 'recordatorios' && <ErrorBoundary name="Recordatorios"><SmartReminders /></ErrorBoundary>}
-                {activeTab === 'social' && <ErrorBoundary name="Social"><SocialPage /></ErrorBoundary>}
-                {activeTab === 'tienda' && <ErrorBoundary name="Tienda"><AchievementShop /></ErrorBoundary>}
-                {activeTab === 'cursos' && <ErrorBoundary name="Cursos"><CoursesPage /></ErrorBoundary>}
-                {activeTab === 'exams' && <ErrorBoundary name="Exámenes"><ExamsPage /></ErrorBoundary>}
-                {activeTab === 'tutor' && <ErrorBoundary name="Tutor IA"><TutorPage /></ErrorBoundary>}
-                {activeTab === 'rachas-materias' && <ErrorBoundary name="Rachas"><SubjectStreaks /></ErrorBoundary>}
-                {activeTab === 'bloqueador' && <ErrorBoundary name="Bloqueador"><WebsiteBlocker /></ErrorBoundary>}
-                {activeTab === 'distracciones' && <ErrorBoundary name="Distracciones"><DistractionStats /></ErrorBoundary>}
-                {activeTab === 'sync' && <ErrorBoundary name="Sync"><CloudSync /></ErrorBoundary>}
-                {activeTab === 'informe' && <ErrorBoundary name="Informe"><WeeklyPDFReport /></ErrorBoundary>}
-                {activeTab === 'importar-cal' && <ErrorBoundary name="Importar Cal"><CalendarImport /></ErrorBoundary>}
-                {activeTab === 'automation' && <ErrorBoundary name="Automation"><AutomationRules /></ErrorBoundary>}
-              </Suspense>
+              {activeTab === 'inicio' && <ErrorBoundary name="Dashboard"><Dashboard /></ErrorBoundary>}
+              {activeTab === 'pomodoro' && <ErrorBoundary name="Pomodoro"><PomodoroTimer onComplete={handleStreakUpdate} /></ErrorBoundary>}
+              {activeTab === 'kanban' && <ErrorBoundary name="Kanban"><KanbanBoard /></ErrorBoundary>}
+              {activeTab === 'tareas' && <ErrorBoundary name="Tareas"><TaskList /></ErrorBoundary>}
+              {activeTab === 'proyectos' && <ErrorBoundary name="Proyectos"><ProjectsPage /></ErrorBoundary>}
+              {activeTab === 'diario' && <ErrorBoundary name="Diario"><DailyLogPage /></ErrorBoundary>}
+              {activeTab === 'calendario' && <ErrorBoundary name="Calendario"><CalendarView /></ErrorBoundary>}
+              {activeTab === 'snippets' && <ErrorBoundary name="Snippets"><SnippetsPage /></ErrorBoundary>}
+              {activeTab === 'habitos' && <ErrorBoundary name="Hábitos"><HabitsPage /></ErrorBoundary>}
+              {activeTab === 'logros' && <ErrorBoundary name="Logros"><AchievementsGallery /></ErrorBoundary>}
+              {activeTab === 'desafios' && <ErrorBoundary name="Desafíos"><ChallengesPage /></ErrorBoundary>}
+              {activeTab === 'mapa' && <ErrorBoundary name="Estudio"><StudyMap /></ErrorBoundary>}
+              {activeTab === 'stats' && <ErrorBoundary name="Stats"><Statistics /></ErrorBoundary>}
+              {activeTab === 'notas' && <ErrorBoundary name="Notas"><QuickNotes /></ErrorBoundary>}
+              {activeTab === 'metas' && <ErrorBoundary name="Metas"><Goals /></ErrorBoundary>}
+              {activeTab === 'reporte' && <ErrorBoundary name="Reporte"><WeeklyReviewPage /></ErrorBoundary>}
+              {activeTab === 'papelera' && <ErrorBoundary name="Papelera"><TrashPage /></ErrorBoundary>}
+              {activeTab === 'flashcards' && <ErrorBoundary name="Flashcards"><Flashcards /></ErrorBoundary>}
+              {activeTab === 'repaso' && <ErrorBoundary name="Repaso"><ReviewDashboard /></ErrorBoundary>}
+              {activeTab === 'tareas' && taskViewMode === 'calendar' && <ErrorBoundary name="Calendario Tareas"><TaskCalendarView /></ErrorBoundary>}
+              {activeTab === 'tareas' && taskViewMode === 'timeline' && <ErrorBoundary name="Timeline Tareas"><TaskTimelineView /></ErrorBoundary>}
+              {activeTab === 'tareas' && taskViewMode === 'table' && <ErrorBoundary name="Tabla Tareas"><TaskTableView /></ErrorBoundary>}
+              {activeTab === 'energia' && <ErrorBoundary name="Energía"><EnergyPlanning /></ErrorBoundary>}
+              {activeTab === 'recordatorios' && <ErrorBoundary name="Recordatorios"><SmartReminders /></ErrorBoundary>}
+              {activeTab === 'social' && <ErrorBoundary name="Social"><SocialPage /></ErrorBoundary>}
+              {activeTab === 'tienda' && <ErrorBoundary name="Tienda"><AchievementShop /></ErrorBoundary>}
+              {activeTab === 'cursos' && <ErrorBoundary name="Cursos"><CoursesPage /></ErrorBoundary>}
+              {activeTab === 'exams' && <ErrorBoundary name="Exámenes"><ExamsPage /></ErrorBoundary>}
+              {activeTab === 'tutor' && <ErrorBoundary name="Tutor IA"><TutorPage /></ErrorBoundary>}
+              {activeTab === 'rachas-materias' && <ErrorBoundary name="Rachas"><SubjectStreaks /></ErrorBoundary>}
+              {activeTab === 'bloqueador' && <ErrorBoundary name="Bloqueador"><WebsiteBlocker /></ErrorBoundary>}
+              {activeTab === 'distracciones' && <ErrorBoundary name="Distracciones"><DistractionStats /></ErrorBoundary>}
+              {activeTab === 'sync' && <ErrorBoundary name="Sync"><CloudSync /></ErrorBoundary>}
+              {activeTab === 'informe' && <ErrorBoundary name="Informe"><WeeklyPDFReport /></ErrorBoundary>}
+              {activeTab === 'importar-cal' && <ErrorBoundary name="Importar Cal"><CalendarImport /></ErrorBoundary>}
+              {activeTab === 'automation' && <ErrorBoundary name="Automation"><AutomationRules /></ErrorBoundary>}
             </div>
           </main>
         </div>
@@ -480,13 +514,13 @@ function AppInner() {
 
         <UndoToast />
 
-        <Suspense fallback={null}>
+        <RouteSuspense fallback={null}>
           <QuickCapture open={quickCaptureOpen} onOpenChange={setQuickCaptureOpen} />
-        </Suspense>
+        </RouteSuspense>
 
-        <Suspense fallback={null}>
+        <RouteSuspense fallback={null}>
           <AvatarPet />
-        </Suspense>
+        </RouteSuspense>
 
         <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
           <DialogContent className="sm:max-w-md">
@@ -501,9 +535,9 @@ function AppInner() {
           </DialogContent>
         </Dialog>
 
-        <Suspense fallback={null}>
+        <RouteSuspense fallback={null}>
           <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} onNavigate={setActiveTab} />
-        </Suspense>
+        </RouteSuspense>
 
         <Dialog open={confirmDelete !== null} onOpenChange={() => setConfirmDelete(null)}>
           <DialogContent className="sm:max-w-sm">
@@ -587,13 +621,10 @@ function AppInner() {
       </div>
 
       {focusMode && (
-        <Suspense fallback={null}>
-          <FocusModePage />
-        </Suspense>
+        <FocusModePage />
       )}
 
-      <Suspense fallback={null}>
-        <CommandPalette
+      <CommandPalette
           open={commandPaletteOpen}
           onClose={() => setCommandPaletteOpen(false)}
           onNavigate={setActiveTab}
@@ -608,12 +639,10 @@ function AppInner() {
             }
           }}
         />
-      </Suspense>
 
-      <Suspense fallback={null}>
-        <WelcomeWizard
+      <WelcomeWizard
           open={welcomeOpen}
-          onOpenChange={setWelcomeOpen}
+          onOpenChange={handleWelcomeOpenChange}
           userName={userName}
           onChangeUserName={setUserName}
           language={language}
@@ -626,7 +655,6 @@ function AppInner() {
           onChangeUserProfile={setUserProfile}
           onComplete={handleWelcomeComplete}
         />
-      </Suspense>
     </TooltipProvider>
   )
 }

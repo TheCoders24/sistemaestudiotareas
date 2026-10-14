@@ -19,16 +19,21 @@ class WindowManager {
       minWidth: 800,
       minHeight: 600,
       show: false,
+      // Security: disable native window open from renderer
+      nativeWindowOpen: false,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
         webSecurity: true,
         spellcheck: false,
+        // Security: prevent renderer from accessing Node.js APIs
+        enableRemoteModule: false,
         preload: path.join(__dirname, '..', 'preload.js')
       }
     })
 
+    this.setupSecurityHeaders()
     this.setupCSP()
     this.setupBoundsTracking()
 
@@ -64,16 +69,43 @@ class WindowManager {
     this.window = null
   }
 
-  setupCSP() {
+  setupSecurityHeaders() {
+    // Add security headers to all responses
     this.window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-      callback({
-        responseHeaders: {
-          ...details.responseHeaders,
-          'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' " + (this.isDev ? "ws://localhost:5173" : "")
-          ]
-        }
-      })
+      const headers = { ...details.responseHeaders }
+      
+      // Security headers
+      headers['X-Content-Type-Options'] = ['nosniff']
+      headers['X-Frame-Options'] = ['DENY']
+      headers['X-XSS-Protection'] = ['1; mode=block']
+      headers['Referrer-Policy'] = ['strict-origin-when-cross-origin']
+      headers['Permissions-Policy'] = ['accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()']
+      
+      callback({ responseHeaders: headers })
+    })
+  }
+
+  setupCSP() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // 'unsafe-eval' needed for some React/Vite features
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "img-src 'self' data: https:",
+      "connect-src 'self'" + (this.isDev ? " ws://localhost:5173" : ""),
+      "media-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "block-all-mixed-content",
+      "upgrade-insecure-requests"
+    ].join('; ')
+
+    this.window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      const headers = { ...details.responseHeaders }
+      headers['Content-Security-Policy'] = [csp]
+      callback({ responseHeaders: headers })
     })
   }
 

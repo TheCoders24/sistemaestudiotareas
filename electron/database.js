@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3')
 const path = require('path')
 const { app } = require('electron')
+const { getHeavyProxy } = require('./database-heavy-proxy')
 
 const crypto = require('crypto')
 const SCHEMA_VERSION = 17
@@ -770,4 +771,47 @@ function closeDatabase() {
   if (db) db.close()
 }
 
-module.exports = { initDatabase, deferDbInit, getDb, closeDatabase, getDbPath }
+const heavyProxy = getHeavyProxy()
+
+async function backupDatabase(path) {
+  return heavyProxy.backup(path)
+}
+
+async function migrateDatabase() {
+  return heavyProxy.migrate()
+}
+
+async function createIndexes() {
+  return heavyProxy.createIndexes()
+}
+
+async function reindexSearch() {
+  return heavyProxy.reindexSearch()
+}
+
+async function vacuumDatabase() {
+  return heavyProxy.vacuum()
+}
+
+async function analyzeDatabase() {
+  return heavyProxy.analyze()
+}
+
+async function runLargeQuery(sql, params = [], method = 'all') {
+  return heavyProxy.largeQuery(sql, params, method)
+}
+
+module.exports = { 
+  initDatabase, 
+  deferDbInit, 
+  getDb, 
+  closeDatabase, 
+  getDbPath,
+  backupDatabase,
+  migrateDatabase,
+  createIndexes,
+  reindexSearch,
+  vacuumDatabase,
+  analyzeDatabase,
+  runLargeQuery
+}

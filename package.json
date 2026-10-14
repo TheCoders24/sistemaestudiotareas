@@ -1,8 +1,17 @@
 {
   "name": "sistema-estudio-tareas",
-  "version": "1.3.0",
+  "version": "1.5.0",
   "description": "Sistema de estudio y tareas con Pomodoro, Kanban, Mapa de estudio y más",
   "main": "electron/main.js",
+  "build": {
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "TheCoders24",
+        "repo": "sistemaestudiotareas"
+      }
+    ]
+  },
   "scripts": {
     "dev": "dev.bat",
     "build": "vite build && electron-builder",
@@ -17,7 +26,10 @@
     "test": "vitest run src/__tests__ test",
     "test:src": "vitest run src/__tests__",
     "test:handlers": "vitest run test",
-    "test:watch": "vitest src/__tests__ test"
+    "test:watch": "vitest src/__tests__ test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "keywords": [
     "pomodoro",
@@ -81,6 +93,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/canvas-confetti": "^1.9.0",
@@ -99,6 +112,7 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "highlight.js": "^11.11.1",
     "jsdom": "^29.1.1",
+    "playwright": "^1.63.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.19",
     "typescript": "^6.0.3",

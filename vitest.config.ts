@@ -16,5 +16,6 @@ export default defineConfig({
     cache: {
       dir: '.vitest-cache',
     },
+    exclude: ['**/e2e/**', '**/node_modules/**'],
   },
 })
