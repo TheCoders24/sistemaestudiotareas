@@ -1,5 +1,9 @@
 appId: com.sistema.estudio-tareas
 productName: Sistema Estudio y Tareas
+publish:
+  provider: github
+  owner: TheCoders24
+  repo: sistemaestudiotareas
 directories:
   output: release
 files:

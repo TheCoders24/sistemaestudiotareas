@@ -1,17 +1,8 @@
 {
   "name": "sistema-estudio-tareas",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Sistema de estudio y tareas con Pomodoro, Kanban, Mapa de estudio y más",
   "main": "electron/main.js",
-  "build": {
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "TheCoders24",
-        "repo": "sistemaestudiotareas"
-      }
-    ]
-  },
   "scripts": {
     "dev": "dev.bat",
     "build": "vite build && electron-builder",
