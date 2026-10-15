@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ShieldAlert, Plus, X, Globe, TrendingUp, Clock, MousePointerClick, AlertTriangle } from 'lucide-react'
+import { Plus, X, Globe, TrendingUp, Clock, MousePointerClick, AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,12 +70,12 @@ export default function WebsiteBlocker() {
     const site = newSite.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '')
     if (!site) return
     if (blockedSites.includes(site)) {
-      toast({ title: 'Sitio ya bloqueado', description: `${site} ya está en la lista`, variant: 'destructive' })
+      toast({ title: 'Sitio ya registrado', description: `${site} ya está en la lista`, variant: 'destructive' })
       return
     }
     setBlockedSites([...blockedSites, site])
     setNewSite('')
-    toast({ title: 'Sitio agregado', description: `${site} será bloqueado durante Pomodoro` })
+    toast({ title: 'Sitio agregado', description: `${site} se registrará durante Pomodoro` })
   }
 
   function removeSite(site: string) {
@@ -98,12 +98,12 @@ export default function WebsiteBlocker() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ShieldAlert className="h-6 w-6 text-red-500" /> Bloqueador de sitios
+            <Globe className="h-6 w-6 text-indigo-500" /> Rastreador de sitios
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Bloquea distractores durante sesiones de estudio</p>
+          <p className="text-sm text-muted-foreground mt-1">Registrá los sitios que te distraen y controlá su uso durante tus sesiones de estudio</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">Bloqueo activo</span>
+          <span className="text-sm text-muted-foreground">Rastreo activo</span>
           <Switch checked={isEnabled} onCheckedChange={setIsEnabled} />
         </div>
       </div>
@@ -119,8 +119,8 @@ export default function WebsiteBlocker() {
             <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3">
               <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
               <div>
-                <p className="text-sm font-medium text-red-500">Bloqueo activo</p>
-                <p className="text-xs text-red-400">Los sitios distractores están bloqueados durante tu sesión de Pomodoro</p>
+                <p className="text-sm font-medium text-red-500">Rastreo activo</p>
+                <p className="text-xs text-red-400">Estás registrando el uso de sitios distractores durante tu sesión de Pomodoro</p>
               </div>
             </div>
           </motion.div>
@@ -146,7 +146,7 @@ export default function WebsiteBlocker() {
             </div>
             <div>
               <p className="text-xl font-bold">{blockedSites.length}</p>
-              <p className="text-[10px] text-muted-foreground">Sitios bloqueados</p>
+              <p className="text-[10px] text-muted-foreground">Sitios monitoreados</p>
             </div>
           </CardContent>
         </Card>
@@ -166,7 +166,7 @@ export default function WebsiteBlocker() {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
-            <Globe className="h-4 w-4 text-indigo-500" /> Sitios bloqueados
+            <Globe className="h-4 w-4 text-indigo-500" /> Sitios monitoreados
           </CardTitle>
         </CardHeader>
         <CardContent>

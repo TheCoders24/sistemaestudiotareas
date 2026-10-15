@@ -2,7 +2,7 @@ import {
   Sparkles, Clock, LayoutDashboard, CheckSquare, FolderKanban,
   NotebookPen, CalendarDays, Code2, Activity, Trophy, Swords,
   BookOpen, BarChart3, StickyNote, Target, Trash2, Brain, Battery,
-  BellRing, Users, ShoppingBag, Flame, Shield, Eye, RefreshCw,
+  BellRing, Flame, Globe, Eye, RefreshCw,
   FileText, CalendarPlus, Zap, Settings2, TrendingUp,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -27,7 +27,7 @@ export const HUBS: Hub[] = [
     icon: Clock,
     tabs: [
       { id: 'pomodoro', label: 'Pomodoro', icon: Clock },
-      { id: 'bloqueador', label: 'Bloqueador Web', icon: Shield },
+      { id: 'bloqueador', label: 'Rastreador de sitios', icon: Globe },
       { id: 'distracciones', label: 'Distracciones', icon: Eye },
     ],
   },
@@ -84,7 +84,7 @@ export const HUBS: Hub[] = [
     icon: Trophy,
     tabs: [
       { id: 'stats', label: 'Estadísticas', icon: BarChart3 },
-      { id: 'logros', label: 'Logros + Tienda', icon: Trophy },
+      { id: 'logros', label: 'Logros', icon: Trophy },
       { id: 'desafios', label: 'Desafíos', icon: Swords },
       { id: 'reporte', label: 'Reporte Semanal', icon: TrendingUp },
       { id: 'informe', label: 'Informe Semanal PDF', icon: FileText },
@@ -105,8 +105,6 @@ export const HUBS: Hub[] = [
 export const TABS: Tab[] = [
   { id: 'inicio', label: 'Inicio', icon: Sparkles },
   ...HUBS.flatMap(h => h.tabs),
-  { id: 'social', label: 'Social', icon: Users },
-  { id: 'tienda', label: 'Tienda', icon: ShoppingBag },
 ]
 
 export const KEYBOARD_SHORTCUTS: Record<string, string> = {
@@ -117,7 +115,6 @@ export const KEYBOARD_SHORTCUTS: Record<string, string> = {
   notas: 'Ctrl+N', metas: 'Ctrl+G', reporte: 'Ctrl+Shift+R', papelera: 'Ctrl+Shift+T',
   flashcards: 'Ctrl+Shift+F', repaso: 'Ctrl+Shift+Q', energia: 'Ctrl+Shift+B',
   recordatorios: 'Ctrl+Shift+N',
-  social: 'Ctrl+Shift+U', tienda: 'Ctrl+Shift+I',
   bloqueador: 'Ctrl+Shift+Z', distracciones: 'Ctrl+Shift+E', sync: 'Ctrl+Shift+W',
   informe: 'Ctrl+Shift+O', 'importar-cal': 'Ctrl+Shift+A',
 }

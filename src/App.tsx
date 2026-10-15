@@ -52,9 +52,7 @@ const TaskTimelineView = createLazyRoute(() => import('./components/TaskViews/Ta
 const TaskTableView = createLazyRoute(() => import('./components/TaskViews/TaskTableView'), { name: 'TaskTable' })
 const EnergyPlanning = createLazyRoute(() => import('./components/EnergyPlanning/EnergyPlanning'), { name: 'EnergyPlanning' })
 const SmartReminders = createLazyRoute(() => import('./components/SmartReminders/SmartReminders'), { name: 'SmartReminders' })
-const SocialPage = createLazyRoute(() => import('./components/Social/SocialPage'), { name: 'Social' })
 const AvatarPet = createLazyRoute(() => import('./components/Gamification/AvatarPet'), { name: 'AvatarPet' })
-const AchievementShop = createLazyRoute(() => import('./components/Gamification/AchievementShop'), { name: 'AchievementShop' })
 const SubjectStreaks = createLazyRoute(() => import('./components/Gamification/SubjectStreaks'), { name: 'SubjectStreaks' })
 const WebsiteBlocker = createLazyRoute(() => import('./components/FocusMode/WebsiteBlocker'), { name: 'WebsiteBlocker' })
 const DistractionStats = createLazyRoute(() => import('./components/FocusMode/DistractionStats'), { name: 'DistractionStats' })
@@ -544,13 +542,11 @@ function AppInner() {
               {activeTab === 'tareas' && taskViewMode === 'table' && <ErrorBoundary name="Tabla Tareas"><TaskTableView /></ErrorBoundary>}
               {activeTab === 'energia' && <ErrorBoundary name="Energía"><EnergyPlanning /></ErrorBoundary>}
               {activeTab === 'recordatorios' && <ErrorBoundary name="Recordatorios"><SmartReminders /></ErrorBoundary>}
-              {activeTab === 'social' && <ErrorBoundary name="Social"><SocialPage /></ErrorBoundary>}
-              {activeTab === 'tienda' && <ErrorBoundary name="Tienda"><AchievementShop /></ErrorBoundary>}
               {activeTab === 'cursos' && <ErrorBoundary name="Cursos"><CoursesPage /></ErrorBoundary>}
               {activeTab === 'exams' && <ErrorBoundary name="Exámenes"><ExamsPage /></ErrorBoundary>}
               {activeTab === 'tutor' && <ErrorBoundary name="Tutor IA"><TutorPage /></ErrorBoundary>}
               {activeTab === 'rachas-materias' && <ErrorBoundary name="Rachas"><SubjectStreaks /></ErrorBoundary>}
-              {activeTab === 'bloqueador' && <ErrorBoundary name="Bloqueador"><WebsiteBlocker /></ErrorBoundary>}
+              {activeTab === 'bloqueador' && <ErrorBoundary name="Rastreador de sitios"><WebsiteBlocker /></ErrorBoundary>}
               {activeTab === 'distracciones' && <ErrorBoundary name="Distracciones"><DistractionStats /></ErrorBoundary>}
               {activeTab === 'sync' && <ErrorBoundary name="Sync"><CloudSync /></ErrorBoundary>}
               {activeTab === 'informe' && <ErrorBoundary name="Informe"><WeeklyPDFReport /></ErrorBoundary>}
