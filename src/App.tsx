@@ -5,7 +5,8 @@ import { useThemeStore } from '@/stores/themeStore'
 import { useAppStore } from '@/stores/appStore'
 import { useUndoStore } from '@/stores/undoStore'
 import {
-  Zap, Menu, Sun, Moon, Search, Keyboard, Plus, Loader, X
+  Zap, Menu, Sun, Moon, Search, Keyboard, Plus, Loader, X,
+  List, Calendar, GanttChart, Table2
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -129,7 +130,17 @@ function AppInner() {
   const [userProfile, setUserProfile] = useState('custom')
   const { soundEnabled, playSound, createConfetti } = useSound()
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
-  const [taskViewMode] = useState<'list' | 'calendar' | 'timeline' | 'table'>('list')
+  const [taskViewMode, setTaskViewMode] = useState<'list' | 'calendar' | 'timeline' | 'table'>(() => {
+    try {
+      const saved = localStorage.getItem('task-view-mode')
+      if (saved === 'calendar' || saved === 'timeline' || saved === 'table') return saved
+      return 'list'
+    } catch { return 'list' }
+  })
+
+  useEffect(() => {
+    try { localStorage.setItem('task-view-mode', taskViewMode) } catch {}
+  }, [taskViewMode])
 
   useEffect(() => {
     (window as any).__confirmDelete = (type: string, id: number, title: string, onConfirm?: () => void) => setConfirmDelete({ type, id, title, onConfirm })
@@ -470,10 +481,36 @@ function AppInner() {
           </aside>
           <main id="main-content" className="flex-1 overflow-y-auto p-6" role="main">
             <div key={activeTab} className="animate-fade-slide-in h-full">
+              {activeTab === 'tareas' && (
+                <div className="mb-4 flex justify-end">
+                  <div className="inline-flex items-center gap-0.5 rounded-lg border bg-card p-0.5" role="tablist" aria-label="Vista de tareas">
+                    {([
+                      ['list', 'Lista', List],
+                      ['calendar', 'Calendario', Calendar],
+                      ['timeline', 'Cronograma', GanttChart],
+                      ['table', 'Tabla', Table2],
+                    ] as const).map(([mode, label, Icon]) => (
+                      <Button
+                        key={mode}
+                        role="tab"
+                        aria-selected={taskViewMode === mode}
+                        variant={taskViewMode === mode ? 'secondary' : 'ghost'}
+                        size="sm"
+                        className="h-7 gap-1.5 px-2.5 text-xs"
+                        onClick={() => setTaskViewMode(mode)}
+                        title={label}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">{label}</span>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {activeTab === 'inicio' && <ErrorBoundary name="Dashboard"><Dashboard /></ErrorBoundary>}
               {activeTab === 'pomodoro' && <ErrorBoundary name="Pomodoro"><PomodoroTimer onComplete={handleStreakUpdate} /></ErrorBoundary>}
               {activeTab === 'kanban' && <ErrorBoundary name="Kanban"><KanbanBoard /></ErrorBoundary>}
-              {activeTab === 'tareas' && <ErrorBoundary name="Tareas"><TaskList /></ErrorBoundary>}
+              {activeTab === 'tareas' && taskViewMode === 'list' && <ErrorBoundary name="Tareas"><TaskList /></ErrorBoundary>}
               {activeTab === 'proyectos' && <ErrorBoundary name="Proyectos"><ProjectsPage /></ErrorBoundary>}
               {activeTab === 'diario' && <ErrorBoundary name="Diario"><DailyLogPage /></ErrorBoundary>}
               {activeTab === 'calendario' && <ErrorBoundary name="Calendario"><CalendarView /></ErrorBoundary>}
