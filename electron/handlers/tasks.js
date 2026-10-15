@@ -1,4 +1,4 @@
-function register(ipcMain, { getStmt, getDb, safeUpdate, addXp, updateChallengeProgress, safeHandle, schemas, voidSchema, z }) {
+function register(ipcMain, { getStmt, getDb, safeUpdate, addXp, updateChallengeProgress, safeHandle, schemas, voidSchema, z, outbox }) {
   safeHandle(ipcMain, 'db:getTasks', schemas.tasks.list, (wsId) => {
     return getStmt(`SELECT * FROM tasks WHERE deleted = 0${wsId ? ' AND workspace_id = ?' : ''} ORDER BY position ASC, created_at DESC`).all(...(wsId ? [wsId] : []))
   })
@@ -21,14 +21,32 @@ function register(ipcMain, { getStmt, getDb, safeUpdate, addXp, updateChallengeP
     const sets = cols.map(c => `@${c}`).join(', ')
     const stmt = getStmt(`INSERT INTO tasks (${cols.join(', ')}) VALUES (${sets})`)
     const result = stmt.run(task)
-    return getStmt('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid)
+    const created = getStmt('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid)
+    outbox?.emit(getDb(), 'task.created', { taskId: created.id, title: created.title, priority: created.priority, projectId: created.project_id ?? null, completed: false, workspaceId: created.workspace_id ?? null })
+    try {
+      outbox?.addActivity(getDb(), { entityType: 'task', entityId: String(created.id), action: 'created', payload: { title: created.title }, workspaceId: created.workspace_id ?? null })
+    } catch (err) {
+      console.error('[tasks] addActivity failed:', err)
+    }
+    return created
   })
   safeHandle(ipcMain, 'db:updateTask', schemas.tasks.update, ({ id, data }) => {
     safeUpdate('tasks', id, data)
-    return getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
+    const updated = getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
+    if (updated) {
+      outbox?.emit(getDb(), 'task.updated', { taskId: id, title: updated.title, priority: updated.priority, completed: updated.completed, workspaceId: updated.workspace_id ?? null })
+    }
+    return updated
   })
   safeHandle(ipcMain, 'db:deleteTask', schemas.tasks.delete, (id) => {
+    const task = getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
     getStmt('UPDATE tasks SET deleted = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id)
+    outbox?.emit(getDb(), 'task.deleted', { taskId: id })
+    try {
+      outbox?.addActivity(getDb(), { entityType: 'task', entityId: String(id), action: 'deleted', payload: { title: task ? task.title : null }, workspaceId: task ? task.workspace_id ?? null : null })
+    } catch (err) {
+      console.error('[tasks] addActivity failed:', err)
+    }
     return true
   })
   safeHandle(ipcMain, 'db:getTasksWithSubtasks', schemas.tasks.listWithSubtasks, (wsId) => {
@@ -63,11 +81,22 @@ function register(ipcMain, { getStmt, getDb, safeUpdate, addXp, updateChallengeP
   safeHandle(ipcMain, 'db:toggleTask', schemas.tasks.toggle, (id) => {
     const task = getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
     getStmt('UPDATE tasks SET completed = CASE WHEN completed THEN 0 ELSE 1 END, updated_at = datetime(\'now\') WHERE id = ?').run(id)
-    if (task && !task.completed) {
+    const updated = getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
+    const markingCompleted = !!(task && !task.completed)
+    if (markingCompleted) {
       addXp(5, 'tarea completada')
       updateChallengeProgress('task', 1)
     }
-    return getStmt('SELECT * FROM tasks WHERE id = ?').get(id)
+    outbox?.emit(getDb(), 'task.updated', { taskId: id, completed: updated ? updated.completed : null })
+    if (markingCompleted) {
+      outbox?.emit(getDb(), 'task.completed', { taskId: id, title: task.title })
+      try {
+        outbox?.addActivity(getDb(), { entityType: 'task', entityId: String(id), action: 'completed', payload: { title: task.title }, workspaceId: task.workspace_id ?? null })
+      } catch (err) {
+        console.error('[tasks] addActivity failed:', err)
+      }
+    }
+    return updated
   })
   safeHandle(ipcMain, 'tasks:getDependencies', schemas.tasks.dependencies.get, (taskId) => {
     return getStmt('SELECT t.id, t.title FROM tasks t JOIN task_dependencies d ON d.depends_on_id = t.id WHERE d.task_id = ? AND t.deleted = 0').all(taskId)

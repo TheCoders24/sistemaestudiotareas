@@ -37,6 +37,7 @@ class OutboxDispatcher {
   }
 
   init(db) {
+    this.db = db
     db.exec(OUTBOX_SQL)
     db.exec(SNAPSHOTS_SQL)
     db.exec(ACTIVITY_LOG_SQL)
@@ -57,8 +58,8 @@ class OutboxDispatcher {
     return id
   }
 
-  dispatchPending() {
-    const db = getDb()
+  async dispatchPending() {
+    const db = this.db || getDb()
     if (!db) return
 
     const events = db.prepare(`
@@ -67,7 +68,7 @@ class OutboxDispatcher {
 
     for (const event of events) {
       try {
-        this.eventBus.publish({
+        await this.eventBus.publish({
           id: event.id,
           type: event.type,
           occurredAt: '',
@@ -78,6 +79,15 @@ class OutboxDispatcher {
       } catch (err) {
         console.error(`[Outbox] Failed to publish event ${event.id}:`, err)
       }
+    }
+  }
+
+  async emit(db, type, payload) {
+    try {
+      this.addEvent(db, type, payload)
+      await this.dispatchPending()
+    } catch (err) {
+      console.error(`[Outbox] Failed to emit event ${type}:`, err)
     }
   }
 

@@ -1,4 +1,4 @@
-function register(ipcMain, { getStmt, safeUpdate, wsFilter, wsParams, safeHandle, voidSchema, z }) {
+function register(ipcMain, { getStmt, getDb, safeUpdate, wsFilter, wsParams, safeHandle, voidSchema, z, outbox }) {
   safeHandle(ipcMain, 'kanban:getColumns', z.number().int().positive().optional(), (wsId) => {
     return getStmt(`SELECT * FROM kanban_columns WHERE workspace_id IS ? OR workspace_id = ? ORDER BY position ASC`).all(wsId || null, wsId || null)
   })
@@ -66,6 +66,7 @@ function register(ipcMain, { getStmt, safeUpdate, wsFilter, wsParams, safeHandle
   })
   safeHandle(ipcMain, 'db:moveKanbanCard', z.object({ 0: z.number(), 1: z.string(), 2: z.number() }).transform(a => ({ id: a[0], column: a[1], position: a[2] })), ({ id, column, position }) => {
     getStmt('UPDATE kanban_cards SET column_type = ?, position = ?, updated_at = datetime(\'now\') WHERE id = ?').run(column, position, id)
+    outbox?.emit(getDb(), 'task.moved', { taskId: id, column, position })
     return getStmt('SELECT * FROM kanban_cards WHERE id = ?').get(id)
   })
 }

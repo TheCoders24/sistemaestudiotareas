@@ -225,7 +225,7 @@ function registerEssentialIpcHandlers() {
   }
   essentialHandlersRegistered = true
 
-  const coreDeps = { getStmt, getDb, safeUpdate, wsFilter, wsParams, validate, safeHandle, schemas, voidSchema, z, app, mainWindow, dialog, shell, fs, path, crypto, globalShortcut, updateTrayMenu, notificationManager }
+  const coreDeps = { getStmt, getDb, safeUpdate, wsFilter, wsParams, validate, safeHandle, schemas, voidSchema, z, app, mainWindow, dialog, shell, fs, path, crypto, globalShortcut, updateTrayMenu, notificationManager, outbox }
 
   require('./handlers/settings').register(ipcMain, coreDeps)
   require('./handlers/workspaces').register(ipcMain, coreDeps)
@@ -275,7 +275,7 @@ function registerNonEssentialIpcHandlers() {
   }
   nonEssentialHandlersRegistered = true
 
-  const coreDeps = { getStmt, getDb, safeUpdate, wsFilter, wsParams, validate, safeHandle, schemas, voidSchema, z, app, mainWindow, dialog, shell, fs, path, crypto, globalShortcut, updateTrayMenu, notificationManager }
+  const coreDeps = { getStmt, getDb, safeUpdate, wsFilter, wsParams, validate, safeHandle, schemas, voidSchema, z, app, mainWindow, dialog, shell, fs, path, crypto, globalShortcut, updateTrayMenu, notificationManager, outbox }
 
   const { addXp, updateChallengeProgress } = require('./handlers/gamification').register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z })
 

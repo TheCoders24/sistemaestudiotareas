@@ -1,4 +1,4 @@
-function register(ipcMain, { getStmt, getDb, safeUpdate, wsFilter, wsParams, addXp, safeHandle, schemas, voidSchema, z }) {
+function register(ipcMain, { getStmt, getDb, safeUpdate, wsFilter, wsParams, addXp, safeHandle, schemas, voidSchema, z, outbox }) {
   safeHandle(ipcMain, 'db:getProjects', z.number().int().positive().optional(), (wsId) => {
     return getStmt(`SELECT * FROM projects WHERE deleted = 0${wsFilter(wsId)} ORDER BY name ASC`).all(...wsParams(wsId))
   })
@@ -17,14 +17,22 @@ function register(ipcMain, { getStmt, getDb, safeUpdate, wsFilter, wsParams, add
     const stmt = getStmt(`INSERT INTO projects (${cols.join(', ')}) VALUES (${sets})`)
     const result = stmt.run(project)
     addXp(15, 'proyecto creado')
-    return getStmt('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid)
+    const created = getStmt('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid)
+    outbox?.emit(getDb(), 'project.created', { projectId: created.id, name: created.name, status: created.status, workspaceId: created.workspace_id ?? null })
+    return created
   })
   safeHandle(ipcMain, 'db:updateProject', z.object({ 0: z.number().int().positive(), 1: z.object({}).passthrough() }).transform(a => ({ id: a[0], data: a[1] })), ({ id, data }) => {
     safeUpdate('projects', id, data)
-    return getStmt('SELECT * FROM projects WHERE id = ?').get(id)
+    const updated = getStmt('SELECT * FROM projects WHERE id = ?').get(id)
+    outbox?.emit(getDb(), 'project.updated', { projectId: id, status: updated ? updated.status : null, workspaceId: updated ? updated.workspace_id ?? null : null })
+    if (data.status === 'archived') {
+      outbox?.emit(getDb(), 'project.archived', { projectId: id })
+    }
+    return updated
   })
   safeHandle(ipcMain, 'db:deleteProject', z.number().int().positive(), (id) => {
     getStmt('UPDATE projects SET deleted = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id)
+    outbox?.emit(getDb(), 'project.deleted', { projectId: id })
     return true
   })
   safeHandle(ipcMain, 'projects:gitStatus', z.number().int().positive(), async (id) => {

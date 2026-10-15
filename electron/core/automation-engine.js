@@ -35,7 +35,7 @@ class AutomationEngine {
     ]
 
     events.forEach(event => {
-      const handler = (data) => this.handleEvent(event, data)
+      const handler = (data) => this.handleEvent(event, data && data.payload ? data.payload : data)
       this.eventBus.subscribe(event, handler)
       this.subscriptions.push({ event, handler })
     })
@@ -137,8 +137,10 @@ class AutomationEngine {
   }
 
   logTriggered(rule, action) {
-    const { default: logger } = require('./logger')
-    logger.info(`Automation triggered: rule="${rule.name}" action="${action.type}"`)
+    const logger = require('./logger')
+    if (logger && typeof logger.info === 'function') {
+      logger.info(`Automation triggered: rule="${rule.name}" action="${action.type}"`)
+    }
   }
 
   async addRule(rule) {
