@@ -4,7 +4,10 @@ function register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z }) {
     return getStmt('SELECT * FROM exams ORDER BY date ASC').all()
   })
   safeHandle(ipcMain, 'exams:create', schemas.exams.create, (data) => {
-    const result = getStmt('INSERT INTO exams (course_id, title, date, weight, study_topic_ids) VALUES (@course_id, @title, @date, @weight, @study_topic_ids)').run(data)
+    const allowed = ['course_id', 'title', 'date', 'weight', 'study_topic_ids', 'completed', 'grade_obtained']
+    const cols = allowed.filter(c => data[c] !== undefined)
+    const sets = cols.map(c => `@${c}`).join(', ')
+    const result = getStmt(`INSERT INTO exams (${cols.join(', ')}) VALUES (${sets})`).run(data)
     return getStmt('SELECT * FROM exams WHERE id = ?').get(result.lastInsertRowid)
   })
   safeHandle(ipcMain, 'exams:update', schemas.exams.update, ({ id, data }) => {

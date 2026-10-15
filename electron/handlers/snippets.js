@@ -30,7 +30,7 @@ function register(ipcMain, { addXp, updateChallengeProgress, safeHandle, schemas
     return getStmt('SELECT * FROM snippets WHERE id = ?').get(id)
   })
   safeHandle(ipcMain, 'db:deleteSnippet', z.number().int().positive(), (id) => {
-    getStmt('DELETE FROM snippets WHERE id = ?').run(id)
+    getStmt("UPDATE snippets SET deleted = 1, updated_at = datetime('now') WHERE id = ?").run(id)
     return true
   })
 }

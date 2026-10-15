@@ -78,7 +78,7 @@ function register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z }) {
     const pomodoroCount = getStmt('SELECT COUNT(*) as count FROM pomodoro_sessions').get().count
     const tasksDone = getStmt('SELECT COUNT(*) as count FROM tasks WHERE completed = 1').get().count
     const notesCount = getStmt('SELECT COUNT(*) as count FROM notes WHERE deleted = 0').get().count
-    const snippetsCount = getStmt('SELECT COUNT(*) as count FROM snippets').get().count
+    const snippetsCount = getStmt('SELECT COUNT(*) as count FROM snippets WHERE deleted = 0').get().count
     const projectsCount = getStmt('SELECT COUNT(*) as count FROM projects WHERE deleted = 0').get().count
     const streak = getStmt("SELECT current FROM streaks WHERE name = 'daily_study'").get()
     const streakDays = streak ? streak.current : 0

@@ -3,6 +3,7 @@ const { z } = require('zod')
 const commonId = z.number().int().positive()
 const commonString = z.string().min(1).max(500)
 const commonOptionalString = z.string().max(500).optional().nullable()
+const longOptionalString = z.string().max(2000).optional().nullable()
 const commonDate = z.string().regex(/^\d{4}-\d{2}-\d{2}/).optional().nullable()
 const commonPriority = z.enum(['baja', 'media', 'alta', 'urgente']).optional().default('media')
 
@@ -40,7 +41,7 @@ exports.tasks = {
     due_date: commonDate,
     project_id: z.number().int().positive().optional().nullable(),
     workspace_id: workspaceId.optional(),
-    repeat: z.enum(['daily', 'weekly', 'monthly', 'yearly', '']).optional().nullable(),
+    repeat: z.enum(['daily', 'weekly', 'monthly', 'yearly', 'weekdays', '']).optional().nullable(),
     tags: commonOptionalString,
     parent_task_id: z.number().int().positive().optional().nullable(),
   }).passthrough(),
@@ -243,14 +244,14 @@ exports.dailyLogs = {
   create: z.object({
     date: z.string(),
     content: z.string().optional().default(''),
-    focus: commonOptionalString,
-    blockers: commonOptionalString,
-    tomorrow_plan: commonOptionalString,
+    focus: longOptionalString,
+    blockers: longOptionalString,
+    tomorrow_plan: longOptionalString,
     workspace_id: workspaceId,
   }).passthrough(),
   update: z.object({
     0: z.number().int().positive(),
-    1: z.object({ content: z.string().optional(), focus: commonOptionalString, blockers: commonOptionalString, tomorrow_plan: commonOptionalString }).passthrough(),
+    1: z.object({ content: z.string().optional(), focus: longOptionalString, blockers: longOptionalString, tomorrow_plan: longOptionalString }).passthrough(),
   }).transform(a => ({ id: a[0], data: a[1] })),
 }
 
@@ -451,6 +452,8 @@ exports.exams = {
     date: z.string(),
     weight: z.number().min(0).max(100).nullable().optional(),
     study_topic_ids: z.string().nullable().optional(),
+    completed: z.number().int().min(0).max(1).optional().default(0),
+    grade_obtained: z.number().nullable().optional(),
   }).passthrough(),
   update: z.object({
     0: z.number().int().positive(),

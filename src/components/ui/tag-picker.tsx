@@ -16,8 +16,8 @@ export function TagPicker({ selectedIds, onChange }: TagPickerProps) {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    if (window.electronAPI && typeof (window.electronAPI as any).getTags === 'function') {
-      (window.electronAPI as any).getTags().then(setTags).catch(() => {})
+    if (window.electronAPI?.labels) {
+      window.electronAPI.labels.list().then(setTags).catch(() => {})
     }
   }, [])
 
@@ -29,8 +29,8 @@ export function TagPicker({ selectedIds, onChange }: TagPickerProps) {
   const createAndAdd = useCallback(async () => {
     const name = newName.trim()
     if (!name) return
-    if (!window.electronAPI || typeof (window.electronAPI as any).createTag !== 'function') return
-    const tag = await ((window.electronAPI as any).createTag({ name }) as Promise<TagType>).catch(() => null)
+    if (!window.electronAPI?.labels) return
+    const tag = await (window.electronAPI.labels.create({ name, color: '#6366f1' }) as Promise<TagType>).catch(() => null)
     if (tag) {
       setTags((prev) => [...prev, tag])
       onChange([...selectedIds, tag.id])

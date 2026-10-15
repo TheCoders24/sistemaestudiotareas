@@ -14,7 +14,10 @@ function register(ipcMain, { safeHandle, schemas, voidSchema, z }) {
     blockers: z.string().max(2000).optional().nullable(),
     tomorrow_plan: z.string().max(2000).optional().nullable(),
   }).passthrough(), (log) => {
-    const stmt = getStmt('INSERT OR REPLACE INTO daily_logs (date, content, focus, blockers, tomorrow_plan) VALUES (@date, @content, @focus, @blockers, @tomorrow_plan)')
+    const allowed = ['date', 'content', 'focus', 'blockers', 'tomorrow_plan', 'workspace_id']
+    const cols = allowed.filter(c => log[c] !== undefined)
+    const sets = cols.map(c => `@${c}`).join(', ')
+    const stmt = getStmt(`INSERT OR REPLACE INTO daily_logs (${cols.join(', ')}) VALUES (${sets})`)
     const result = stmt.run(log)
     return getStmt('SELECT * FROM daily_logs WHERE id = ?').get(result.lastInsertRowid)
   })

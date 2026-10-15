@@ -69,7 +69,7 @@ export default function Dashboard() {
     window.electronAPI.dashboard.get().then(setData)
     window.electronAPI.gamification.xp.history(7).then(setXpHistory)
     window.electronAPI.gamification.xp.history(30).then(setXpHistory30)
-    window.electronAPI.activity.list().then(setActivityFeed)
+    window.electronAPI.dashboard.activityFeed().then(setActivityFeed)
     window.electronAPI.habits.stats().then(setHabitStats)
     window.electronAPI.study.stats().then(s => { if (s) setStudyStats(s) }).catch(() => {})
     window.electronAPI.stats.weeklyReport().then(setWeeklyReport).catch(() => {})

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Trash2, RotateCcw, Trash, FileText, CheckSquare, FolderKanban } from 'lucide-react'
+import { Trash2, RotateCcw, Trash, FileText, CheckSquare, FolderKanban, Kanban, Heart, Target, Code2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -9,6 +9,10 @@ export default function TrashPage() {
   const [tasks, setTasks] = useState<any[]>([])
   const [notes, setNotes] = useState<any[]>([])
   const [projects, setProjects] = useState<any[]>([])
+  const [kanbanCards, setKanbanCards] = useState<any[]>([])
+  const [habits, setHabits] = useState<any[]>([])
+  const [goals, setGoals] = useState<any[]>([])
+  const [snippets, setSnippets] = useState<any[]>([])
 
   const loadTrash = () => {
     if (!window.electronAPI) return
@@ -16,12 +20,16 @@ export default function TrashPage() {
       setTasks(r.tasks || [])
       setNotes(r.notes || [])
       setProjects(r.projects || [])
+      setKanbanCards(r.kanbanCards || [])
+      setHabits(r.habits || [])
+      setGoals(r.goals || [])
+      setSnippets(r.snippets || [])
     })
   }
 
   useEffect(() => { loadTrash() }, [])
 
-  const total = tasks.length + notes.length + projects.length
+  const total = tasks.length + notes.length + projects.length + kanbanCards.length + habits.length + goals.length + snippets.length
 
   function handleRestore(type: string, id: number) {
     if (window.electronAPI) {
@@ -125,6 +133,90 @@ export default function TrashPage() {
                     <RotateCcw className="h-3 w-3 mr-1" /> Restaurar
                   </Button>
                   <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('project', p.id)}>
+                    <Trash className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {kanbanCards.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold flex items-center gap-2 mb-2"><Kanban className="h-4 w-4" /> Tarjetas Kanban ({kanbanCards.length})</h2>
+          <div className="space-y-1">
+            {kanbanCards.map((k: any) => (
+              <div key={`kanban-${k.id}`} className="flex items-center justify-between p-2 rounded bg-accent/50 text-sm">
+                <span className="truncate">{k.title}</span>
+                <div className="flex gap-1 shrink-0">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRestore('kanban', k.id)}>
+                    <RotateCcw className="h-3 w-3 mr-1" /> Restaurar
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('kanban', k.id)}>
+                    <Trash className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {habits.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold flex items-center gap-2 mb-2"><Heart className="h-4 w-4" /> Hábitos ({habits.length})</h2>
+          <div className="space-y-1">
+            {habits.map((h: any) => (
+              <div key={`habit-${h.id}`} className="flex items-center justify-between p-2 rounded bg-accent/50 text-sm">
+                <span className="truncate">{h.title}</span>
+                <div className="flex gap-1 shrink-0">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRestore('habit', h.id)}>
+                    <RotateCcw className="h-3 w-3 mr-1" /> Restaurar
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('habit', h.id)}>
+                    <Trash className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {goals.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold flex items-center gap-2 mb-2"><Target className="h-4 w-4" /> Metas ({goals.length})</h2>
+          <div className="space-y-1">
+            {goals.map((g: any) => (
+              <div key={`goal-${g.id}`} className="flex items-center justify-between p-2 rounded bg-accent/50 text-sm">
+                <span className="truncate">{g.title}</span>
+                <div className="flex gap-1 shrink-0">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRestore('goal', g.id)}>
+                    <RotateCcw className="h-3 w-3 mr-1" /> Restaurar
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('goal', g.id)}>
+                    <Trash className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {snippets.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold flex items-center gap-2 mb-2"><Code2 className="h-4 w-4" /> Snippets ({snippets.length})</h2>
+          <div className="space-y-1">
+            {snippets.map((s: any) => (
+              <div key={`snippet-${s.id}`} className="flex items-center justify-between p-2 rounded bg-accent/50 text-sm">
+                <span className="truncate">{s.title}</span>
+                <div className="flex gap-1 shrink-0">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleRestore('snippet', s.id)}>
+                    <RotateCcw className="h-3 w-3 mr-1" /> Restaurar
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500" onClick={() => handleDeletePermanent('snippet', s.id)}>
                     <Trash className="h-3 w-3" />
                   </Button>
                 </div>

@@ -1,6 +1,6 @@
 function register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z }) {
   safeHandle(ipcMain, 'db:softDeleteItem', schemas.trash.softDelete, ({ type, id }) => {
-    const tables = { task: 'tasks', note: 'notes', project: 'projects' }
+    const tables = { task: 'tasks', note: 'notes', project: 'projects', kanban: 'kanban_cards', habit: 'habits', goal: 'goals', snippet: 'snippets' }
     const table = tables[type]
     if (table) getStmt(`UPDATE ${table} SET deleted = 1, updated_at = datetime('now') WHERE id = ?`).run(id)
     return true

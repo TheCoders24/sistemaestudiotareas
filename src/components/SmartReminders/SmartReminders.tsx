@@ -9,6 +9,7 @@ interface Task {
   due_date: string | null;
   priority: string;
   status: string;
+  completed: number;
   category: string | null;
   reminder: string | null;
 }
@@ -365,7 +366,7 @@ export default function SmartReminders() {
                     <select value={selectedTaskId || ''} onChange={e => setSelectedTaskId(parseInt(e.target.value))}
                       className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-amber-500">
                       <option value="">Selecciona una tarea</option>
-                      {tasks.filter(t => t.status !== 'completada').map(t => (
+                      {tasks.filter(t => !t.completed).map(t => (
                         <option key={t.id} value={t.id}>{t.title}</option>
                       ))}
                     </select>

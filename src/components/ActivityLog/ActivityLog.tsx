@@ -12,12 +12,14 @@ export default function ActivityLog() {
     }
   }, [])
 
-  const actionColors: Record<string, string> = {
-    created: 'bg-green-500/10 text-green-500',
-    completed: 'bg-indigo-500/10 text-indigo-500',
-    deleted: 'bg-red-500/10 text-red-500',
-    updated: 'bg-blue-500/10 text-blue-500',
-    reviewed: 'bg-yellow-500/10 text-yellow-500',
+  const typeColors: Record<string, string> = {
+    task: 'bg-indigo-500/10 text-indigo-500',
+    note: 'bg-blue-500/10 text-blue-500',
+    pomodoro: 'bg-red-500/10 text-red-500',
+    habit: 'bg-green-500/10 text-green-500',
+    goal: 'bg-yellow-500/10 text-yellow-500',
+    project: 'bg-purple-500/10 text-purple-500',
+    snippet: 'bg-orange-500/10 text-orange-500',
   }
 
   return (
@@ -32,13 +34,12 @@ export default function ActivityLog() {
         {logs.map((log) => (
           <Card key={log.id} className="border-0 border-b rounded-none last:border-b-0">
             <CardContent className="py-2 px-3 flex items-center gap-3">
-              <Badge variant="outline" className={`text-[10px] uppercase ${actionColors[log.action] || ''}`}>
-                {log.action}
+              <Badge variant="outline" className={`text-[10px] uppercase ${typeColors[log.type] || ''}`}>
+                {log.type}
               </Badge>
-              <span className="text-xs text-muted-foreground capitalize">{log.entity_type}</span>
-              <span className="text-xs flex-1 truncate">{log.description}</span>
+              <span className="text-xs flex-1 truncate">{log.text}</span>
               <span className="text-[10px] text-muted-foreground shrink-0">
-                {new Date(log.created_at).toLocaleString()}
+                {log.time ? new Date(log.time).toLocaleString() : ''}
               </span>
             </CardContent>
           </Card>

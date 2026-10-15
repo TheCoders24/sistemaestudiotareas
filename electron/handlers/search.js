@@ -45,7 +45,7 @@ function register(ipcMain, { getStmt, getDb, safeHandle, schemas, voidSchema, z 
       results.push(...notes)
     } catch {}
     try {
-      const snippets = getStmt("SELECT id, title as name, 'snippet' as type FROM snippets WHERE title LIKE ? OR description LIKE ? OR code LIKE ? LIMIT 10").all(like, like, like)
+      const snippets = getStmt("SELECT id, title as name, 'snippet' as type FROM snippets WHERE (title LIKE ? OR description LIKE ? OR code LIKE ?) AND deleted = 0 LIMIT 10").all(like, like, like)
       results.push(...snippets)
     } catch {}
     try {

@@ -45,7 +45,8 @@ export default function SnippetsPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim() || !code.trim() || !window.electronAPI) return
-    await window.electronAPI.snippets.create({ title, code, language, description })
+    const tagsStr = tagIds.length > 0 ? tagIds.join(',') : undefined
+    await window.electronAPI.snippets.create({ title, code, language, description, ...(tagsStr !== undefined && { tags: tagsStr }) })
     setTitle(''); setCode(''); setDescription(''); setTagIds([])
     setOpen(false)
     loadSnippets()
@@ -183,10 +184,10 @@ export default function SnippetsPage() {
                     </Button>
                   </div>
                 </div>
-                {Array.isArray(snippet.tags) && snippet.tags.length > 0 && (
+                {snippet.tags && String(snippet.tags).trim().length > 0 && (
                   <div className="flex gap-1 mt-2 flex-wrap">
-                    {snippet.tags.map((tag: { id: number; name: string; color: string }) => (
-                      <TagBadge key={tag.id} name={tag.name} color={tag.color} />
+                    {String(snippet.tags).split(',').filter(Boolean).map((tag: string, i: number) => (
+                      <TagBadge key={i} name={tag.trim()} color="#6366f1" />
                     ))}
                   </div>
                 )}
