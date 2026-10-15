@@ -66,6 +66,7 @@ const Flashcards = createLazyRoute(() => import('./components/Flashcards/Flashca
 const CoursesPage = createLazyRoute(() => import('./components/Courses/CoursesPage'), { name: 'Courses' })
 const ExamsPage = createLazyRoute(() => import('./components/Exams/ExamsPage'), { name: 'Exams' })
 const TutorPage = createLazyRoute(() => import('./components/Tutor/TutorPage'), { name: 'Tutor' })
+const PinLockDialog = createLazyRoute(() => import('./components/Security/PinLockDialog'), { name: 'PinLock' })
 
 registerRoutePreloader('Dashboard', () => import('./components/Dashboard/Dashboard'))
 registerRoutePreloader('TaskList', () => import('./components/TaskList/TaskList'))
@@ -119,6 +120,17 @@ function AppInner() {
   const shortcuts = useShortcutsStore(s => s.shortcuts)
   const shortcutsRef = useRef(shortcuts)
   useEffect(() => { shortcutsRef.current = shortcuts }, [shortcuts])
+
+  useEffect(() => {
+    if (!window.electronAPI?.pin?.isEnabled) return
+    window.electronAPI.pin.isEnabled().then(enabled => { if (enabled) setLocked(true) }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const onLock = () => setLocked(true)
+    window.addEventListener('lock-app', onLock)
+    return () => window.removeEventListener('lock-app', onLock)
+  }, [])
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [quickAddTitle, setQuickAddTitle] = useState('')
   const [levelUp, setLevelUp] = useState<{ level: number } | null>(null)
@@ -126,6 +138,7 @@ function AppInner() {
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; title: string; onConfirm?: () => void } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [locked, setLocked] = useState(false)
   const [welcomeOpen, setWelcomeOpen] = useState(firstRun)
   const [userProfile, setUserProfile] = useState('custom')
   const { soundEnabled, playSound, createConfetti } = useSound()
@@ -692,6 +705,10 @@ function AppInner() {
           onChangeUserProfile={setUserProfile}
           onComplete={handleWelcomeComplete}
         />
+
+      {locked && (
+        <PinLockDialog mode="unlock" onUnlocked={() => setLocked(false)} />
+      )}
     </TooltipProvider>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore, Keyboard, MousePointer2, RefreshCw } from 'lucide-react'
+import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore, Keyboard, MousePointer2, RefreshCw, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import PinLockDialog from '@/components/Security/PinLockDialog'
 import { toast } from '@/components/ui/use-toast'
 import { useSound } from '@/hooks/useSound'
 import { THEMES, useThemeStore } from '@/stores/themeStore'
@@ -52,6 +53,8 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
   const [aiApiKey, setAiApiKey] = useState('')
   const [aiKeyValid, setAiKeyValid] = useState<boolean | null>(null)
   const [aiKeyChecking, setAiKeyChecking] = useState(false)
+  const [pinEnabled, setPinEnabled] = useState(false)
+  const [pinDialogMode, setPinDialogMode] = useState<'set' | 'change' | null>(null)
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -64,6 +67,7 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
       window.electronAPI.settings.get('userProfile').then((val: string | null) => {
         if (val) setUserProfile(val)
       })
+      window.electronAPI.pin?.isEnabled?.().then(setPinEnabled).catch(() => {})
       window.electronAPI.settings.get('ai_api_key').then((val: string | null) => {
         if (val) setAiApiKey(val)
       })
@@ -190,6 +194,7 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
   }
 
   return (
+    <>
     <Dialog open={externalOpen} onOpenChange={(open) => { externalOnOpenChange?.(open); if (open) loadBackups() }}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon">
@@ -458,6 +463,41 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
 
           <Separator />
 
+          {/* Seguridad - PIN */}
+          <div className="bg-accent/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Lock className="h-4 w-4 text-rose-500" />
+                <span className="text-sm font-medium">Seguridad</span>
+              </div>
+              <Switch checked={pinEnabled} onCheckedChange={async (val) => {
+                if (val) {
+                  setPinDialogMode('set')
+                } else {
+                  if (!window.electronAPI?.pin?.disable) return
+                  await window.electronAPI.pin.disable()
+                  setPinEnabled(false)
+                  toast({ title: 'PIN desactivado' })
+                }
+              }} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Bloqueá la aplicación con un PIN de 4 a 10 dígitos al iniciar.
+            </p>
+            {pinEnabled && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPinDialogMode('change')}>
+                  Cambiar PIN
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => { window.dispatchEvent(new Event('lock-app')); externalOnOpenChange?.(false) }}>
+                  Bloquear ahora
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
           {/* Copias de seguridad */}
           <div className="bg-accent/50 rounded-lg p-4 space-y-3">
             <div className="flex items-center gap-2">
@@ -502,5 +542,13 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
         confirmLabel={t('settings.backups_restore')}
       />
     </Dialog>
+    {pinDialogMode && (
+      <PinLockDialog
+        mode={pinDialogMode}
+        onUnlocked={() => { setPinEnabled(true); setPinDialogMode(null) }}
+        onClose={() => setPinDialogMode(null)}
+      />
+    )}
+    </>
   )
 }
