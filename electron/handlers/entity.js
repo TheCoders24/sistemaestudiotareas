@@ -12,14 +12,34 @@ function register(ipcMain, { getStmt, getDb, safeHandle, schemas, z }) {
     return true
   }
 
+  const labelColumnCache = new Map()
+
+  function labelColumn(db, table) {
+    if (labelColumnCache.has(table)) return labelColumnCache.get(table)
+    let column = null
+    try {
+      const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name)
+      column = cols.includes('name') ? 'name' : cols.includes('title') ? 'title' : null
+    } catch { column = null }
+    labelColumnCache.set(table, column)
+    return column
+  }
+
   function getLinks({ type, id }) {
     const links = getStmt('SELECT * FROM entity_links WHERE (from_type = ? AND from_id = ?) OR (to_type = ? AND to_id = ?)').all(type, id, type, id)
     const result = []
+    const db = getDb()
     for (const link of links) {
       const targetType = link.from_type === type ? link.to_type : link.from_type
       const targetId = link.from_type === type ? link.to_id : link.from_id
       if (!ALLOWED_ENTITY_TYPES.has(targetType)) continue
-      try { const row = getDb().prepare(`SELECT id, name FROM ${targetType}s WHERE id = ?`).get(targetId); if (row) result.push({ ...row, linkType: targetType }) } catch {}
+      const table = `${targetType}s`
+      const column = labelColumn(db, table)
+      if (!column) continue
+      try {
+        const row = db.prepare(`SELECT id, ${column} AS name FROM ${table} WHERE id = ?`).get(targetId)
+        if (row) result.push({ ...row, linkType: targetType })
+      } catch {}
     }
     return result
   }
