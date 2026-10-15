@@ -296,6 +296,7 @@ function registerNonEssentialIpcHandlers() {
   require('./handlers/trash').register(ipcMain, allDeps)
   require('./handlers/search').register(ipcMain, allDeps)
   require('./handlers/studyfiles').register(ipcMain, allDeps)
+  require('./handlers/attachments').register(ipcMain, allDeps)
   require('./handlers/newmodules').register(ipcMain, depExtra)
   require('./handlers/sync').register(ipcMain, allDeps)
   require('./handlers/backup').register(ipcMain, allDeps)

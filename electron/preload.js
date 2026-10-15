@@ -187,6 +187,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stats: () => ipcRenderer.invoke('db:getStudyStats'),
   },
 
+  attachments: {
+    list: (entityType, entityId) => ipcRenderer.invoke('attachments:list', { entityType, entityId }),
+    add: (entityType, entityId) => ipcRenderer.invoke('attachments:add', { entityType, entityId }),
+    open: (id) => ipcRenderer.invoke('attachments:open', id),
+    delete: (id) => ipcRenderer.invoke('attachments:delete', id),
+  },
+
   pomodoro: {
     sessions: {
       list: (date) => ipcRenderer.invoke('db:getPomodoroSessions', date),

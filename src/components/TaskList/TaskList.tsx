@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckSquare, Plus, Trash2, Calendar, Bell, ChevronDown, ChevronRight, GripVertical, ListChecks, FolderKanban, Repeat, RotateCcw } from 'lucide-react'
+import { CheckSquare, Plus, Trash2, Calendar, Bell, ChevronDown, ChevronRight, GripVertical, ListChecks, FolderKanban, Repeat, RotateCcw, Paperclip } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,7 @@ import { ListSkeleton } from '@/components/ui/loading-skeleton'
 import { useUndoStore } from '@/stores/undoStore'
 import { InfoBox } from '@/components/ui/info-box'
 import { useTranslate } from '@/lib/translate'
+import { TaskAttachments } from './TaskAttachments'
 
 interface Subtask {
   id: number; task_id: number; title: string; completed: number; position: number
@@ -65,6 +66,7 @@ export default function TaskList() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'position' | 'priority' | 'due_date' | 'title'>('position')
+  const [attachmentsTaskId, setAttachmentsTaskId] = useState<number | null>(null)
 
   useEffect(() => { loadTasks(); loadProjects() }, [])
   useEffect(() => {
@@ -497,6 +499,10 @@ export default function TaskList() {
                           <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                          onClick={() => setAttachmentsTaskId(prev => prev === task.id ? null : task.id)}>
+                          <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100"
                           onClick={() => handleDelete(task.id)}>
                           <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                         </Button>
@@ -530,6 +536,12 @@ export default function TaskList() {
                         </motion.div>
                       )}
                     </AnimatePresence>
+
+                    {attachmentsTaskId === task.id && (
+                      <div className="ml-9 mt-2" onClick={e => e.stopPropagation()}>
+                        <TaskAttachments taskId={task.id} />
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>

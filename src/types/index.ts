@@ -117,6 +117,19 @@ export interface StudyFile {
   created_at: string
 }
 
+export interface Attachment {
+  id: number
+  workspace_id: number
+  entity_type: string
+  entity_id: number
+  file_name: string
+  mime_type: string
+  size_bytes: number
+  storage_path: string
+  checksum: string | null
+  created_at: string
+}
+
 export interface NoteFolder {
   id: number
   name: string
@@ -465,6 +478,12 @@ declare global {
           open: (fileId: number) => Promise<boolean>
         }
         stats: () => Promise<{ levels: Array<{ study_level: number; count: number }>; total: number }>
+      }
+      attachments: {
+        list: (entityType: string, entityId: number) => Promise<Attachment[]>
+        add: (entityType: string, entityId: number) => Promise<Attachment | null>
+        open: (id: number) => Promise<boolean>
+        delete: (id: number) => Promise<boolean>
       }
       pomodoro: {
         sessions: {

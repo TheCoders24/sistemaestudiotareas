@@ -151,7 +151,7 @@ function register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z }) {
       for (const f of files) {
         try {
           const fs = require('fs')
-          const filePath = require('path').join(require('electron').app.getPath('userData'), 'study-files', f.stored_name)
+          const filePath = require('path').join(require('electron').app.getPath('userData'), 'study_files', f.stored_name)
           if (fs.existsSync(filePath)) {
             const text = fs.readFileSync(filePath, 'utf-8').slice(0, 4000)
             content += `\n\nFile (${f.original_name}):\n${text}`
@@ -227,7 +227,7 @@ function register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z }) {
     for (const f of files) {
       try {
         const fs = require('fs')
-        const filePath = require('path').join(require('electron').app.getPath('userData'), 'study-files', f.stored_name)
+        const filePath = require('path').join(require('electron').app.getPath('userData'), 'study_files', f.stored_name)
         if (fs.existsSync(filePath)) {
           const text = fs.readFileSync(filePath, 'utf-8').slice(0, 3000)
           context += `\n\nFrom ${f.original_name}:\n${text}`
