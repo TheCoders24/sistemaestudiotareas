@@ -620,6 +620,7 @@ declare global {
         weeklySummary: () => Promise<{ summary: string }>
         tutor: (topicId: number, message: string, history?: Array<{ role: string; content: string }>) => Promise<string>
         validateKey: () => Promise<{ valid: boolean }>
+        listModels: () => Promise<string[]>
       }
       profiler: {
         getReport: () => Promise<Record<string, unknown>>

@@ -469,7 +469,7 @@ function AppInner() {
             {sidebarContent}
           </aside>
           <main id="main-content" className="flex-1 overflow-y-auto p-6" role="main">
-            <div key={activeTab} className="animate-fade-slide-in">
+            <div key={activeTab} className="animate-fade-slide-in h-full">
               {activeTab === 'inicio' && <ErrorBoundary name="Dashboard"><Dashboard /></ErrorBoundary>}
               {activeTab === 'pomodoro' && <ErrorBoundary name="Pomodoro"><PomodoroTimer onComplete={handleStreakUpdate} /></ErrorBoundary>}
               {activeTab === 'kanban' && <ErrorBoundary name="Kanban"><KanbanBoard /></ErrorBoundary>}

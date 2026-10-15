@@ -363,6 +363,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     weeklySummary: () => ipcRenderer.invoke('ai:weeklySummary'),
     tutor: (topicId, message, history) => ipcRenderer.invoke('ai:tutor', { topicId, message, history }),
     validateKey: () => ipcRenderer.invoke('ai:validateKey'),
+    listModels: () => ipcRenderer.invoke('ai:listModels'),
   },
 
   // Startup Profiler

@@ -25,18 +25,18 @@ export default React.memo(function KanbanColumn({ column, cards, onDelete, onVie
   return (
     <div
       ref={setNodeRef}
-      className={`bg-card/50 border rounded-lg min-w-[280px] w-[280px] flex-shrink-0 border-t-4 ${column.color} ${
+      className={`bg-card/50 border rounded-lg min-w-[280px] flex-1 flex flex-col border-t-4 ${column.color} ${
         isOver ? 'ring-2 ring-indigo-500' : ''
       }`}
     >
-      <div className="p-3 border-b">
+      <div className="p-3 border-b flex-shrink-0">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-sm">{column.label}</h3>
           <Badge variant="secondary" className="text-[10px]">{cards.length}</Badge>
         </div>
       </div>
 
-      <div className="p-2 space-y-2 min-h-[200px]">
+      <div className="p-2 space-y-2 flex-1 min-h-[200px] overflow-y-auto">
         <SortableContext items={cards.map(c => c.id)} strategy={verticalListSortingStrategy}>
           {cards.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-4">Arrastra tarjetas aquí</p>

@@ -41,6 +41,11 @@ out/
 # Old release artifacts
 release_new/
 
+# Local build output / test artifacts
+instalables/
+test-results/
+playwright-report/
+
 # Empty dirs (embedded git repos)
 sistemadeestudio/
 

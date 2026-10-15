@@ -122,8 +122,8 @@ export default function KanbanBoard() {
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div className="h-full flex flex-col">
+      <div className="flex justify-between items-center mb-6 flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <LayoutDashboard className="h-6 w-6 text-indigo-500" /> {t('kanban.title')}
@@ -135,7 +135,7 @@ export default function KanbanBoard() {
         </Button>
       </div>
 
-      <InfoBox title={t('kanban.title')} storageKey="tutorial_kanban" className="mb-4">
+      <InfoBox title={t('kanban.title')} storageKey="tutorial_kanban" className="mb-4 flex-shrink-0">
         <p>Un tablero visual para organizar tu trabajo en columnas:
           <strong>Por Hacer</strong> → <strong>En Progreso</strong> → <strong>Hecho</strong>.
           Arrastra las tarjetas entre columnas para actualizar su estado. Añade etiquetas, prioridades y fechas límite.
@@ -143,7 +143,7 @@ export default function KanbanBoard() {
       </InfoBox>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-card border rounded-lg p-4 mb-6 space-y-3">
+        <form onSubmit={handleCreate} className="bg-card border rounded-lg p-4 mb-6 space-y-3 flex-shrink-0">
           <Input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Título" autoFocus required />
           <Textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Descripción" className="min-h-[60px]" />
           <div className="flex gap-3 flex-wrap">
@@ -169,7 +169,7 @@ export default function KanbanBoard() {
       )}
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e) => setActiveId(e.active.id as number)} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 overflow-x-auto pb-4 flex-1 min-h-0">
           {COLUMNS.map(column => (
             <KanbanColumn key={column.id} column={column} cards={cardsByColumn[column.id] || []} onDelete={handleDelete} onView={() => {}} />
           ))}

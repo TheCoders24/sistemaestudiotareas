@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore, Keyboard, MousePointer2 } from 'lucide-react'
+import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore, Keyboard, MousePointer2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -44,6 +44,11 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
   const [backupsLoading, setBackupsLoading] = useState(false)
   const [restoreConfirm, setRestoreConfirm] = useState<BackupEntry | null>(null)
   const [userProfile, setUserProfile] = useState('custom')
+  const [aiProvider, setAiProvider] = useState('anthropic')
+  const [aiBaseUrl, setAiBaseUrl] = useState('http://localhost:1234/v1')
+  const [aiModel, setAiModel] = useState('')
+  const [aiModels, setAiModels] = useState<string[]>([])
+  const [aiModelsLoading, setAiModelsLoading] = useState(false)
   const [aiApiKey, setAiApiKey] = useState('')
   const [aiKeyValid, setAiKeyValid] = useState<boolean | null>(null)
   const [aiKeyChecking, setAiKeyChecking] = useState(false)
@@ -62,6 +67,15 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
       window.electronAPI.settings.get('ai_api_key').then((val: string | null) => {
         if (val) setAiApiKey(val)
       })
+      window.electronAPI.settings.get('ai_provider').then((val: string | null) => {
+        if (val) setAiProvider(val)
+      })
+      window.electronAPI.settings.get('ai_base_url').then((val: string | null) => {
+        if (val) setAiBaseUrl(val)
+      })
+      window.electronAPI.settings.get('ai_model').then((val: string | null) => {
+        if (val) setAiModel(val)
+      })
     }
   }, [])
 
@@ -79,6 +93,35 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
       }
     }
   }, [pomodoroPreset, focusTime])
+
+  useEffect(() => {
+    if (window.electronAPI) window.electronAPI.settings.set('ai_provider', aiProvider)
+  }, [aiProvider])
+
+  useEffect(() => {
+    if (window.electronAPI) window.electronAPI.settings.set('ai_base_url', aiBaseUrl)
+  }, [aiBaseUrl])
+
+  useEffect(() => {
+    if (window.electronAPI) window.electronAPI.settings.set('ai_model', aiModel)
+  }, [aiModel])
+
+  async function loadAiModels() {
+    if (!window.electronAPI) return
+    setAiModelsLoading(true)
+    setAiKeyValid(null)
+    try {
+      await window.electronAPI.settings.set('ai_base_url', aiBaseUrl)
+      const models = await window.electronAPI.ai.listModels()
+      setAiModels(models)
+      if (models.length > 0 && !models.includes(aiModel)) setAiModel(models[0])
+      toast({ title: 'Modelos cargados', description: `${models.length} modelo(s) disponible(s).` })
+    } catch (err) {
+      toast({ title: 'Error al conectar con LM Studio', description: String(err), variant: 'destructive' })
+    } finally {
+      setAiModelsLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (eyeRestTimerRef.current) clearInterval(eyeRestTimerRef.current)
@@ -266,42 +309,105 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
               <span className="text-sm font-medium">IA - Asistente de Estudio</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Configurá tu API key de Anthropic (Claude) para usar generación de flashcards, resúmenes y tutor IA.
+              Elegí el proveedor de IA para generación de flashcards, resúmenes y tutor IA.
             </p>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Key className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="password"
-                  value={aiApiKey}
-                  onChange={(e) => setAiApiKey(e.target.value)}
-                  placeholder="sk-ant-..."
-                  className="pl-8 h-8 text-xs font-mono"
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8"
-                disabled={aiKeyChecking || !aiApiKey}
-                onClick={async () => {
-                  if (!window.electronAPI) return
-                  setAiKeyChecking(true)
-                  setAiKeyValid(null)
-                  await window.electronAPI.settings.set('ai_api_key', aiApiKey)
-                  const result = await window.electronAPI.ai.validateKey()
-                  setAiKeyValid(result.valid)
-                  setAiKeyChecking(false)
-                  if (result.valid) toast({ title: 'API key válida', description: 'La clave de Anthropic funciona correctamente.' })
-                  else toast({ title: 'API key inválida', description: 'Verificá la clave e intentá de nuevo.', variant: 'destructive' })
-                }}
-              >
-                {aiKeyChecking ? <Loader className="h-3 w-3 animate-spin" /> : aiKeyValid === true ? <Check className="h-3 w-3 text-green-500" /> : aiKeyValid === false ? <X className="h-3 w-3 text-red-500" /> : 'Validar'}
-              </Button>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Proveedor</label>
+              <Select value={aiProvider} onValueChange={(v) => { setAiProvider(v); setAiKeyValid(null) }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                  <SelectItem value="lmstudio">LM Studio (local)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Tu API key se almacena localmente y solo se usa para llamadas a la API de Anthropic.
-            </p>
+
+            {aiProvider === 'anthropic' ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Key className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      value={aiApiKey}
+                      onChange={(e) => setAiApiKey(e.target.value)}
+                      placeholder="sk-ant-..."
+                      className="pl-8 h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    disabled={aiKeyChecking || !aiApiKey}
+                    onClick={async () => {
+                      if (!window.electronAPI) return
+                      setAiKeyChecking(true)
+                      setAiKeyValid(null)
+                      await window.electronAPI.settings.set('ai_provider', 'anthropic')
+                      await window.electronAPI.settings.set('ai_api_key', aiApiKey)
+                      const result = await window.electronAPI.ai.validateKey()
+                      setAiKeyValid(result.valid)
+                      setAiKeyChecking(false)
+                      if (result.valid) toast({ title: 'API key válida', description: 'La clave de Anthropic funciona correctamente.' })
+                      else toast({ title: 'API key inválida', description: 'Verificá la clave e intentá de nuevo.', variant: 'destructive' })
+                    }}
+                  >
+                    {aiKeyChecking ? <Loader className="h-3 w-3 animate-spin" /> : aiKeyValid === true ? <Check className="h-3 w-3 text-green-500" /> : aiKeyValid === false ? <X className="h-3 w-3 text-red-500" /> : 'Validar'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tu API key se almacena localmente y solo se usa para llamadas a la API de Anthropic.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">URL del servidor (LM Studio)</label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={aiBaseUrl}
+                      onChange={(e) => setAiBaseUrl(e.target.value)}
+                      placeholder="http://localhost:1234/v1"
+                      className="h-8 text-xs font-mono"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 shrink-0"
+                      disabled={aiModelsLoading || !aiBaseUrl}
+                      onClick={loadAiModels}
+                    >
+                      {aiModelsLoading ? <Loader className="h-3 w-3 animate-spin" /> : aiKeyValid === false ? <X className="h-3 w-3 text-red-500" /> : <RefreshCw className="h-3 w-3" />}
+                      <span className="ml-1">Cargar modelos</span>
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Modelo</label>
+                  {aiModels.length > 0 ? (
+                    <Select value={aiModel} onValueChange={setAiModel}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Elegí un modelo" /></SelectTrigger>
+                      <SelectContent>
+                        {aiModels.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={aiModel}
+                      onChange={(e) => setAiModel(e.target.value)}
+                      placeholder="Nombre del modelo (ej: llama-3.2-3b-instruct)"
+                      className="h-8 text-xs font-mono"
+                    />
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Asegurate de que LM Studio esté corriendo con el servidor local activado (Developer → Start Server).
+                  La configuración se guarda automáticamente.
+                </p>
+              </>
+            )}
           </div>
 
           <Separator />
