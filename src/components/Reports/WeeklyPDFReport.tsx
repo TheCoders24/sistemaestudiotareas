@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { FileText, Download, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/use-toast'
@@ -34,6 +34,7 @@ function formatDate(d: Date) {
 
 export default function WeeklyPDFReport() {
   const [weekOffset, setWeekOffset] = useState(0)
+  const reportRef = useRef<HTMLDivElement>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [sessions, setSessions] = useState<PomodoroSession[]>([])
   const [habits, setHabits] = useState<Habit[]>([])
@@ -290,6 +291,44 @@ export default function WeeklyPDFReport() {
     toast({ title: 'HTML descargado', description: 'Informe semanal exportado correctamente' })
   }
 
+  async function downloadPDF() {
+    const el = reportRef.current
+    if (!el) return
+    try {
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([import('jspdf'), import('html2canvas')])
+      toast({ title: 'Generando PDF...', description: 'Por favor espera' })
+
+      const prevMaxH = el.style.maxHeight
+      const prevOverflowY = el.style.overflowY
+      el.style.maxHeight = 'none'
+      el.style.overflowY = 'visible'
+
+      const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2, useCORS: true })
+
+      el.style.maxHeight = prevMaxH
+      el.style.overflowY = prevOverflowY
+
+      const imgW = 210
+      const pageH = 297
+      const imgH = (canvas.height * imgW) / canvas.width
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      pdf.addImage(imgData, 'PNG', 0, 0, imgW, imgH)
+      let heightLeft = imgH - pageH
+      let position = -pageH
+      while (heightLeft > 0) {
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH)
+        heightLeft -= pageH
+        position -= pageH
+      }
+      pdf.save(`informe_semanal_${start.toISOString().slice(0, 10)}.pdf`)
+      toast({ title: 'PDF exportado', description: 'Informe semanal descargado correctamente' })
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo generar el PDF', variant: 'destructive' })
+    }
+  }
+
   function copySummary() {
     const summary = `Informe Semanal (${formatDate(start)} - ${formatDate(end)})
 Tareas: ${completedTasks.length}/${weekTasks.length} completadas (${completionRate}%)
@@ -313,8 +352,11 @@ ${flashcardStats.total > 0 ? `Flashcards: ${flashcardStats.total} tarjetas, ${fl
           <Button variant="outline" size="sm" onClick={copySummary} className="gap-1.5">
             <Copy className="h-4 w-4" /> Copiar resumen
           </Button>
-          <Button size="sm" onClick={downloadHTML} className="gap-1.5">
-            <Download className="h-4 w-4" /> Descargar como HTML
+          <Button size="sm" onClick={downloadPDF} className="gap-1.5">
+            <FileText className="h-4 w-4" /> Descargar PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={downloadHTML} className="gap-1.5">
+            <Download className="h-4 w-4" /> HTML
           </Button>
         </div>
       </div>
@@ -335,7 +377,7 @@ ${flashcardStats.total > 0 ? `Flashcards: ${flashcardStats.total} tarjetas, ${fl
       </div>
 
       <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
-        <div className="p-8 max-h-[600px] overflow-y-auto">
+        <div className="p-8 max-h-[600px] overflow-y-auto" ref={reportRef}>
           <div className="text-center mb-6 pb-4" style={{ borderBottom: '2px solid #6366f1' }}>
             <h1 className="text-2xl font-bold" style={{ color: '#6366f1' }}>Informe Semanal - EstudioApp</h1>
             <p className="text-xs mt-1" style={{ color: '#888' }}>{formatDate(start)} - {formatDate(end)}</p>
