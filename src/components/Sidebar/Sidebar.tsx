@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronDown, StickyNote, Target, TrendingUp, Zap, Timer, CheckSquare, Settings2, PanelRightClose } from 'lucide-react'
-import { TABS, KEYBOARD_SHORTCUTS, getVisibleHubs, getVisibleTabs } from '@/constants/tabs'
+import { TABS, HUBS, KEYBOARD_SHORTCUTS, getVisibleHubs, getVisibleTabs } from '@/constants/tabs'
 import type { Tab } from '@/constants/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -31,9 +31,42 @@ export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userNam
   const [streak, setStreak] = useState<{ current: number; max: number } | null>(null)
   const [dailyStats, setDailyStats] = useState<{ pomodoros: number; tasks: number } | null>(null)
   const [collapsed, setCollapsed] = useState(false)
-  const [expandedHubs, setExpandedHubs] = useState<Record<string, boolean>>({})
+  const [devMode, setDevMode] = useState(developerMode)
+  const [expandedHubs, setExpandedHubs] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem('sidebar-hubs-open')
+      if (raw) return JSON.parse(raw)
+    } catch {}
+    return {}
+  })
   const toggleHub = (id: string) => setExpandedHubs(prev => ({ ...prev, [id]: !(prev[id] ?? true) }))
   const activeWorkspace = useWorkspaceStore(s => s.activeWorkspace)
+  const effDevMode = devMode || developerMode
+
+  function openHubForTab(tabId: string) {
+    const hub = HUBS.find(h => h.tabs.some(t => t.id === tabId))
+    if (hub) setExpandedHubs(prev => (prev[hub.id] ? prev : { ...prev, [hub.id]: true }))
+  }
+
+  useEffect(() => {
+    let active = true
+    if (window.electronAPI?.settings?.get) {
+      window.electronAPI.settings.get('developerMode')
+        .then((val: string | null) => { if (active && val === 'true') { setDevMode(true); openHubForTab('devtools') } })
+        .catch(() => {})
+    }
+    const onDevMode = (e: Event) => {
+      const on = Boolean((e as CustomEvent<boolean>).detail)
+      setDevMode(on)
+      if (on) openHubForTab('devtools')
+    }
+    window.addEventListener('developerModeChanged', onDevMode)
+    return () => { active = false; window.removeEventListener('developerModeChanged', onDevMode) }
+  }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem('sidebar-hubs-open', JSON.stringify(expandedHubs)) } catch {}
+  }, [expandedHubs])
 
   async function loadData() {
     if (!window.electronAPI) return
@@ -84,7 +117,7 @@ export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userNam
     return (
       <button
         key={tab.id}
-        onClick={() => onNavigate(tab.id)}
+        onClick={() => { onNavigate(tab.id); openHubForTab(tab.id) }}
         onMouseEnter={() => preloadRouteByName(tab.id)}
         className={cn(
           'flex items-center gap-3 w-full text-left transition-colors',
@@ -118,7 +151,7 @@ export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userNam
           <PanelRightClose className="h-4 w-4" />
         </button>
         <Separator />
-        {getVisibleTabs(userProfile, developerMode).filter(t => t.id !== 'tienda' && t.id !== 'social').map(tab => {
+        {getVisibleTabs(userProfile, effDevMode).filter(t => t.id !== 'tienda' && t.id !== 'social').map(tab => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
           return (
@@ -166,25 +199,32 @@ export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userNam
             <nav className="flex flex-col">
               {renderTab(TABS.find(t => t.id === 'inicio')!)}
               <div className="border-t border-border my-1" />
-              {getVisibleHubs(userProfile, developerMode).map(hub => {
+              {getVisibleHubs(userProfile, effDevMode).map(hub => {
                 const HubIcon = hub.icon
                 const isExpanded = expandedHubs[hub.id] ?? true
+                const hasActive = hub.tabs.some(t => t.id === activeTab)
                 return (
                   <div key={hub.id}>
                     <button
                       onClick={() => toggleHub(hub.id)}
+                      aria-expanded={isExpanded}
                       className={cn(
                         'flex items-center gap-3 w-full text-left transition-colors',
                         navItemPad,
                         textSize,
-                        'text-muted-foreground hover:bg-accent hover:text-foreground'
+                        hasActive ? 'text-foreground' : 'text-muted-foreground',
+                        'hover:bg-accent hover:text-foreground'
                       )}
                     >
                       <HubIcon className={cn('shrink-0', denseMode ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
                       <span className="flex-1 truncate font-medium">{hub.label}</span>
-                      <ChevronDown className={cn('h-3 w-3 transition-transform shrink-0', isExpanded ? '' : '-rotate-90')} />
+                      <ChevronDown className={cn('h-3 w-3 transition-transform duration-200 shrink-0', isExpanded ? '' : '-rotate-90')} />
                     </button>
-                    {isExpanded && hub.tabs.map(tab => renderTab(tab, true))}
+                    {isExpanded && (
+                      <div className="animate-fade-slide-in">
+                        {hub.tabs.map(tab => renderTab(tab, true))}
+                      </div>
+                    )}
                   </div>
                 )
               })}

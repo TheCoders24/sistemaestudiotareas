@@ -350,6 +350,10 @@ function AppInner() {
   }, [])
 
   useEffect(() => {
+    if (!developerMode && activeTab === 'devtools') setActiveTab('inicio')
+  }, [developerMode, activeTab, setActiveTab])
+
+  useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
@@ -579,7 +583,7 @@ function AppInner() {
               {activeTab === 'informe' && <ErrorBoundary name="Informe"><WeeklyPDFReport /></ErrorBoundary>}
               {activeTab === 'importar-cal' && <ErrorBoundary name="Importar Cal"><CalendarImport /></ErrorBoundary>}
               {activeTab === 'automation' && <ErrorBoundary name="Automation"><AutomationRules /></ErrorBoundary>}
-        {activeTab === 'devtools' && developerMode && <ErrorBoundary name="DevTools"><DevToolsPage /></ErrorBoundary>}
+              {activeTab === 'devtools' && <ErrorBoundary name="DevTools"><DevToolsPage /></ErrorBoundary>}
             </div>
           </main>
         </div>
