@@ -61,6 +61,7 @@ Recibe el objeto/string JSON y reinserta en transacción (delete + insert).
 
 ## Recomendación
 
-Eliminar `electron/services/BackupService.js` y `electron/services/SyncService.js`
+Eliminar `electron/services/BackupService.js`
 (sin llamadores). El respaldo automático y la restauración ya usan la misma
-lista `ALL_TABLES`.
+lista `ALL_TABLES`. (`electron/services/SyncService.js` ya fue eliminado; la
+sincronización local vive en `electron/handlers/sync.js`.)

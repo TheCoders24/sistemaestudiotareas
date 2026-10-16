@@ -6,7 +6,7 @@
  *  Verifica que:
  *    A. ALL_TABLES incluye TODAS las tablas del esquema (electron/database.js).
  *    B. BackupService usa ALL_TABLES y hace backup/restore de ida y vuelta.
- *    C. SyncService exporta exactamente ALL_TABLES.
+ *    C. La sincronización (handlers/sync.js) exporta todas las tablas de ALL_TABLES.
  *
  *  Cómo ejecutarlo:
  *    npx vitest run test/15-backup-tables.test.ts
@@ -23,7 +23,7 @@ const require = createRequire(import.meta.url)
 const root = path.resolve(__dirname, '..')
 const { ALL_TABLES } = require(path.join(root, 'electron', 'core', 'backup-tables'))
 const { BackupService } = require(path.join(root, 'electron', 'services', 'BackupService'))
-const { SyncService } = require(path.join(root, 'electron', 'services', 'SyncService'))
+const { exportAllData } = require(path.join(root, 'electron', 'handlers', 'sync'))
 
 function makeFakeDb() {
   const store: Record<string, any[]> = {}
@@ -81,10 +81,9 @@ describe('B · BackupService', () => {
   })
 })
 
-describe('C · SyncService', () => {
-  it('exporta exactamente ALL_TABLES', () => {
-    const svc = new SyncService(() => makeFakeDb() as any)
-    const data = svc._exportAllData()
+describe('C · Sync (handlers/sync.js)', () => {
+  it('exporta todas las tablas de ALL_TABLES', () => {
+    const data = exportAllData(() => makeFakeDb() as any)
     const keys = Object.keys(data).filter(k => !k.startsWith('_'))
     for (const t of ALL_TABLES) expect(keys).toContain(t)
   })
