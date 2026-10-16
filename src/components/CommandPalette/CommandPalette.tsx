@@ -45,6 +45,7 @@ const ENTITY_GROUPS: GroupMeta[] = [
   { label: 'Proyectos', icon: FolderKanban, types: ['project', 'proyecto'] },
   { label: 'Hábitos', icon: Activity, types: ['habit', 'hábito'] },
   { label: 'Diario', icon: NotebookPen, types: ['dailylog', 'diario'] },
+  { label: 'Temas', icon: BookOpen, types: ['topic', 'tema'] },
   { label: 'Flashcards', icon: Brain, types: ['flashcard'] },
 ]
 
@@ -59,6 +60,8 @@ const SEARCH_NAV: Record<string, string> = {
   project: 'proyectos',
   habit: 'habitos', 'hábito': 'habitos',
   dailylog: 'diario', diario: 'diario',
+  topic: 'mapa', tema: 'mapa',
+  flashcard: 'flashcards',
 }
 
 const NAV_COMMANDS: NavCommand[] = [

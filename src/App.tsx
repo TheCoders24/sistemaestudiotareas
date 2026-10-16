@@ -325,6 +325,15 @@ function AppInner() {
   }, [])
 
   useEffect(() => {
+    const handleProfile = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail
+      if (detail) setUserProfile(detail)
+    }
+    window.addEventListener('userProfileChanged', handleProfile)
+    return () => window.removeEventListener('userProfileChanged', handleProfile)
+  }, [])
+
+  useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
@@ -339,7 +348,6 @@ function AppInner() {
       else if (combo === 'Ctrl+Shift+A') { e.preventDefault(); setQuickAddOpen(true) }
       else if (combo === 'Ctrl+K') { e.preventDefault(); setCommandPaletteOpen(true) }
       else if (combo === 'Ctrl+F') { e.preventDefault(); setSearchOpen(true) }
-      else if (combo === 'Ctrl+Shift+F') { e.preventDefault(); setFocusMode(true) }
       else if (combo === 'Ctrl+Space') { e.preventDefault(); setQuickCaptureOpen(true) }
     }
     window.addEventListener('keydown', handleKey)
@@ -424,6 +432,7 @@ function AppInner() {
         userName={userName}
         fontSize={fontSize}
         denseMode={denseMode}
+        userProfile={userProfile}
       />
     </RouteSuspense>
   )

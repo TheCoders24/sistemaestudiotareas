@@ -293,6 +293,7 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
               if (window.electronAPI) {
                 window.electronAPI.settings.set('userProfile', val)
               }
+              window.dispatchEvent(new CustomEvent('userProfileChanged', { detail: val }))
             }}>
               <SelectTrigger>
                 <SelectValue />

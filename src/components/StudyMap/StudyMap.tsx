@@ -154,7 +154,20 @@ export default function StudyMap() {
     setGeneratingFlashcards(topicId)
     try {
       const cards = await window.electronAPI.ai.generateFlashcards('topic', topicId)
-      toast({ title: 'Flashcards generadas', description: `${cards.length} tarjetas generadas con IA. Revisalas y confirmá en la sección Flashcards.` })
+      if (!cards || cards.length === 0) {
+        toast({ title: 'Sin resultados', description: 'La IA no devolvió flashcards para este tema.', variant: 'destructive' })
+        return
+      }
+      const topic = topics.find(tp => tp.id === topicId)
+      const deckName = `IA · ${topic?.name || 'Tema'}`
+      const deck = await window.electronAPI.flashcards.decks.create({
+        name: deckName,
+        description: 'Generadas con IA desde el mapa de estudio',
+      })
+      for (const c of cards) {
+        await window.electronAPI.flashcards.cards.create({ deck_id: deck.id, front: c.front, back: c.back })
+      }
+      toast({ title: 'Flashcards generadas', description: `${cards.length} tarjetas guardadas en el mazo "${deckName}". Repasalas en la sección Flashcards.` })
     } catch (err) {
       toast({ title: 'Error', description: String(err), variant: 'destructive' })
     } finally {

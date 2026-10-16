@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronDown, StickyNote, Target, TrendingUp, Zap, Timer, CheckSquare, Settings2, PanelRightClose } from 'lucide-react'
-import { TABS, HUBS, KEYBOARD_SHORTCUTS } from '@/constants/tabs'
+import { TABS, KEYBOARD_SHORTCUTS, getVisibleHubs, getVisibleTabs } from '@/constants/tabs'
 import type { Tab } from '@/constants/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -19,9 +19,10 @@ interface SidebarProps {
   userName?: string
   fontSize?: 'sm' | 'base' | 'lg'
   denseMode?: boolean
+  userProfile?: string
 }
 
-export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userName = '', fontSize = 'base', denseMode = false }: SidebarProps) {
+export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userName = '', fontSize = 'base', denseMode = false, userProfile = 'custom' }: SidebarProps) {
   const [notes, setNotes] = useState<any[]>([])
   const [goals, setGoals] = useState<any[]>([])
   const [goalProgress, setGoalProgress] = useState<Record<number, number>>({})
@@ -116,7 +117,7 @@ export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userNam
           <PanelRightClose className="h-4 w-4" />
         </button>
         <Separator />
-        {TABS.filter(t => t.id !== 'tienda' && t.id !== 'social').map(tab => {
+        {getVisibleTabs(userProfile).filter(t => t.id !== 'tienda' && t.id !== 'social').map(tab => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
           return (
@@ -164,7 +165,7 @@ export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userNam
             <nav className="flex flex-col">
               {renderTab(TABS.find(t => t.id === 'inicio')!)}
               <div className="border-t border-border my-1" />
-              {HUBS.map(hub => {
+              {getVisibleHubs(userProfile).map(hub => {
                 const HubIcon = hub.icon
                 const isExpanded = expandedHubs[hub.id] ?? true
                 return (

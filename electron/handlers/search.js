@@ -16,6 +16,10 @@ function populateSearchIndex(getDb) {
       for (const h of habits) insert.run('habit', String(h.id), h.workspace_id || '', h.name, '', '')
       const logs = db.prepare("SELECT id, date, content, focus, blockers, workspace_id FROM daily_logs").all()
       for (const l of logs) insert.run('dailylog', String(l.id), l.workspace_id || '', l.date, `${l.content || ''} ${l.focus || ''} ${l.blockers || ''}`, '')
+      const topics = db.prepare("SELECT id, name, description, workspace_id FROM study_topics").all()
+      for (const tp of topics) insert.run('topic', String(tp.id), tp.workspace_id || '', tp.name, tp.description || '', '')
+      const cards = db.prepare("SELECT id, front, back FROM flashcards").all()
+      for (const c of cards) insert.run('flashcard', String(c.id), '', c.front, c.back || '', '')
     })
     tx()
     return true
@@ -59,6 +63,14 @@ function register(ipcMain, { getStmt, getDb, safeHandle, schemas, voidSchema, z 
     try {
       const logs = getStmt("SELECT id, date as name, 'diario' as type FROM daily_logs WHERE content LIKE ? OR focus LIKE ? LIMIT 10").all(like, like)
       results.push(...logs)
+    } catch {}
+    try {
+      const topics = getStmt("SELECT id, name, 'tema' as type FROM study_topics WHERE name LIKE ? OR description LIKE ? LIMIT 10").all(like, like)
+      results.push(...topics)
+    } catch {}
+    try {
+      const cards = getStmt("SELECT id, front as name, 'flashcard' as type FROM flashcards WHERE front LIKE ? OR back LIKE ? LIMIT 10").all(like, like)
+      results.push(...cards)
     } catch {}
     return results
   })

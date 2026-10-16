@@ -107,6 +107,24 @@ export const TABS: Tab[] = [
   ...HUBS.flatMap(h => h.tabs),
 ]
 
+export const PROFILE_HIDDEN_TABS: Record<string, string[]> = {
+  student: ['snippets', 'automation'],
+  developer: ['cursos', 'exams', 'tutor', 'mapa', 'flashcards', 'repaso', 'rachas-materias', 'energia'],
+  custom: [],
+}
+
+export function getVisibleTabs(profile: string): Tab[] {
+  const hidden = PROFILE_HIDDEN_TABS[profile] || []
+  return TABS.filter(t => !hidden.includes(t.id))
+}
+
+export function getVisibleHubs(profile: string): Hub[] {
+  const hidden = PROFILE_HIDDEN_TABS[profile] || []
+  return HUBS
+    .map(hub => ({ ...hub, tabs: hub.tabs.filter(t => !hidden.includes(t.id)) }))
+    .filter(hub => hub.tabs.length > 0)
+}
+
 export const KEYBOARD_SHORTCUTS: Record<string, string> = {
   inicio: 'Ctrl+1', pomodoro: 'Ctrl+P', tareas: 'Ctrl+T',
   proyectos: 'Ctrl+Shift+P', diario: 'Ctrl+D', calendario: 'Ctrl+Shift+C',
