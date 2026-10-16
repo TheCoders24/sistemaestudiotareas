@@ -271,6 +271,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   app: {
+    getVersion: () => ipcRenderer.invoke('app:getVersion'),
     autoStart: {
       get: () => ipcRenderer.invoke('app:getAutoStart'),
       set: (enabled) => ipcRenderer.invoke('app:setAutoStart', enabled),

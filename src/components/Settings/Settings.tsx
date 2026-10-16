@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore, Keyboard, MousePointer2, RefreshCw, Lock, Wrench } from 'lucide-react'
+import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore, Keyboard, MousePointer2, RefreshCw, Lock, Wrench, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -56,6 +56,11 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
   const [aiKeyChecking, setAiKeyChecking] = useState(false)
   const [pinEnabled, setPinEnabled] = useState(false)
   const [pinDialogMode, setPinDialogMode] = useState<'set' | 'change' | null>(null)
+  const [appVersion, setAppVersion] = useState('')
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error' | 'unsupported'>('idle')
+  const [updatePercent, setUpdatePercent] = useState(0)
+  const [updateVersion, setUpdateVersion] = useState('')
+  const [updateError, setUpdateError] = useState('')
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -86,6 +91,38 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
       })
     }
   }, [])
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.app.getVersion?.().then((r) => setAppVersion(r.version)).catch(() => {})
+      const off = window.electronAPI.events.onUpdateStatus?.((data) => {
+        if (data.status) setUpdateStatus(data.status as typeof updateStatus)
+        if (typeof data.percent === 'number') setUpdatePercent(data.percent)
+        if (data.version) setUpdateVersion(data.version)
+        if (data.message) setUpdateError(data.message)
+      })
+      return () => { off?.() }
+    }
+  }, [])
+
+  async function checkForUpdates() {
+    if (!window.electronAPI?.app?.updater) return
+    setUpdateStatus('checking')
+    setUpdateError('')
+    try {
+      const res = await window.electronAPI.app.updater.check()
+      if (!res.supported) { setUpdateStatus('unsupported'); return }
+      if (res.error) { setUpdateStatus('error'); setUpdateError(res.error) }
+    } catch (err) {
+      setUpdateStatus('error')
+      setUpdateError(String(err))
+    }
+  }
+
+  async function installUpdate() {
+    if (!window.electronAPI?.app?.updater) return
+    await window.electronAPI.app.updater.install()
+  }
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -196,6 +233,17 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
       toast({ title: t('settings.backups_restore_error'), variant: 'destructive' })
     }
   }
+
+  const updateText = {
+    idle: 'Buscá si hay una versión más reciente disponible.',
+    checking: 'Buscando actualizaciones...',
+    available: `Nueva versión ${updateVersion || ''} disponible. Descargando...`,
+    'not-available': 'Ya tenés la última versión instalada.',
+    downloading: `Descargando actualización... ${updatePercent}%`,
+    downloaded: `Actualización ${updateVersion || ''} lista. Reiniciá para instalarla.`,
+    error: `No se pudo buscar actualizaciones${updateError ? `: ${updateError}` : ''}.`,
+    unsupported: 'Las actualizaciones automáticas solo están disponibles en la versión instalada.',
+  }[updateStatus]
 
   return (
     <>
@@ -553,6 +601,37 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
                 ))}
               </div>
             )}
+          </div>
+
+          <Separator />
+
+          {/* Actualizaciones */}
+          <div className="bg-accent/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Download className="h-4 w-4 text-sky-500" />
+                <span className="text-sm font-medium">Actualizaciones</span>
+              </div>
+              {appVersion && <span className="text-[10px] text-muted-foreground font-mono">v{appVersion}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground">{updateText}</p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1"
+                disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+                onClick={checkForUpdates}
+              >
+                {(updateStatus === 'checking' || updateStatus === 'downloading') ? <Loader className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                Buscar actualizaciones
+              </Button>
+              {updateStatus === 'downloaded' && (
+                <Button size="sm" className="h-8 gap-1" onClick={installUpdate}>
+                  <Download className="h-3 w-3" /> Reiniciar e instalar
+                </Button>
+              )}
+            </div>
           </div>
 
         </div>

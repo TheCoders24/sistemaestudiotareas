@@ -545,12 +545,13 @@ declare global {
       }
       events: {
         onTrayAction: (callback: (action: string) => void) => () => void
-        onUpdateStatus: (callback: (data: { status: string; percent?: number }) => void) => () => void
+        onUpdateStatus: (callback: (data: { status: string; percent?: number; version?: string; message?: string }) => void) => () => void
         onWifiDeviceFound: (callback: (data: { name: string; ip: string; port: number }) => void) => () => void
         onReminderNotification: (callback: (data: { id: number; title: string }) => void) => () => void
         subscribe: (channel: string, callback: (data: unknown) => void) => () => void
       }
       app: {
+        getVersion: () => Promise<{ version: string }>
         autoStart: {
           get: () => Promise<boolean>
           set: (enabled: boolean) => Promise<boolean>
@@ -560,8 +561,8 @@ declare global {
           unregister: (accelerator: string) => Promise<boolean>
         }
         updater: {
-          check: () => Promise<void>
-          install: () => Promise<void>
+          check: () => Promise<{ supported: boolean; version?: string; error?: string }>
+          install: () => Promise<{ ok: boolean }>
         }
         notification: {
           show: (title: string, body: string, severity?: string) => Promise<boolean>

@@ -364,28 +364,40 @@ async function bootstrap() {
       }, 60000)
       setInterval(() => outbox.dispatchPending(), 30000)
 
+      let autoUpdater = null
       const updateConfig = path.join(process.resourcesPath, 'app-update.yml')
       if (fs.existsSync(updateConfig)) {
         try {
-          const { autoUpdater } = require('electron-updater')
+          autoUpdater = require('electron-updater').autoUpdater
           autoUpdater.logger = logger
           autoUpdater.autoDownload = true
           autoUpdater.autoInstallOnAppQuit = true
-          autoUpdater.on('update-available', () => {
-            if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'available' })
-          })
-          autoUpdater.on('download-progress', (progress) => {
-            if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloading', percent: Math.round(progress.percent) })
-          })
-          autoUpdater.on('update-downloaded', () => {
-            if (mainWindow) mainWindow.webContents.send('updater:status', { status: 'downloaded' })
-          })
-          autoUpdater.on('error', () => {})
-          safeHandle(ipcMain, 'updater:check', voidSchema(), () => { autoUpdater.checkForUpdates().catch(() => {}) })
-          safeHandle(ipcMain, 'updater:install', voidSchema(), () => { autoUpdater.quitAndInstall() })
+          const sendStatus = (payload) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updater:status', payload) }
+          autoUpdater.on('checking-for-update', () => sendStatus({ status: 'checking' }))
+          autoUpdater.on('update-available', (info) => sendStatus({ status: 'available', version: info && info.version }))
+          autoUpdater.on('update-not-available', () => sendStatus({ status: 'not-available' }))
+          autoUpdater.on('download-progress', (progress) => sendStatus({ status: 'downloading', percent: Math.round(progress.percent) }))
+          autoUpdater.on('update-downloaded', (info) => sendStatus({ status: 'downloaded', version: info && info.version }))
+          autoUpdater.on('error', (e) => sendStatus({ status: 'error', message: e && e.message }))
           setTimeout(() => { autoUpdater.checkForUpdates().catch(() => {}) }, 5000)
         } catch {}
       }
+
+      safeHandle(ipcMain, 'updater:check', voidSchema(), async () => {
+        if (!autoUpdater) return { supported: false }
+        try {
+          const result = await autoUpdater.checkForUpdates()
+          return { supported: true, version: result && result.updateInfo && result.updateInfo.version }
+        } catch (e) {
+          return { supported: true, error: e.message }
+        }
+      })
+      safeHandle(ipcMain, 'updater:install', voidSchema(), () => {
+        if (!autoUpdater) return { ok: false }
+        autoUpdater.quitAndInstall()
+        return { ok: true }
+      })
+      safeHandle(ipcMain, 'app:getVersion', voidSchema(), () => ({ version: app.getVersion() }))
 
       const SHORTCUTS = {
         'CmdOrCtrl+Shift+N': 'new-note',
