@@ -28,28 +28,6 @@ const startupProfiler = new StartupProfiler()
 logger.init()
 logger.info('main.js loaded, pid:', process.pid)
 
-// Auto-updater configuration
-autoUpdater.logger = logger
-autoUpdater.checkForUpdatesAndNotify()
-
-autoUpdater.on('update-available', (info) => {
-  logger.info('Update available:', info.version)
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update:available', info)
-  }
-})
-
-autoUpdater.on('update-downloaded', (info) => {
-  logger.info('Update downloaded:', info.version)
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update:downloaded', info)
-  }
-})
-
-autoUpdater.on('error', (err) => {
-  logger.error('Auto-updater error:', err.message)
-})
-
 let automationEngine, smartPreload, performanceMonitor, performanceModes, pinLock, pluginSystem, encryption, dbEncryption
 
 process.on('unhandledRejection', reason => {
@@ -390,6 +368,7 @@ async function bootstrap() {
       if (fs.existsSync(updateConfig)) {
         try {
           const { autoUpdater } = require('electron-updater')
+          autoUpdater.logger = logger
           autoUpdater.autoDownload = true
           autoUpdater.autoInstallOnAppQuit = true
           autoUpdater.on('update-available', () => {

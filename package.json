@@ -2,6 +2,7 @@
   "name": "sistema-estudio-tareas",
   "version": "1.6.0",
   "description": "Sistema de estudio y tareas con Pomodoro, Kanban, Mapa de estudio y más",
+  "author": "TheCoders24 <support@sistemaestudioytareas.com>",
   "main": "electron/main.js",
   "scripts": {
     "dev": "dev.bat",
