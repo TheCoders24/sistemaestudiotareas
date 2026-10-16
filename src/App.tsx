@@ -66,6 +66,7 @@ const ExamsPage = createLazyRoute(() => import('./components/Exams/ExamsPage'), 
 const TutorPage = createLazyRoute(() => import('./components/Tutor/TutorPage'), { name: 'Tutor' })
 const PinLockDialog = createLazyRoute(() => import('./components/Security/PinLockDialog'), { name: 'PinLock' })
 const DevToolsPage = createLazyRoute(() => import('./components/DevTools/DevToolsPage'), { name: 'DevTools' })
+const ProgresoMaterias = createLazyRoute(() => import('./components/Progress/ProgresoMaterias'), { name: 'ProgresoMaterias' })
 
 registerRoutePreloader('Dashboard', () => import('./components/Dashboard/Dashboard'))
 registerRoutePreloader('TaskList', () => import('./components/TaskList/TaskList'))
@@ -571,6 +572,7 @@ function AppInner() {
               {activeTab === 'exams' && <ErrorBoundary name="Exámenes"><ExamsPage /></ErrorBoundary>}
               {activeTab === 'tutor' && <ErrorBoundary name="Tutor IA"><TutorPage /></ErrorBoundary>}
               {activeTab === 'rachas-materias' && <ErrorBoundary name="Rachas"><SubjectStreaks /></ErrorBoundary>}
+        {activeTab === 'progreso-materias' && <ErrorBoundary name="Progreso por Materia"><ProgresoMaterias /></ErrorBoundary>}
               {activeTab === 'bloqueador' && <ErrorBoundary name="Rastreador de sitios"><WebsiteBlocker /></ErrorBoundary>}
               {activeTab === 'distracciones' && <ErrorBoundary name="Distracciones"><DistractionStats /></ErrorBoundary>}
               {activeTab === 'sync' && <ErrorBoundary name="Sync"><CloudSync /></ErrorBoundary>}

@@ -43,6 +43,7 @@ export const HUBS: Hub[] = [
       { id: 'flashcards', label: 'Flashcards', icon: Brain },
       { id: 'repaso', label: 'Repaso Inteligente', icon: Brain },
       { id: 'rachas-materias', label: 'Rachas por Materia', icon: Flame },
+      { id: 'progreso-materias', label: 'Progreso por Materia', icon: BarChart3 },
     ],
   },
   {
@@ -110,7 +111,7 @@ export const TABS: Tab[] = [
 
 export const PROFILE_HIDDEN_TABS: Record<string, string[]> = {
   student: ['snippets', 'automation'],
-  developer: ['cursos', 'exams', 'tutor', 'mapa', 'flashcards', 'repaso', 'rachas-materias', 'energia'],
+  developer: ['cursos', 'exams', 'tutor', 'mapa', 'flashcards', 'repaso', 'rachas-materias', 'progreso-materias', 'energia'],
   custom: [],
 }
 
