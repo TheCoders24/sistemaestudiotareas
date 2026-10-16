@@ -7,13 +7,19 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { ChevronRight, ChevronLeft, Check, Sparkles, BookOpen, Code, User } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Check, Sparkles, BookOpen, Code, User, LayoutTemplate } from 'lucide-react'
 
 const FONT_OPTIONS = [
   { label: 'Pequeño', value: 'sm' as const },
   { label: 'Mediano', value: 'base' as const },
   { label: 'Grande', value: 'lg' as const },
 ]
+
+const TEMPLATE_ICON: Record<string, typeof BookOpen> = {
+  project: Code,
+  kanban_board: LayoutTemplate,
+  study_plan: BookOpen,
+}
 
 const PROFILE_OPTIONS = [
   { value: 'custom', label: 'General', desc: 'Uso general de productividad', icon: User },
@@ -54,11 +60,33 @@ export function WelcomeWizard({
 }: WelcomeWizardProps) {
   const [step, setStep] = useState(0)
   const [showProgressiveTips, setShowProgressiveTips] = useState(false)
+  const [templates, setTemplates] = useState<Array<{ id: number; name: string; type: string }>>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
+  const [instantiating, setInstantiating] = useState(false)
 
-  const next = () => setStep((s) => Math.min(s + 1, 3))
+  const next = () => setStep((s) => Math.min(s + 1, 4))
   const prev = () => setStep((s) => Math.max(s - 1, 0))
 
-  const handleComplete = () => {
+  useEffect(() => {
+    if (step !== 4 || !window.electronAPI) return
+    const types = userProfile === 'developer' ? ['project', 'kanban_board'] : ['study_plan', 'project']
+    Promise.all(types.map(t => window.electronAPI!.templates.list(t)))
+      .then(res => setTemplates(res.flat()))
+      .catch(() => setTemplates([]))
+  }, [step, userProfile])
+
+  const handleComplete = async () => {
+    if (selectedTemplateId && window.electronAPI) {
+      setInstantiating(true)
+      try {
+        const tpl = templates.find(t => t.id === selectedTemplateId)
+        await window.electronAPI.templates.instantiate(selectedTemplateId, {
+          workspace_id: 1,
+          name: tpl?.name || 'Plantilla',
+        })
+      } catch {}
+      setInstantiating(false)
+    }
     setShowProgressiveTips(true)
     onComplete()
   }
@@ -170,10 +198,40 @@ export function WelcomeWizard({
                 </div>
               </div>
             )}
+            {step === 4 && (
+              <div className="space-y-4 py-2">
+                <h3 className="text-lg font-semibold text-center">Empezá con una plantilla</h3>
+                <p className="text-sm text-muted-foreground text-center">Creá contenido de ejemplo en un clic (opcional)</p>
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {templates.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4">No hay plantillas disponibles</p>
+                  )}
+                  {templates.map((tpl) => {
+                    const Icon = TEMPLATE_ICON[tpl.type] || LayoutTemplate
+                    return (
+                      <button
+                        key={tpl.id}
+                        onClick={() => setSelectedTemplateId(selectedTemplateId === tpl.id ? null : tpl.id)}
+                        className={cn(
+                          'flex items-center gap-3 w-full p-3 rounded-xl border text-left transition-all',
+                          selectedTemplateId === tpl.id
+                            ? 'border-indigo-500 bg-indigo-500/10'
+                            : 'border-border hover:border-indigo-500/30'
+                        )}
+                      >
+                        <Icon className="h-4 w-4 text-indigo-500 shrink-0" />
+                        <span className="font-medium text-sm flex-1">{tpl.name}</span>
+                        {selectedTemplateId === tpl.id && <Check className="h-4 w-4 text-indigo-500" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </DialogHeader>
 
           <div className="flex justify-center gap-1.5 py-2">
-            {[0, 1, 2, 3].map((i) => (
+            {[0, 1, 2, 3, 4].map((i) => (
               <div
                 key={i}
                 className={cn(
@@ -194,15 +252,15 @@ export function WelcomeWizard({
               <div />
             )}
 
-            {step < 3 ? (
+            {step < 4 ? (
               <Button size="sm" onClick={next}>
                 Siguiente
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             ) : (
-              <Button size="sm" onClick={handleComplete}>
+              <Button size="sm" onClick={handleComplete} disabled={instantiating}>
                 <Check className="h-4 w-4 mr-1" />
-                Comenzar
+                {instantiating ? 'Creando…' : 'Comenzar'}
               </Button>
             )}
           </div>

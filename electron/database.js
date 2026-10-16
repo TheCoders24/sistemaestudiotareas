@@ -735,34 +735,62 @@ function deferDbInit() {
     }
   }
 
-  const existingTemplates = db.prepare("SELECT COUNT(*) as count FROM templates WHERE is_builtin = 1").get().count
-  if (existingTemplates === 0) {
-    const insertTemplate = db.prepare('INSERT INTO templates (type, name, description, payload, is_builtin) VALUES (?, ?, ?, ?, 1)')
-    const seedTemplates = [
-      ['project', 'Proyecto de Tesis', 'Estructura básica para proyecto de tesis o trabajo final',
-        JSON.stringify({ project: { name: '{{name}}', description: '{{description}}', color: '#6366f1', status: 'active' } })],
-      ['project', 'Sprint de 2 Semanas', 'Tablero ágil para sprint de desarrollo',
-        JSON.stringify({ project: { name: '{{name}}', description: 'Sprint planificado desde plantilla', color: '#22c55e', status: 'active' } })],
-      ['kanban_board', 'Tablero Ágil - Desarrollo', 'Columnas: Backlog, Por hacer, En progreso, Hecho',
-        JSON.stringify({})],
-      ['kanban_board', 'Tablero Académico', 'Columnas: Pendiente, Investigando, En redacción, Revisado, Entregado',
-        JSON.stringify({})],
-      ['study_plan', 'Repaso 30 Días para Examen', 'Plan de estudio intensivo con temas y flashcards',
-        JSON.stringify({ studyTopics: [
+  const insertTemplate = db.prepare('INSERT INTO templates (type, name, description, payload, is_builtin) VALUES (?, ?, ?, ?, 1)')
+  const updateTemplate = db.prepare('UPDATE templates SET description = ?, payload = ? WHERE id = ?')
+  const findBuiltin = db.prepare('SELECT id, payload FROM templates WHERE is_builtin = 1 AND name = ?')
+  const seedTemplates = [
+    ['project', 'Proyecto de Tesis', 'Estructura básica para proyecto de tesis o trabajo final',
+      JSON.stringify({ project: { name: '{{name}}', description: '{{description}}', color: '#6366f1', status: 'active' } })],
+    ['project', 'Sprint de 2 Semanas', 'Tablero ágil para sprint de desarrollo',
+      JSON.stringify({ project: { name: '{{name}}', description: 'Sprint planificado desde plantilla', color: '#22c55e', status: 'active' },
+        kanbanCards: [
+          { title: 'Definir alcance del sprint', column_type: 'pendiente', priority: 'alta' },
+          { title: 'Planificar tareas y estimar', column_type: 'pendiente', priority: 'media' },
+          { title: 'Implementar incremento', column_type: 'progreso', priority: 'alta' },
+          { title: 'Revisión y retrospectiva', column_type: 'hecho', priority: 'baja' },
+        ] })],
+    ['kanban_board', 'Tablero Ágil - Desarrollo', 'Columnas: Backlog, Por hacer, En progreso, Hecho',
+      JSON.stringify({ kanbanCards: [
+        { title: 'Refinar backlog', column_type: 'pendiente', priority: 'media' },
+        { title: 'Diseñar solución técnica', column_type: 'pendiente', priority: 'alta' },
+        { title: 'Desarrollo de la funcionalidad', column_type: 'progreso', priority: 'alta' },
+        { title: 'Code review', column_type: 'progreso', priority: 'media' },
+        { title: 'Configurar entorno', column_type: 'hecho', priority: 'baja' },
+      ] })],
+    ['kanban_board', 'Tablero Académico', 'Columnas: Pendiente, Investigando, En redacción, Revisado, Entregado',
+      JSON.stringify({ kanbanCards: [
+        { title: 'Elegir tema y delimitarlo', column_type: 'pendiente', priority: 'alta' },
+        { title: 'Buscar bibliografía', column_type: 'pendiente', priority: 'media' },
+        { title: 'Analizar fuentes', column_type: 'progreso', priority: 'media' },
+        { title: 'Redactar borrador', column_type: 'progreso', priority: 'alta' },
+        { title: 'Revisar y citar', column_type: 'hecho', priority: 'baja' },
+      ] })],
+    ['study_plan', 'Repaso 30 Días para Examen', 'Plan de estudio intensivo con materias, temas y flashcards',
+      JSON.stringify({
+        course: { name: '{{name}}', color: '#6366f1' },
+        studyTopics: [
           { name: 'Semana 1 - Fundamentos', description: 'Conceptos básicos y teoría fundamental', order_position: 1 },
           { name: 'Semana 2 - Temas Avanzados', description: 'Profundización en temas clave', order_position: 2 },
           { name: 'Semana 3 - Práctica y ejercicios', description: 'Resolución de problemas y aplicación', order_position: 3 },
           { name: 'Semana 4 - Repaso general', description: 'Repaso integral y simulacros', order_position: 4 },
-        ] })],
-    ]
-    const insertMany = db.transaction(() => {
-      for (const [type, name, description, payload] of seedTemplates) {
-        insertTemplate.run(type, name, description, payload)
-      }
-    })
-    insertMany()
-    console.log('[DB] Seed templates inserted')
-  }
+        ],
+        flashcardDecks: [
+          { name: '{{name}} - Flashcards', description: 'Mazo generado desde plantilla de estudio' },
+        ],
+        goal: { title: 'Repaso diario (plan de estudio)', type: 'daily', target: 1, metric: 'pomodoros' },
+      })],
+  ]
+  const seedTx = db.transaction(() => {
+    let inserted = 0
+    for (const [type, name, description, payload] of seedTemplates) {
+      const existing = findBuiltin.get(name)
+      if (!existing) { insertTemplate.run(type, name, description, payload); inserted++ }
+      else if (existing.payload !== payload) updateTemplate.run(description, payload, existing.id)
+    }
+    return inserted
+  })
+  const insertedCount = seedTx()
+  if (insertedCount > 0) console.log('[DB] Seed templates inserted')
 }
 
 function getDb() {

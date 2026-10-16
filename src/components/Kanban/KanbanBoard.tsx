@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { Plus, LayoutDashboard } from 'lucide-react'
+import { Plus, LayoutDashboard, LayoutTemplate } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -9,6 +9,7 @@ import { toast } from '@/components/ui/use-toast'
 import { InfoBox } from '@/components/ui/info-box'
 import { useTranslate } from '@/lib/translate'
 import { useUndoStore } from '@/stores/undoStore'
+import TemplateLibrary from '@/components/Templates/TemplateLibrary'
 import KanbanColumn from './KanbanColumn'
 
 const COLUMNS = [
@@ -28,6 +29,7 @@ export default function KanbanBoard() {
   const [formTags, setFormTags] = useState('')
   const [formDueDate, setFormDueDate] = useState('')
   const [activeId, setActiveId] = useState<number | null>(null)
+  const [templateOpen, setTemplateOpen] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -130,6 +132,9 @@ export default function KanbanBoard() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">{t('kanban.desc')}</p>
         </div>
+        <Button variant="outline" onClick={() => setTemplateOpen(true)}>
+          <LayoutTemplate className="h-4 w-4 mr-1" /> Plantilla
+        </Button>
         <Button onClick={() => setShowForm(!showForm)}>
           <Plus className="h-4 w-4 mr-1" /> {showForm ? 'Cerrar' : 'Nueva Tarjeta'}
         </Button>
@@ -182,6 +187,22 @@ export default function KanbanBoard() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {cards.length === 0 && (
+        <div className="flex-shrink-0 flex items-center justify-center gap-3 py-3 text-sm text-muted-foreground">
+          <span>Tu tablero está vacío.</span>
+          <Button variant="outline" size="sm" onClick={() => setTemplateOpen(true)}>
+            <LayoutTemplate className="h-4 w-4 mr-1" /> Empezar con plantilla
+          </Button>
+        </div>
+      )}
+
+      <TemplateLibrary
+        type="kanban_board"
+        open={templateOpen}
+        onOpenChange={setTemplateOpen}
+        onInstantiated={() => { loadCards() }}
+      />
     </div>
   )
 }

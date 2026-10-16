@@ -621,7 +621,7 @@ declare global {
       templates: {
         list: (type?: string) => Promise<Array<{ id: number; name: string; type: string; data: string; created_at: string }>>
         create: (data: { name: string; type: string; data: string }) => Promise<{ id: number; name: string; type: string }>
-        instantiate: (templateId: number, params: Record<string, unknown>) => Promise<{ projects: number[]; studyTopics: number[] }>
+        instantiate: (templateId: number, params: Record<string, unknown>) => Promise<{ projects: number[]; courses: number[]; kanbanColumns: number[]; kanbanCards: number[]; studyTopics: number[]; flashcardDecks: number[]; goals: number[]; courseId?: number }>
         delete: (id: number) => Promise<boolean>
       }
       exams: {
