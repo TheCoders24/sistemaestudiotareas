@@ -22,6 +22,21 @@ const require = createRequire(import.meta.url)
 const { DatabaseSync } = require('node:sqlite')
 const electronRoot = path.resolve(__dirname, '../electron')
 const { populateSearchIndex } = require(path.join(electronRoot, 'handlers', 'search'))
+const { safeHandle, voidSchema, z } = require(path.join(electronRoot, 'core', 'safe-handle'))
+const schemas = require(path.join(electronRoot, 'core', 'schemas'))
+
+function makeStubIpcMain() {
+  const handlers = new Map<string, (...args: any[]) => Promise<any>>()
+  return {
+    handle: (ch: string, fn: (...args: any[]) => Promise<any>) => { handlers.set(ch, fn) },
+    removeHandler: (ch: string) => { handlers.delete(ch) },
+    invoke: async (ch: string, ...args: any[]) => {
+      const fn = handlers.get(ch)
+      if (!fn) throw new Error(`No handler for channel ${ch}`)
+      return fn({}, ...args)
+    },
+  }
+}
 
 describe('A · navegación por perfil', () => {
   it('custom muestra todos los hubs y tabs', () => {
@@ -85,5 +100,39 @@ describe('B · populateSearchIndex', () => {
     const row = db.prepare("SELECT title, body FROM search_index WHERE entity_type = 'flashcard'").get()
     expect(row.title).toBe('¿Derivada de x^2?')
     expect(row.body).toBe('2x')
+  })
+})
+
+describe('C · simulacros de examen y GPA', () => {
+  let ipc: any
+
+  beforeAll(() => {
+    const db = new DatabaseSync(':memory:')
+    db.exec(`CREATE TABLE courses (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, color TEXT, credits INTEGER, target_grade INTEGER, archived INTEGER DEFAULT 0)`)
+    db.exec(`CREATE TABLE exams (id INTEGER PRIMARY KEY AUTOINCREMENT, course_id INTEGER, title TEXT, date TEXT, weight REAL, study_topic_ids TEXT, completed INTEGER DEFAULT 0, grade_obtained REAL, created_at TEXT DEFAULT (datetime('now')))`)
+    db.exec(`CREATE TABLE exam_simulations (id INTEGER PRIMARY KEY AUTOINCREMENT, deck_id INTEGER NOT NULL, course_id INTEGER, total_questions INTEGER DEFAULT 0, correct_answers INTEGER DEFAULT 0, wrong_answers INTEGER DEFAULT 0, duration_seconds INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))`)
+    db.prepare(`INSERT INTO courses (id, name, color, credits, target_grade) VALUES (1, 'Anatomía', '#6366f1', 6, 70)`).run()
+    ipc = makeStubIpcMain()
+    const deps: any = { getStmt: (sql: string) => db.prepare(sql), safeHandle, schemas, voidSchema, z }
+    require(path.join(electronRoot, 'handlers', 'exams')).register(ipc, deps)
+  })
+
+  it('registra y lista un simulacro', async () => {
+    const created = await ipc.invoke('exam_simulations:create', {
+      deck_id: 1, course_id: 1, total_questions: 10, correct_answers: 8, wrong_answers: 2, duration_seconds: 600,
+    })
+    expect(created.correct_answers).toBe(8)
+    const list = await ipc.invoke('exam_simulations:list')
+    expect(list.length).toBe(1)
+    expect(list[0].course_id).toBe(1)
+  })
+
+  it('calcula el GPA ponderado del curso', async () => {
+    await ipc.invoke('exams:create', { course_id: 1, title: 'Parcial 1', date: '2026-01-01', weight: 40, grade_obtained: 80, completed: 1 })
+    await ipc.invoke('exams:create', { course_id: 1, title: 'Parcial 2', date: '2026-02-01', weight: 60, grade_obtained: 90, completed: 1 })
+    const gpa = await ipc.invoke('exams:gpa', 1)
+    expect(gpa.course_name).toBe('Anatomía')
+    expect(gpa.course_grade).toBe(86)
+    expect(gpa.exams_count).toBe(2)
   })
 })

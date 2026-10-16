@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { BookOpen, Plus, Trash2, ChevronRight, ChevronDown, Search, Link, ArrowUp, ArrowDown, CheckCircle2, RefreshCw, Clock, ChevronsDown, ChevronsUpDown, Paperclip, ExternalLink, LayoutTemplate, Sparkles, Loader, GraduationCap } from 'lucide-react'
+import { BookOpen, Plus, Trash2, ChevronRight, ChevronDown, Search, Link, ArrowUp, ArrowDown, CheckCircle2, RefreshCw, Clock, ChevronsDown, ChevronsUpDown, Paperclip, ExternalLink, LayoutTemplate, Sparkles, Loader, GraduationCap, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -172,6 +172,78 @@ export default function StudyMap() {
       toast({ title: 'Error', description: String(err), variant: 'destructive' })
     } finally {
       setGeneratingFlashcards(null)
+    }
+  }
+
+  async function handleExportPDF() {
+    if (topics.length === 0) {
+      toast({ title: 'Nada para exportar', description: 'Agregá temas al mapa de estudio.', variant: 'destructive' })
+      return
+    }
+    try {
+      const { default: jsPDF } = await import('jspdf')
+      const doc = new jsPDF('p', 'mm', 'a4')
+      const marginX = 14
+      const pageBottom = 280
+      let y = 18
+
+      doc.setFontSize(16)
+      doc.text('Mapa de Estudio', marginX, y)
+      y += 6
+      doc.setFontSize(9)
+      doc.setTextColor(120)
+      doc.text(`Generado el ${new Date().toLocaleDateString('es-ES')}`, marginX, y)
+      doc.setTextColor(0)
+      y += 8
+
+      const ensureSpace = (needed: number) => {
+        if (y + needed > pageBottom) { doc.addPage(); y = 18 }
+      }
+
+      const sortChildren = (list: Topic[], parentId: number | null): Topic[] =>
+        list.filter(t => t.parent_id === parentId).sort((a, b) => a.order_position - b.order_position)
+
+      const renderTopics = (list: Topic[], parentId: number | null, depth: number) => {
+        for (const topic of sortChildren(list, parentId)) {
+          ensureSpace(6)
+          const levelLabel = LEVEL_LABELS[getLevel(topic)] || ''
+          doc.setFontSize(10 - Math.min(depth, 2))
+          const indent = marginX + depth * 4
+          const prefix = depth > 0 ? '– ' : ''
+          const lines = doc.splitTextToSize(`${prefix}${topic.name}  [${levelLabel}]`, 182 - depth * 4)
+          doc.text(lines, indent, y)
+          y += lines.length * (5 - Math.min(depth, 2))
+          if (topic.description && depth === 0) {
+            ensureSpace(4)
+            doc.setFontSize(8)
+            doc.setTextColor(120)
+            const dlines = doc.splitTextToSize(topic.description, 178)
+            doc.text(dlines, indent + 3, y)
+            doc.setTextColor(0)
+            y += dlines.length * 4
+          }
+          renderTopics(list, topic.id, depth + 1)
+        }
+      }
+
+      const courseIds = Array.from(new Set(topics.map(t => t.course_id ?? null)))
+      for (const cid of courseIds) {
+        const course = cid ? getCourse(cid) : undefined
+        const list = topics.filter(t => (t.course_id ?? null) === cid)
+        ensureSpace(10)
+        doc.setFontSize(12)
+        doc.setTextColor(course?.color || '#333333')
+        doc.text(course ? course.name : 'Sin materia', marginX, y)
+        doc.setTextColor(0)
+        y += 6
+        renderTopics(list, null, 0)
+        y += 3
+      }
+
+      doc.save('mapa-de-estudio.pdf')
+      toast({ title: 'PDF generado', description: 'mapa-de-estudio.pdf' })
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo generar el PDF', variant: 'destructive' })
     }
   }
 
@@ -655,6 +727,9 @@ export default function StudyMap() {
           <p className="text-sm text-muted-foreground mt-0.5">{t('studymap.desc')}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button onClick={handleExportPDF} size="sm" variant="outline" disabled={topics.length === 0}>
+            <FileText className="h-4 w-4 mr-1" /> PDF
+          </Button>
           <Button onClick={() => setShowCourseDialog(true)} size="sm" variant="outline">
             <GraduationCap className="h-4 w-4 mr-1" /> Nueva materia
           </Button>

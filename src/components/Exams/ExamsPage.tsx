@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   CalendarDays, Plus, Trash2, Pencil,
-  CheckCircle2, Award, BookOpen, GraduationCap
+  CheckCircle2, Award, BookOpen, GraduationCap, ClipboardList, Timer
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -43,6 +43,22 @@ interface GpaEntry {
   exams_count: number
 }
 
+interface Deck {
+  id: number
+  name: string
+}
+
+interface Simulation {
+  id: number
+  deck_id: number
+  course_id: number | null
+  total_questions: number
+  correct_answers: number
+  wrong_answers: number
+  duration_seconds: number
+  created_at: string
+}
+
 export default function ExamsPage() {
   const [exams, setExams] = useState<Exam[]>([])
   const [courses, setCourses] = useState<Course[]>([])
@@ -51,6 +67,16 @@ export default function ExamsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [gpaData, setGpaData] = useState<GpaEntry[]>([])
   const [showGpa, setShowGpa] = useState(false)
+
+  const [decks, setDecks] = useState<Deck[]>([])
+  const [simulations, setSimulations] = useState<Simulation[]>([])
+  const [showSims, setShowSims] = useState(false)
+  const [showSimForm, setShowSimForm] = useState(false)
+  const [simDeckId, setSimDeckId] = useState('')
+  const [simCourseId, setSimCourseId] = useState('')
+  const [simTotal, setSimTotal] = useState('')
+  const [simCorrect, setSimCorrect] = useState('')
+  const [simMinutes, setSimMinutes] = useState('')
 
   const [formTitle, setFormTitle] = useState('')
   const [formDate, setFormDate] = useState('')
@@ -63,7 +89,7 @@ export default function ExamsPage() {
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
-    await Promise.all([loadExams(), loadCourses(), loadGpa()])
+    await Promise.all([loadExams(), loadCourses(), loadGpa(), loadDecks(), loadSimulations()])
   }
 
   async function loadExams() {
@@ -79,6 +105,39 @@ export default function ExamsPage() {
   async function loadGpa() {
     const data = await window.electronAPI?.exams.gpa()
     setGpaData(Array.isArray(data) ? data : data ? [data] : [])
+  }
+
+  async function loadDecks() {
+    const data = await window.electronAPI?.flashcards.decks.list()
+    if (data) setDecks(data as Deck[])
+  }
+
+  async function loadSimulations() {
+    const data = await window.electronAPI?.examSimulations.list()
+    if (data) setSimulations(data as unknown as Simulation[])
+  }
+
+  function getDeckName(id: number) {
+    return decks.find(d => d.id === id)?.name || 'Mazo eliminado'
+  }
+
+  async function handleCreateSimulation() {
+    const total = Number(simTotal)
+    if (!simDeckId || !total || total <= 0) return
+    const correct = Math.min(Number(simCorrect) || 0, total)
+    const wrong = Math.max(0, total - correct)
+    await window.electronAPI?.examSimulations.create({
+      deck_id: Number(simDeckId),
+      course_id: simCourseId ? Number(simCourseId) : null,
+      total_questions: total,
+      correct_answers: correct,
+      wrong_answers: wrong,
+      duration_seconds: (Number(simMinutes) || 1) * 60,
+    })
+    setShowSimForm(false)
+    setSimDeckId(''); setSimCourseId(''); setSimTotal(''); setSimCorrect(''); setSimMinutes('')
+    loadSimulations()
+    toast({ title: 'Simulacro registrado' })
   }
 
   function resetForm() {
@@ -173,6 +232,10 @@ export default function ExamsPage() {
     return totalCredits > 0 ? (weightedSum / totalCredits).toFixed(2) : null
   })()
 
+  const averageScore = simulations.length > 0
+    ? Math.round(simulations.reduce((acc, s) => acc + (s.total_questions > 0 ? (s.correct_answers / s.total_questions) * 100 : 0), 0) / simulations.length)
+    : null
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -183,6 +246,9 @@ export default function ExamsPage() {
           <p className="text-sm text-muted-foreground mt-0.5">Seguimiento de exámenes, entregas y promedio</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowSims(!showSims)}>
+            <ClipboardList className="h-4 w-4 mr-1" /> Simulacros
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowGpa(!showGpa)}>
             <Award className="h-4 w-4 mr-1" /> {showGpa ? 'Ocultar GPA' : 'Ver GPA'}
           </Button>
@@ -290,6 +356,87 @@ export default function ExamsPage() {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showSims && (
+        <Card className="mb-4">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <ClipboardList className="h-5 w-5 text-indigo-500" />
+              <h3 className="font-semibold text-sm">Simulacros de examen</h3>
+              {averageScore != null && (
+                <Badge variant="secondary" className="text-xs">Promedio: {averageScore}%</Badge>
+              )}
+              <Button size="sm" variant="outline" className="ml-auto" onClick={() => setShowSimForm(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Registrar
+              </Button>
+            </div>
+            {simulations.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Todavía no registraste simulacros.</p>
+            ) : (
+              <div className="space-y-2">
+                {simulations.map(sim => {
+                  const score = sim.total_questions > 0 ? Math.round((sim.correct_answers / sim.total_questions) * 100) : 0
+                  return (
+                    <div key={sim.id} className="flex items-center justify-between text-xs border-b border-border/50 pb-2 last:border-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`font-bold tabular-nums ${score >= 70 ? 'text-green-500' : score >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{score}%</span>
+                        <span className="truncate">{getDeckName(sim.deck_id)}</span>
+                        {sim.course_id && <Badge variant="outline" className="text-[9px] shrink-0">{getCourseName(sim.course_id)}</Badge>}
+                      </div>
+                      <div className="flex items-center gap-3 text-muted-foreground shrink-0">
+                        <span>{sim.correct_answers}/{sim.total_questions}</span>
+                        <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{Math.round(sim.duration_seconds / 60)}m</span>
+                        <span>{new Date(sim.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <Dialog open={showSimForm} onOpenChange={setShowSimForm}>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Registrar simulacro</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Mazo de flashcards *</label>
+                    <Select value={simDeckId} onValueChange={setSimDeckId}>
+                      <SelectTrigger><SelectValue placeholder={decks.length ? 'Elegí un mazo' : 'No hay mazos creados'} /></SelectTrigger>
+                      <SelectContent>
+                        {decks.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Curso</label>
+                    <Select value={simCourseId} onValueChange={setSimCourseId}>
+                      <SelectTrigger><SelectValue placeholder="Sin curso" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Sin curso</SelectItem>
+                        {courses.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Preguntas *</label>
+                      <Input value={simTotal} onChange={(e) => setSimTotal(e.target.value)} type="number" min="1" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Correctas</label>
+                      <Input value={simCorrect} onChange={(e) => setSimCorrect(e.target.value)} type="number" min="0" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Minutos</label>
+                      <Input value={simMinutes} onChange={(e) => setSimMinutes(e.target.value)} type="number" min="1" />
+                    </div>
+                  </div>
+                  <Button onClick={handleCreateSimulation} className="w-full">Guardar simulacro</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </CardContent>
         </Card>
       )}
