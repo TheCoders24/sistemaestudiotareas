@@ -62,3 +62,8 @@ sistemaestudiotareas-pwa/
 
 # CI workflow (blocks push when PAT lacks workflow scope)
 .github/workflows/
+
+# Local caches / incremental build info
+.vitest-cache/
+.tscache/
+*.tsbuildinfo
