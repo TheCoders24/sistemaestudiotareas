@@ -3,20 +3,20 @@ import { motion } from 'framer-motion'
 import { Flame, TrendingUp, BookOpen } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Project, PomodoroSession } from '@/types'
+import { Course, PomodoroSession } from '@/types'
 
-interface ProjectStreakInfo {
-  project: Project
+interface CourseStreakInfo {
+  course: Course
   currentStreak: number
   bestStreak: number
   heatmap: { date: string; minutes: number }[]
 }
 
-export function calculateStreaks(sessions: PomodoroSession[], projectId: number): { current: number; best: number; heatmap: { date: string; minutes: number }[] } {
-  const projectSessions = sessions.filter(s => s.project_id === projectId)
+export function calculateStreaks(sessions: PomodoroSession[], courseId: number): { current: number; best: number; heatmap: { date: string; minutes: number }[] } {
+  const courseSessions = sessions.filter(s => s.course_id === courseId)
 
   const dayMap: Record<string, number> = {}
-  projectSessions.forEach(s => {
+  courseSessions.forEach(s => {
     const date = s.started_at.split('T')[0]
     const duration = s.duration || 25
     dayMap[date] = (dayMap[date] || 0) + duration
@@ -104,7 +104,7 @@ function getHeatColor(minutes: number): string {
 }
 
 export default function SubjectStreaks() {
-  const [projects, setProjects] = useState<Project[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [sessions, setSessions] = useState<PomodoroSession[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -114,18 +114,18 @@ export default function SubjectStreaks() {
       return
     }
     Promise.all([
-      window.electronAPI.projects.list(),
+      window.electronAPI.courses.list(),
       window.electronAPI.pomodoro.sessions.list(),
-    ]).then(([p, s]) => {
-      setProjects(p.filter(pr => !pr.deleted))
+    ]).then(([c, s]) => {
+      setCourses(c)
       setSessions(s)
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
 
-  const streakData: ProjectStreakInfo[] = projects.map(project => {
-    const { current, best, heatmap } = calculateStreaks(sessions, project.id)
-    return { project, currentStreak: current, bestStreak: best, heatmap }
+  const streakData: CourseStreakInfo[] = courses.map(course => {
+    const { current, best, heatmap } = calculateStreaks(sessions, course.id)
+    return { course, currentStreak: current, bestStreak: best, heatmap }
   })
 
   if (loading) {
@@ -146,7 +146,7 @@ export default function SubjectStreaks() {
     )
   }
 
-  if (projects.length === 0) {
+  if (courses.length === 0) {
     return (
       <div className="max-w-3xl mx-auto">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
@@ -157,8 +157,8 @@ export default function SubjectStreaks() {
         </motion.div>
         <EmptyState
           icon={BookOpen}
-          title="Sin proyectos"
-          description="Creá proyectos para ver rachas por materia"
+          title="Sin materias"
+          description="Creá materias para ver rachas por materia"
         />
       </div>
     )
@@ -171,13 +171,13 @@ export default function SubjectStreaks() {
           <Flame className="h-6 w-6 text-orange-500" />
           Rachas por Materia
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">Seguí tu consistencia por proyecto</p>
+        <p className="text-sm text-muted-foreground mt-1">Seguí tu consistencia por materia</p>
       </motion.div>
 
       <div className="space-y-3">
         {streakData.map((info, i) => (
           <motion.div
-            key={info.project.id}
+            key={info.course.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
@@ -186,8 +186,8 @@ export default function SubjectStreaks() {
               <CardContent className="py-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: info.project.color || '#6366f1' }} />
-                    <span className="text-sm font-semibold">{info.project.name}</span>
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: info.course.color || '#6366f1' }} />
+                    <span className="text-sm font-semibold">{info.course.name}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1.5">

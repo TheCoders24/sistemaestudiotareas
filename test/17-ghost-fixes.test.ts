@@ -9,8 +9,8 @@
  *       Antes `create` exigía `workspaceId` (el TagPicker no lo enviaba → la
  *       etiqueta nunca se creaba) y `list` sin workspace buscaba en id 0.
  *    B. `calculateStreaks` (components/Gamification/SubjectStreaks.tsx)
- *       Las sesiones de pomodoro se guardaban siempre con `project_id: null`,
- *       por lo que las rachas por materia salían siempre vacías.
+ *       Las rachas se calculan por materia (`course_id`); antes se agrupaban
+ *       por `project_id`, por lo que las rachas por materia salían vacías.
  *
  *  Cómo ejecutarlo:
  *    npx vitest run test/17-ghost-fixes.test.ts
@@ -104,10 +104,10 @@ describe('B · calculateStreaks (rachas por materia)', () => {
   }
 
   const sessions: any = [
-    { id: 1, project_id: 1, duration: 25, started_at: startedAtDaysAgo(0) },
-    { id: 2, project_id: 1, duration: 30, started_at: startedAtDaysAgo(1) },
-    { id: 3, project_id: 1, duration: 25, started_at: startedAtDaysAgo(2) },
-    { id: 4, project_id: 2, duration: 25, started_at: startedAtDaysAgo(0) },
+    { id: 1, course_id: 1, duration: 25, started_at: startedAtDaysAgo(0) },
+    { id: 2, course_id: 1, duration: 30, started_at: startedAtDaysAgo(1) },
+    { id: 3, course_id: 1, duration: 25, started_at: startedAtDaysAgo(2) },
+    { id: 4, course_id: 2, duration: 25, started_at: startedAtDaysAgo(0) },
   ]
 
   it('cuenta racha actual y mejor racha de 3 días', () => {
@@ -116,14 +116,14 @@ describe('B · calculateStreaks (rachas por materia)', () => {
     expect(r.best).toBe(3)
   })
 
-  it('aísla los minutos por proyecto en el heatmap', () => {
+  it('aísla los minutos por materia en el heatmap', () => {
     const r = calculateStreaks(sessions, 1)
     expect(r.heatmap.length).toBe(30)
     const todayCell = r.heatmap[r.heatmap.length - 1]
     expect(todayCell.minutes).toBe(25)
   })
 
-  it('devuelve 0 para un proyecto sin sesiones', () => {
+  it('devuelve 0 para una materia sin sesiones', () => {
     const r = calculateStreaks(sessions, 99)
     expect(r.current).toBe(0)
     expect(r.best).toBe(0)

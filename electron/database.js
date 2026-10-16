@@ -4,7 +4,7 @@ const { app } = require('electron')
 const { getHeavyProxy } = require('./database-heavy-proxy')
 
 const crypto = require('crypto')
-const SCHEMA_VERSION = 17
+const SCHEMA_VERSION = 18
 const SCHEMA_KEY = 'db_schema_version'
 
 let db
@@ -707,6 +707,8 @@ function deferDbInit() {
       { sql: `ALTER TABLE study_topics ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`, table: 'study_topics', col: 'updated_at' },
       // v17: daily_logs.updated_at (safeUpdate siempre escribe updated_at)
       { sql: `ALTER TABLE daily_logs ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))`, table: 'daily_logs', col: 'updated_at' },
+      // v18: pomodoro_sessions.course_id (rachas por materia)
+      { sql: `ALTER TABLE pomodoro_sessions ADD COLUMN course_id INTEGER REFERENCES courses(id)`, table: 'pomodoro_sessions', col: 'course_id' },
     ]
     const migrationTx = db.transaction(() => {
       for (const m of migrations) {

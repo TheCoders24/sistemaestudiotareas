@@ -67,6 +67,7 @@ export interface PomodoroSession {
   id: number
   task_id: number | null
   project_id: number | null
+  course_id: number | null
   workspace_id: number | null
   duration: number
   started_at: string

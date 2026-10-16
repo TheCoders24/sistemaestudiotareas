@@ -113,9 +113,9 @@ function register(ipcMain, { getStmt, getDb, safeHandle, schemas, voidSchema, z 
     return { streak }
   })
   safeHandle(ipcMain, 'db:getSubjectStreaks', voidSchema(), () => {
-    const projects = getDb().prepare('SELECT id, name, color FROM projects WHERE deleted = 0').all()
-    const streaks = projects.map(p => {
-      const sessions = getDb().prepare(`SELECT date(started_at) as day FROM pomodoro_sessions WHERE project_id = ? ORDER BY day DESC`, p.id).all()
+    const courses = getDb().prepare('SELECT id, name, color FROM courses WHERE archived = 0').all()
+    const streaks = courses.map(p => {
+      const sessions = getDb().prepare(`SELECT date(started_at) as day FROM pomodoro_sessions WHERE course_id = ? ORDER BY day DESC`, p.id).all()
       let current = 0, max = 0, temp = 0
       const days = [...new Set(sessions.map(s => s.day))].sort().reverse()
       let checkDate = new Date()

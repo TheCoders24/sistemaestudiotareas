@@ -234,6 +234,8 @@ exports.pomodoro = {
       type: z.string().optional().default('focus'),
       date: z.string().optional(),
       task_id: z.number().int().positive().optional().nullable(),
+      project_id: z.number().int().positive().optional().nullable(),
+      course_id: z.number().int().positive().optional().nullable(),
     }).passthrough(),
   },
 }

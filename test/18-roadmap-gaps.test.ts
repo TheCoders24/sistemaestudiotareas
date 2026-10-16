@@ -136,3 +136,30 @@ describe('C · simulacros de examen y GPA', () => {
     expect(gpa.exams_count).toBe(2)
   })
 })
+
+describe('D · sesiones de pomodoro por materia', () => {
+  let ipc: any
+
+  beforeAll(() => {
+    const db = new DatabaseSync(':memory:')
+    db.exec(`CREATE TABLE pomodoro_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER, project_id INTEGER, course_id INTEGER, duration INTEGER NOT NULL, started_at TEXT NOT NULL, ended_at TEXT)`)
+    ipc = makeStubIpcMain()
+    const deps: any = {
+      getStmt: (sql: string) => db.prepare(sql),
+      addXp: () => {}, updateChallengeProgress: () => {},
+      safeHandle, schemas, voidSchema, z,
+    }
+    require(path.join(electronRoot, 'handlers', 'pomodoro')).register(ipc, deps)
+  })
+
+  it('persiste course_id al registrar la sesión', async () => {
+    const row = await ipc.invoke('db:createPomodoroSession', { course_id: 3, duration: 1500 })
+    expect(row.course_id).toBe(3)
+    expect(row.project_id).toBe(null)
+  })
+
+  it('acepta sesiones sin materia (course_id null)', async () => {
+    const row = await ipc.invoke('db:createPomodoroSession', { duration: 1500 })
+    expect(row.course_id).toBe(null)
+  })
+})

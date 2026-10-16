@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Play, Pause, RotateCcw, Coffee, Timer, Zap, Settings } from 'lucide-react'
+import { Play, Pause, RotateCcw, Coffee, Timer, Zap, Settings, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Course } from '@/types'
 
 interface PomodoroSettings {
   pomodoro: number
@@ -55,7 +56,9 @@ export function PomodoroTimer({ onComplete }: Props) {
   const sessions = usePomodoroStore(s => s.pomodoroCount)
   const [todayCount, setTodayCount] = useState(0)
   const [linkTaskId, setLinkTaskId] = useState<number | null>(null)
+  const [linkCourseId, setLinkCourseId] = useState<number | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef<number | null>(null)
@@ -96,6 +99,7 @@ export function PomodoroTimer({ onComplete }: Props) {
       const today = new Date().toISOString().split('T')[0]
       window.electronAPI.pomodoro.sessions.list(today).then((s: any[]) => setTodayCount(s.length))
       window.electronAPI.tasks.list().then((t: Task[]) => setTasks(t.filter(task => !task.completed)))
+      window.electronAPI.courses.list().then((c: Course[]) => setCourses(c))
     }
   }, [])
 
@@ -157,8 +161,8 @@ export function PomodoroTimer({ onComplete }: Props) {
     if (currentMode === 'pomodoro' && window.electronAPI) {
       const linkedTask = tasksRef.current.find(t => t.id === linkTaskId)
       window.electronAPI.pomodoro.sessions.create({
-        task_id: linkTaskId, project_id: linkedTask?.project_id ?? null, duration: dur.pomodoro,
-        started_at: startedAt, ended_at: endedAt,
+        task_id: linkTaskId, project_id: linkedTask?.project_id ?? null, course_id: linkCourseId,
+        duration: dur.pomodoro, started_at: startedAt, ended_at: endedAt,
       } as any).catch(() => {
         toast({ title: 'Aviso', description: 'No se pudo guardar la sesión de pomodoro', variant: 'destructive' })
       })
@@ -310,6 +314,21 @@ export function PomodoroTimer({ onComplete }: Props) {
                 <SelectItem value="">Sin tarea</SelectItem>
                 {tasks.map(task => (
                   <SelectItem key={task.id} value={task.id.toString()}>{task.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Materia:</span>
+            <Select value={linkCourseId?.toString() || ''} onValueChange={v => setLinkCourseId(v ? Number(v) : null)}>
+              <SelectTrigger className="flex-1 h-8 text-xs">
+                <SelectValue placeholder="Sin materia" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Sin materia</SelectItem>
+                {courses.map(course => (
+                  <SelectItem key={course.id} value={course.id.toString()}>{course.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
