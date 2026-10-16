@@ -3,10 +3,12 @@
  *  18-roadmap-gaps.test.ts — Cierres de brechas del roadmap
  * ============================================================================
  *
- *    A. Filtrado de navegación por perfil de usuario
+ *    A. Filtrado de navegación por perfil de usuario y developerMode
  *       (constants/tabs.ts → getVisibleTabs / getVisibleHubs)
  *    B. `populateSearchIndex` indexa study_topics y flashcards
  *       (handlers/search.js)
+ *    C. Simulacros de examen y GPA (handlers/exams.js)
+ *    D. Sesiones de pomodoro por materia (handlers/pomodoro.js)
  *
  *  Cómo ejecutarlo:
  *    npx vitest run test/18-roadmap-gaps.test.ts
@@ -39,15 +41,28 @@ function makeStubIpcMain() {
 }
 
 describe('A · navegación por perfil', () => {
-  it('custom muestra todos los hubs y tabs', () => {
+  it('oculta las herramientas de desarrollo por defecto', () => {
+    const ids = getVisibleTabs('custom').map(t => t.id)
+    expect(ids).not.toContain('devtools')
+    expect(ids.length).toBe(TABS.length - 1)
+  })
+
+  it('muestra las herramientas de desarrollo con developerMode', () => {
+    const ids = getVisibleTabs('custom', true).map(t => t.id)
+    expect(ids).toContain('devtools')
+    expect(ids.length).toBe(TABS.length)
+    expect(getVisibleHubs('custom', true).length).toBe(HUBS.length)
+  })
+
+  it('custom muestra todos los hubs', () => {
     expect(getVisibleHubs('custom').length).toBe(HUBS.length)
-    expect(getVisibleTabs('custom').length).toBe(TABS.length)
   })
 
   it('student oculta tabs de desarrollo', () => {
     const ids = getVisibleTabs('student').map(t => t.id)
     expect(ids).not.toContain('snippets')
     expect(ids).not.toContain('automation')
+    expect(ids).not.toContain('devtools')
     expect(ids).toContain('cursos')
   })
 
@@ -56,12 +71,16 @@ describe('A · navegación por perfil', () => {
     const ids = hubs.flatMap(h => h.tabs.map(t => t.id))
     expect(ids).not.toContain('cursos')
     expect(ids).not.toContain('flashcards')
+    expect(ids).not.toContain('devtools')
     expect(ids).toContain('snippets')
     for (const hub of hubs) expect(hub.tabs.length).toBeGreaterThan(0)
+    // developerMode fuerza a mostrar devtools incluso en el perfil developer
+    expect(getVisibleTabs('developer', true).map(t => t.id)).toContain('devtools')
   })
 
   it('un perfil desconocido se comporta como custom', () => {
-    expect(getVisibleTabs('desconocido').length).toBe(TABS.length)
+    expect(getVisibleTabs('desconocido').length).toBe(TABS.length - 1)
+    expect(getVisibleTabs('desconocido', true).length).toBe(TABS.length)
   })
 })
 

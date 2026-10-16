@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore, Keyboard, MousePointer2, RefreshCw, Lock } from 'lucide-react'
+import { Settings2, Volume2, VolumeX, Palette, User, Brain, Key, Check, X, Loader, Database, ArchiveRestore, Keyboard, MousePointer2, RefreshCw, Lock, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -45,6 +45,7 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
   const [backupsLoading, setBackupsLoading] = useState(false)
   const [restoreConfirm, setRestoreConfirm] = useState<BackupEntry | null>(null)
   const [userProfile, setUserProfile] = useState('custom')
+  const [developerMode, setDeveloperMode] = useState(false)
   const [aiProvider, setAiProvider] = useState('anthropic')
   const [aiBaseUrl, setAiBaseUrl] = useState('http://localhost:1234/v1')
   const [aiModel, setAiModel] = useState('')
@@ -66,6 +67,9 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
       })
       window.electronAPI.settings.get('userProfile').then((val: string | null) => {
         if (val) setUserProfile(val)
+      })
+      window.electronAPI.settings.get('developerMode').then((val: string | null) => {
+        if (val === 'true') setDeveloperMode(true)
       })
       window.electronAPI.pin?.isEnabled?.().then(setPinEnabled).catch(() => {})
       window.electronAPI.settings.get('ai_api_key').then((val: string | null) => {
@@ -304,6 +308,26 @@ export default function Settings({ open: externalOpen, onOpenChange: externalOnO
                 <SelectItem value="developer">Desarrollador</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <Separator />
+
+          {/* Modo desarrollador */}
+          <div className="bg-accent/50 rounded-lg p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wrench className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Modo desarrollador</span>
+              </div>
+              <Switch checked={developerMode} onCheckedChange={(val) => {
+                setDeveloperMode(val)
+                if (window.electronAPI) {
+                  window.electronAPI.settings.set('developerMode', val ? 'true' : 'false')
+                }
+                window.dispatchEvent(new CustomEvent('developerModeChanged', { detail: val }))
+              }} />
+            </div>
+            <p className="text-xs text-muted-foreground">Muestra herramientas de diagnóstico (profiler, rendimiento, plugins) en el menú Sistema</p>
           </div>
 
           <Separator />

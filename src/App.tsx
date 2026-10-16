@@ -65,6 +65,7 @@ const CoursesPage = createLazyRoute(() => import('./components/Courses/CoursesPa
 const ExamsPage = createLazyRoute(() => import('./components/Exams/ExamsPage'), { name: 'Exams' })
 const TutorPage = createLazyRoute(() => import('./components/Tutor/TutorPage'), { name: 'Tutor' })
 const PinLockDialog = createLazyRoute(() => import('./components/Security/PinLockDialog'), { name: 'PinLock' })
+const DevToolsPage = createLazyRoute(() => import('./components/DevTools/DevToolsPage'), { name: 'DevTools' })
 
 registerRoutePreloader('Dashboard', () => import('./components/Dashboard/Dashboard'))
 registerRoutePreloader('TaskList', () => import('./components/TaskList/TaskList'))
@@ -139,6 +140,7 @@ function AppInner() {
   const [locked, setLocked] = useState(false)
   const [welcomeOpen, setWelcomeOpen] = useState(firstRun)
   const [userProfile, setUserProfile] = useState('custom')
+  const [developerMode, setDeveloperMode] = useState(false)
   const { soundEnabled, playSound, createConfetti } = useSound()
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false)
   const [taskViewMode, setTaskViewMode] = useState<'list' | 'calendar' | 'timeline' | 'table'>(() => {
@@ -334,6 +336,19 @@ function AppInner() {
   }, [])
 
   useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.settings.get('developerMode').then((val: string | null) => {
+        if (val === 'true') setDeveloperMode(true)
+      })
+    }
+    const handleDevMode = (e: Event) => {
+      setDeveloperMode(Boolean((e as CustomEvent<boolean>).detail))
+    }
+    window.addEventListener('developerModeChanged', handleDevMode)
+    return () => window.removeEventListener('developerModeChanged', handleDevMode)
+  }, [])
+
+  useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
@@ -433,6 +448,7 @@ function AppInner() {
         fontSize={fontSize}
         denseMode={denseMode}
         userProfile={userProfile}
+        developerMode={developerMode}
       />
     </RouteSuspense>
   )
@@ -561,6 +577,7 @@ function AppInner() {
               {activeTab === 'informe' && <ErrorBoundary name="Informe"><WeeklyPDFReport /></ErrorBoundary>}
               {activeTab === 'importar-cal' && <ErrorBoundary name="Importar Cal"><CalendarImport /></ErrorBoundary>}
               {activeTab === 'automation' && <ErrorBoundary name="Automation"><AutomationRules /></ErrorBoundary>}
+        {activeTab === 'devtools' && developerMode && <ErrorBoundary name="DevTools"><DevToolsPage /></ErrorBoundary>}
             </div>
           </main>
         </div>

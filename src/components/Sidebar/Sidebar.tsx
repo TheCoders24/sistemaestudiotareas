@@ -20,9 +20,10 @@ interface SidebarProps {
   fontSize?: 'sm' | 'base' | 'lg'
   denseMode?: boolean
   userProfile?: string
+  developerMode?: boolean
 }
 
-export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userName = '', fontSize = 'base', denseMode = false, userProfile = 'custom' }: SidebarProps) {
+export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userName = '', fontSize = 'base', denseMode = false, userProfile = 'custom', developerMode = false }: SidebarProps) {
   const [notes, setNotes] = useState<any[]>([])
   const [goals, setGoals] = useState<any[]>([])
   const [goalProgress, setGoalProgress] = useState<Record<number, number>>({})
@@ -117,7 +118,7 @@ export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userNam
           <PanelRightClose className="h-4 w-4" />
         </button>
         <Separator />
-        {getVisibleTabs(userProfile).filter(t => t.id !== 'tienda' && t.id !== 'social').map(tab => {
+        {getVisibleTabs(userProfile, developerMode).filter(t => t.id !== 'tienda' && t.id !== 'social').map(tab => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
           return (
@@ -165,7 +166,7 @@ export default function Sidebar({ activeTab, onNavigate, onOpenSettings, userNam
             <nav className="flex flex-col">
               {renderTab(TABS.find(t => t.id === 'inicio')!)}
               <div className="border-t border-border my-1" />
-              {getVisibleHubs(userProfile).map(hub => {
+              {getVisibleHubs(userProfile, developerMode).map(hub => {
                 const HubIcon = hub.icon
                 const isExpanded = expandedHubs[hub.id] ?? true
                 return (

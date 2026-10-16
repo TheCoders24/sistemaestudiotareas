@@ -3,7 +3,7 @@ import {
   NotebookPen, CalendarDays, Code2, Activity, Trophy, Swords,
   BookOpen, BarChart3, StickyNote, Target, Trash2, Brain, Battery,
   BellRing, Flame, Globe, Eye, RefreshCw,
-  FileText, CalendarPlus, Zap, Settings2, TrendingUp,
+  FileText, CalendarPlus, Zap, Settings2, TrendingUp, Wrench,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -98,6 +98,7 @@ export const HUBS: Hub[] = [
       { id: 'sync', label: 'Sincronización', icon: RefreshCw },
       { id: 'recordatorios', label: 'Smart Reminders', icon: BellRing },
       { id: 'papelera', label: 'Papelera', icon: Trash2 },
+      { id: 'devtools', label: 'Herramientas de desarrollo', icon: Wrench },
     ],
   },
 ]
@@ -113,13 +114,15 @@ export const PROFILE_HIDDEN_TABS: Record<string, string[]> = {
   custom: [],
 }
 
-export function getVisibleTabs(profile: string): Tab[] {
-  const hidden = PROFILE_HIDDEN_TABS[profile] || []
+export const DEV_ONLY_TABS = ['devtools']
+
+export function getVisibleTabs(profile: string, developerMode = false): Tab[] {
+  const hidden = [...(PROFILE_HIDDEN_TABS[profile] || []), ...(developerMode ? [] : DEV_ONLY_TABS)]
   return TABS.filter(t => !hidden.includes(t.id))
 }
 
-export function getVisibleHubs(profile: string): Hub[] {
-  const hidden = PROFILE_HIDDEN_TABS[profile] || []
+export function getVisibleHubs(profile: string, developerMode = false): Hub[] {
+  const hidden = [...(PROFILE_HIDDEN_TABS[profile] || []), ...(developerMode ? [] : DEV_ONLY_TABS)]
   return HUBS
     .map(hub => ({ ...hub, tabs: hub.tabs.filter(t => !hidden.includes(t.id)) }))
     .filter(hub => hub.tabs.length > 0)
