@@ -35,7 +35,7 @@ function loadSettings(): PomodoroSettings {
   } catch { return DEFAULT_SETTINGS }
 }
 
-interface Task { id: number; title: string; completed: number }
+interface Task { id: number; title: string; completed: number; project_id?: number | null }
 
 interface Props { onComplete?: () => void }
 
@@ -63,6 +63,7 @@ export function PomodoroTimer({ onComplete }: Props) {
   const sessionsRef = useRef(sessions)
   const completedRef = useRef(false)
   const settingsRef = useRef(settings)
+  const tasksRef = useRef<Task[]>([])
 
   useEffect(() => { settingsRef.current = settings }, [settings])
 
@@ -82,6 +83,7 @@ export function PomodoroTimer({ onComplete }: Props) {
 
   useEffect(() => { modeRef.current = mode }, [mode])
   useEffect(() => { sessionsRef.current = sessions }, [sessions])
+  useEffect(() => { tasksRef.current = tasks }, [tasks])
 
   useEffect(() => {
     try {
@@ -153,8 +155,9 @@ export function PomodoroTimer({ onComplete }: Props) {
     const dur = getDurations()
 
     if (currentMode === 'pomodoro' && window.electronAPI) {
+      const linkedTask = tasksRef.current.find(t => t.id === linkTaskId)
       window.electronAPI.pomodoro.sessions.create({
-        task_id: linkTaskId, project_id: null, duration: dur.pomodoro,
+        task_id: linkTaskId, project_id: linkedTask?.project_id ?? null, duration: dur.pomodoro,
         started_at: startedAt, ended_at: endedAt,
       } as any).catch(() => {
         toast({ title: 'Aviso', description: 'No se pudo guardar la sesión de pomodoro', variant: 'destructive' })

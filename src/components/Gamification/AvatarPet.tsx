@@ -54,7 +54,7 @@ function getMoodMessage(mood: string): string {
 export default function AvatarPet({ inline = false }: { inline?: boolean }) {
   const [xp, setXp] = useState(0)
   const [level, setLevel] = useState(1)
-  const [lastStudyDate] = useState<string | null>(() => localStorage.getItem('pet_lastStudyDate'))
+  const [lastStudyDate, setLastStudyDate] = useState<string | null>(() => localStorage.getItem('pet_lastStudyDate'))
   const [, setShowTooltip] = useState(false)
 
   useEffect(() => {
@@ -62,6 +62,10 @@ export default function AvatarPet({ inline = false }: { inline?: boolean }) {
       window.electronAPI.gamification.xp.get().then(d => {
         setXp(d.total)
         setLevel(d.level)
+      }).catch(() => {})
+      window.electronAPI.pomodoro.sessions.list().then((list: any[]) => {
+        const latest = list?.[0]?.started_at
+        if (latest) setLastStudyDate(latest.split('T')[0])
       }).catch(() => {})
     }
   }, [])

@@ -12,7 +12,7 @@ interface ProjectStreakInfo {
   heatmap: { date: string; minutes: number }[]
 }
 
-function calculateStreaks(sessions: PomodoroSession[], projectId: number): { current: number; best: number; heatmap: { date: string; minutes: number }[] } {
+export function calculateStreaks(sessions: PomodoroSession[], projectId: number): { current: number; best: number; heatmap: { date: string; minutes: number }[] } {
   const projectSessions = sessions.filter(s => s.project_id === projectId)
 
   const dayMap: Record<string, number> = {}

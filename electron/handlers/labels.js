@@ -1,13 +1,16 @@
 function register(ipcMain, { getStmt, safeHandle, schemas, voidSchema, z }) {
   safeHandle(ipcMain, 'labels:list', schemas.labels.list, (wsId) => {
-    return getStmt('SELECT * FROM labels WHERE workspace_id = ? ORDER BY name ASC').all(wsId || 0)
+    if (wsId) return getStmt('SELECT * FROM labels WHERE workspace_id = ? ORDER BY name ASC').all(wsId)
+    return getStmt('SELECT * FROM labels ORDER BY name ASC').all()
   })
   safeHandle(ipcMain, 'labels:create', z.object({
-    workspaceId: z.number(),
     name: z.string().min(1).max(500),
     color: z.string().optional().nullable(),
+    workspaceId: z.number().int().positive().optional(),
+    workspace_id: z.number().int().positive().optional(),
   }).passthrough(), (data) => {
-    const result = getStmt('INSERT INTO labels (workspace_id, name, color) VALUES (?, ?, ?)').run(data.workspaceId, data.name, data.color || '#6366f1')
+    const wsId = data.workspaceId ?? data.workspace_id ?? 1
+    const result = getStmt('INSERT INTO labels (workspace_id, name, color) VALUES (?, ?, ?)').run(wsId, data.name, data.color || '#6366f1')
     return getStmt('SELECT * FROM labels WHERE id = ?').get(result.lastInsertRowid)
   })
   safeHandle(ipcMain, 'labels:delete', schemas.labels.delete, (id) => {
