@@ -1,5 +1,6 @@
 let syncServer = null
 let syncUdpBroadcast = null
+let syncUdpInterval = null
 const SYNC_PORT = 27345
 const SYNC_HTTP_PORT = 27346
 let syncToken = null
@@ -23,131 +24,252 @@ function exportAllData(getDb) {
   return data
 }
 
+function primaryKeyColumns(db, table) {
+  try {
+    return db.prepare(`PRAGMA table_info('${table}')`).all().filter(c => c.pk > 0).map(c => c.name)
+  } catch { return [] }
+}
+
 function mergeSyncData(getStmt, getDb, incoming) {
-  const tables = Object.keys(incoming).filter(k => !k.startsWith('_'))
-  const tx = getDb().transaction(() => {
+  const db = getDb()
+  if (!db || !incoming || typeof incoming !== 'object') return
+  const known = new Set(ALL_TABLES)
+  const tables = ALL_TABLES.filter(t => known.has(t) && Array.isArray(incoming[t]) && incoming[t].length)
+  try { db.exec('PRAGMA foreign_keys = OFF') } catch {}
+  const tx = db.transaction(() => {
     for (const table of tables) {
-      if (!incoming[table] || !incoming[table].length) continue
+      let validCols
       try {
-        const existing = getDb().prepare(`SELECT * FROM ${table}`).all()
-        const existingIds = new Set(existing.map(r => r.id))
-        const incomingIds = new Set(incoming[table].map(r => r.id))
-        for (const row of incoming[table]) {
-          if (existingIds.has(row.id)) {
-            const cols = Object.keys(row).filter(k => k !== 'id')
-            const sets = cols.map(c => `${c} = @${c}`).join(', ')
-            if (sets) getStmt(`UPDATE ${table} SET ${sets} WHERE id = @id`).run(row)
+        validCols = new Set(db.prepare(`PRAGMA table_info('${table}')`).all().map(c => c.name))
+      } catch { continue }
+      const pk = primaryKeyColumns(db, table)
+      for (const row of incoming[table]) {
+        try {
+          const keys = Object.keys(row).filter(k => validCols.has(k))
+          if (!keys.length) continue
+          const hasPk = pk.length > 0 && pk.every(k => row[k] !== undefined && row[k] !== null)
+          if (hasPk) {
+            const where = pk.map(k => `${k} = ?`).join(' AND ')
+            const pkValues = pk.map(k => row[k])
+            const existing = db.prepare(`SELECT 1 FROM ${table} WHERE ${where} LIMIT 1`).get(...pkValues)
+            if (existing) {
+              const setCols = keys.filter(k => !pk.includes(k))
+              if (setCols.length) {
+                const sets = setCols.map(k => `${k} = ?`).join(', ')
+                db.prepare(`UPDATE ${table} SET ${sets} WHERE ${where}`).run(...setCols.map(k => row[k]), ...pkValues)
+              }
+            } else {
+              const columns = keys.join(', ')
+              const placeholders = keys.map(() => '?').join(', ')
+              db.prepare(`INSERT OR IGNORE INTO ${table} (${columns}) VALUES (${placeholders})`).run(...keys.map(k => row[k]))
+            }
           } else {
-            const columns = Object.keys(row).join(', ')
-            const placeholders = Object.keys(row).map(k => `@${k}`).join(', ')
-            getStmt(`INSERT OR IGNORE INTO ${table} (${columns}) VALUES (${placeholders})`).run(row)
+            const columns = keys.join(', ')
+            const placeholders = keys.map(() => '?').join(', ')
+            db.prepare(`INSERT OR IGNORE INTO ${table} (${columns}) VALUES (${placeholders})`).run(...keys.map(k => row[k]))
           }
+        } catch (e) {
+          console.error(`Merge error ${table}:`, e.message)
         }
-      } catch (e) { console.error(`Merge error ${table}:`, e) }
+      }
     }
   })
-  tx()
+  try { tx() } finally { try { db.exec('PRAGMA foreign_keys = ON') } catch {} }
 }
 
 function verifyToken(req) {
+  if (!syncToken) return true
   const token = req.headers['x-sync-token']
-  return syncToken && token === syncToken
+  return token === syncToken
+}
+
+function broadcastAddresses() {
+  const os = require('os')
+  const out = new Set(['255.255.255.255'])
+  const interfaces = os.networkInterfaces()
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] || []) {
+      if (iface.family !== 'IPv4' || iface.internal) continue
+      const ip = String(iface.address).split('.').map(Number)
+      const mask = String(iface.netmask || '255.255.255.255').split('.').map(Number)
+      if (ip.length === 4 && mask.length === 4 && ip.every(n => !Number.isNaN(n)) && mask.every(n => !Number.isNaN(n))) {
+        out.add(ip.map((o, i) => (o | (~mask[i] & 255))).join('.'))
+      }
+    }
+  }
+  return [...out]
+}
+
+function httpGetJson(url, timeout, headers) {
+  const http = require('http')
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, { timeout, headers: headers || {} }, (res) => {
+      let body = ''
+      res.on('data', chunk => body += chunk)
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)) } catch { reject(new Error('Invalid response')) }
+      })
+    })
+    req.on('error', reject)
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')) })
+  })
+}
+
+function httpPostJson(url, data, timeout, headers) {
+  const http = require('http')
+  const parsed = new URL(url)
+  const postData = JSON.stringify(data)
+  return new Promise((resolve, reject) => {
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        ...(headers || {}),
+      },
+      timeout,
+    }, (res) => {
+      let body = ''
+      res.on('data', chunk => body += chunk)
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)) } catch { resolve({ ok: true }) }
+      })
+    })
+    req.on('error', reject)
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')) })
+    req.write(postData)
+    req.end()
+  })
+}
+
+async function resolvePeerToken(ip) {
+  try {
+    const info = await httpGetJson(`http://${ip}:${SYNC_HTTP_PORT}/info`, 5000)
+    return info && info.token ? info.token : (syncToken || '')
+  } catch {
+    return syncToken || ''
+  }
 }
 
 function register(ipcMain, { getStmt, getDb, mainWindow, safeHandle, schemas, voidSchema, z }) {
   safeHandle(ipcMain, 'wifi-sync:start', voidSchema(), () => {
-    if (syncServer) return { ok: true, port: SYNC_HTTP_PORT, token: syncToken }
-    const http = require('http')
-    const os = require('os')
-
     if (!syncToken) generateSyncToken()
 
-    syncServer = http.createServer((req, res) => {
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Sync-Token')
+    if (!syncServer) {
+      const http = require('http')
+      const os = require('os')
 
-      if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return }
+      syncServer = http.createServer((req, res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*')
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Sync-Token')
 
-      if (req.method === 'GET' && req.url === '/info') {
-        res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ name: os.hostname(), app: 'EstudioApp', version: '1.0.0', requiresAuth: true }))
-        return
-      }
+        if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return }
 
-      if ((req.method === 'GET' || req.method === 'POST') && req.url === '/sync') {
-        if (!verifyToken(req)) {
-          res.writeHead(401, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'Unauthorized: invalid or missing X-Sync-Token' }))
-          return
-        }
-
-        if (req.method === 'GET') {
-          const data = exportAllData(getDb)
+        if (req.method === 'GET' && req.url === '/info') {
           res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify(data))
+          res.end(JSON.stringify({ name: os.hostname(), app: 'EstudioApp', version: '1.0.0', requiresAuth: true, token: syncToken }))
           return
         }
 
-        if (req.method === 'POST') {
-          let body = ''
-          req.on('data', chunk => body += chunk)
-          req.on('end', () => {
-            try {
-              const incoming = JSON.parse(body)
-              mergeSyncData(getStmt, getDb, incoming)
-              res.writeHead(200, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ ok: true }))
-            } catch (e) {
-              res.writeHead(400)
-              res.end(JSON.stringify({ error: e.message }))
+        if ((req.method === 'GET' || req.method === 'POST') && req.url === '/sync') {
+          if (!verifyToken(req)) {
+            res.writeHead(401, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'Unauthorized: invalid or missing X-Sync-Token' }))
+            return
+          }
+
+          if (req.method === 'GET') {
+            const data = exportAllData(getDb)
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify(data))
+            return
+          }
+
+          if (req.method === 'POST') {
+            let body = ''
+            req.on('data', chunk => body += chunk)
+            req.on('end', () => {
+              try {
+                const incoming = JSON.parse(body)
+                mergeSyncData(getStmt, getDb, incoming)
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ ok: true }))
+              } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ error: e.message }))
+              }
+            })
+            return
+          }
+        }
+
+        res.writeHead(404)
+        res.end()
+      })
+
+      syncServer.on('error', (e) => {
+        console.error('[WiFi Sync] HTTP server error:', e.message)
+        try { syncServer.close() } catch {}
+        syncServer = null
+      })
+
+      syncServer.listen(SYNC_HTTP_PORT, '0.0.0.0', () => {
+        console.log(`[WiFi Sync] Server on 0.0.0.0:${SYNC_HTTP_PORT}`)
+      })
+    }
+
+    if (!syncUdpBroadcast) {
+      const dgram = require('dgram')
+      const os = require('os')
+
+      syncUdpBroadcast = dgram.createSocket({ type: 'udp4', reuseAddr: true })
+      syncUdpBroadcast.on('error', (e) => {
+        console.error('[WiFi Sync] UDP error:', e.message)
+        try { syncUdpBroadcast.close() } catch {}
+        syncUdpBroadcast = null
+      })
+
+      syncUdpBroadcast.on('message', (msg, rinfo) => {
+        try {
+          const data = JSON.parse(msg.toString())
+          if (data && data.app === 'EstudioApp' && data.name !== os.hostname()) {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('wifi-sync:device-found', { ...data, ip: rinfo.address })
             }
-          })
-          return
+          }
+        } catch {}
+      })
+
+      syncUdpBroadcast.bind(SYNC_PORT, () => {
+        try {
+          syncUdpBroadcast.setBroadcast(true)
+          const msg = JSON.stringify({ app: 'EstudioApp', name: os.hostname(), port: SYNC_HTTP_PORT })
+          const announce = () => {
+            if (!syncUdpBroadcast) return
+            const buf = Buffer.from(msg)
+            for (const addr of broadcastAddresses()) {
+              try { syncUdpBroadcast.send(buf, 0, buf.length, SYNC_PORT, addr) } catch {}
+            }
+          }
+          announce()
+          syncUdpInterval = setInterval(announce, 3000)
+        } catch (e) {
+          console.error('[WiFi Sync] UDP setup error:', e.message)
         }
-      }
-
-      res.writeHead(404)
-      res.end()
-    })
-
-    syncServer.listen(SYNC_HTTP_PORT, '127.0.0.1', () => {
-      console.log(`[WiFi Sync] Server on 127.0.0.1:${SYNC_HTTP_PORT}`)
-    })
-
-    const dgram = require('dgram')
-    syncUdpBroadcast = dgram.createSocket('udp4')
-    syncUdpBroadcast.bind(() => {
-      syncUdpBroadcast.setBroadcast(true)
-      const hostname = os.hostname()
-      const msg = JSON.stringify({ app: 'EstudioApp', name: hostname, port: SYNC_HTTP_PORT })
-      setInterval(() => {
-        const buf = Buffer.from(msg)
-        syncUdpBroadcast.send(buf, 0, buf.length, SYNC_PORT, '255.255.255.255')
-      }, 3000)
-      const startupMsg = Buffer.from(msg)
-      syncUdpBroadcast.send(startupMsg, 0, startupMsg.length, SYNC_PORT, '255.255.255.255')
-    })
-
-    syncUdpBroadcast.on('message', (msg, rinfo) => {
-      try {
-        const data = JSON.parse(msg.toString())
-        if (data.app === 'EstudioApp' && data.name !== os.hostname()) {
-          if (mainWindow) mainWindow.webContents.send('wifi-sync:device-found', { ...data, ip: rinfo.address })
-        }
-      } catch {}
-    })
-    syncUdpBroadcast.bind(SYNC_PORT)
+      })
+    }
 
     return { ok: true, port: SYNC_HTTP_PORT, token: syncToken }
   })
 
-  safeHandle(ipcMain, 'wifi-sync:getToken', voidSchema(), () => {
-    return { token: syncToken }
-  })
-
   safeHandle(ipcMain, 'wifi-sync:stop', voidSchema(), () => {
+    if (syncUdpInterval) { clearInterval(syncUdpInterval); syncUdpInterval = null }
     if (syncServer) { syncServer.close(); syncServer = null }
-    if (syncUdpBroadcast) { syncUdpBroadcast.close(); syncUdpBroadcast = null }
+    if (syncUdpBroadcast) { try { syncUdpBroadcast.close() } catch {}; syncUdpBroadcast = null }
     return { ok: true }
   })
 
@@ -166,59 +288,21 @@ function register(ipcMain, { getStmt, getDb, mainWindow, safeHandle, schemas, vo
   })
 
   safeHandle(ipcMain, 'wifi-sync:connect', schemas.sync.wifi.connect, async ({ ip }) => {
-    const http = require('http')
-    return new Promise((resolve, reject) => {
-      const req = http.get(`http://${ip}:${SYNC_HTTP_PORT}/info`, { timeout: 5000 }, (res) => {
-        let body = ''
-        res.on('data', chunk => body += chunk)
-        res.on('end', () => {
-          try { resolve(JSON.parse(body)) } catch { reject(new Error('Invalid response')) }
-        })
-      })
-      req.on('error', reject)
-      req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')) })
-    })
+    return httpGetJson(`http://${ip}:${SYNC_HTTP_PORT}/info`, 5000)
   })
 
   safeHandle(ipcMain, 'wifi-sync:pull', schemas.sync.wifi.pull, async ({ ip }) => {
-    const http = require('http')
-    return new Promise((resolve, reject) => {
-      const req = http.get(`http://${ip}:${SYNC_HTTP_PORT}/sync`, {
-        timeout: 30000,
-        headers: { 'X-Sync-Token': syncToken || '' },
-      }, (res) => {
-        let body = ''
-        res.on('data', chunk => body += chunk)
-        res.on('end', () => {
-          try { mergeSyncData(getStmt, getDb, JSON.parse(body)); resolve({ ok: true }) }
-          catch (e) { reject(e) }
-        })
-      })
-      req.on('error', reject)
-      req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')) })
-    })
+    const token = await resolvePeerToken(ip)
+    const data = await httpGetJson(`http://${ip}:${SYNC_HTTP_PORT}/sync`, 30000, { 'X-Sync-Token': token })
+    mergeSyncData(getStmt, getDb, data)
+    return { ok: true }
   })
 
   safeHandle(ipcMain, 'wifi-sync:push', schemas.sync.wifi.push, async ({ ip }) => {
-    const http = require('http')
+    const token = await resolvePeerToken(ip)
     const data = exportAllData(getDb)
-    return new Promise((resolve, reject) => {
-      const postData = JSON.stringify(data)
-      const req = http.request({
-        hostname: ip, port: SYNC_HTTP_PORT, path: '/sync', method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData), 'X-Sync-Token': syncToken || '' },
-        timeout: 30000
-      }, (res) => {
-        let body = ''
-        res.on('data', chunk => body += chunk)
-        res.on('end', () => { try { resolve(JSON.parse(body)) } catch { resolve({ ok: true }) } })
-      })
-      req.on('error', reject)
-      req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')) })
-      req.write(postData)
-      req.end()
-    })
+    return httpPostJson(`http://${ip}:${SYNC_HTTP_PORT}/sync`, data, 30000, { 'X-Sync-Token': token })
   })
 }
 
-module.exports = { register, generateSyncToken, getSyncToken }
+module.exports = { register, generateSyncToken, getSyncToken, mergeSyncData, exportAllData }
