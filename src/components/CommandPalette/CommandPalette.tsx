@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Search, Sparkles, Clock, LayoutDashboard, CheckSquare, FolderKanban,
+  Sparkles, Clock, LayoutDashboard, CheckSquare, FolderKanban,
   NotebookPen, CalendarDays, Code2, Activity, Trophy, Swords,
   BookOpen, BarChart3, StickyNote, Target, Trash2, Plus, Zap, Sun,
   FileText, ListTodo, Brain, Settings2, RefreshCw,
 } from 'lucide-react'
+import { Command, CommandInput, CommandList, CommandGroup, CommandItem } from '@/components/ui/command'
 
 interface NavCommand {
   type: 'nav'
@@ -121,11 +122,8 @@ interface CommandPaletteProps {
 
 export default function CommandPalette({ open, onClose, onNavigate, onAction }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
-  const [selectedIndex, setSelectedIndex] = useState(0)
   const [dbResults, setDbResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const listRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isActionMode = query.startsWith('>')
@@ -135,10 +133,8 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction }: 
   useEffect(() => {
     if (open) {
       setQuery('')
-      setSelectedIndex(0)
       setDbResults([])
       setSearching(false)
-      setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [open])
 
@@ -222,17 +218,6 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction }: 
   }, [isActionMode, filteredCommands, filteredNav, filteredActions, groupedSearch, dbResults])
 
   useEffect(() => {
-    setSelectedIndex(0)
-  }, [query, isActionMode])
-
-  useEffect(() => {
-    if (listRef.current && flatItems.length > 0) {
-      const item = listRef.current.children[selectedIndex] as HTMLElement | undefined
-      item?.scrollIntoView({ block: 'nearest' })
-    }
-  }, [selectedIndex, flatItems.length])
-
-  useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (!open) return
       if (e.key === 'Escape') {
@@ -261,22 +246,8 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction }: 
     onClose()
   }, [onNavigate, onAction, onClose])
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setSelectedIndex(i => Math.min(i + 1, flatItems.length - 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setSelectedIndex(i => Math.max(i - 1, 0))
-    } else if (e.key === 'Enter' && flatItems[selectedIndex]) {
-      e.preventDefault()
-      handleSelect(flatItems[selectedIndex])
-    }
-  }
-
   function handleInputChange(value: string) {
     setQuery(value)
-    setSelectedIndex(0)
   }
 
   const totalResults = flatItems.length
@@ -301,168 +272,115 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction }: 
             className="relative w-full max-w-lg rounded-lg shadow-2xl bg-card/95 backdrop-blur overflow-hidden border border-border"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center border-b border-border px-4">
-              {showPrefix ? (
-                <span className="h-4 w-4 mr-3 text-muted-foreground shrink-0 text-center font-mono text-sm">&gt;</span>
-              ) : (
-                <Search className="h-4 w-4 mr-3 text-muted-foreground shrink-0" />
-              )}
-              <input
-                ref={inputRef}
+            <Command shouldFilter={false} loop className="bg-transparent">
+              <CommandInput
                 value={query}
-                onChange={e => handleInputChange(e.target.value)}
-                onKeyDown={handleKeyDown}
+                onValueChange={handleInputChange}
+                autoFocus
                 placeholder={isActionMode ? 'Escribí un comando...' : 'Buscá tareas, notas, snippets, proyectos...'}
-                className="flex-1 h-12 bg-transparent text-sm outline-none placeholder:text-muted-foreground text-foreground"
+                className="h-12 text-base"
+                leading={
+                  showPrefix ? (
+                    <span className="mr-3 shrink-0 text-center font-mono text-sm text-muted-foreground">&gt;</span>
+                  ) : undefined
+                }
               />
-            </div>
-            <div ref={listRef} className="max-h-[360px] overflow-y-auto p-2 space-y-0.5">
-              {totalResults === 0 && !searching && !isActionMode && (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {query.trim().length >= 2 ? 'Sin resultados' : 'Escribí al menos 2 caracteres para buscar'}
-                </p>
-              )}
-              {totalResults === 0 && !searching && isActionMode && (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {displayQuery.trim() ? 'No hay comandos que coincidan' : 'Escribí un comando o seleccioná uno de la lista'}
-                </p>
-              )}
-              {totalResults === 0 && searching && (
-                <p className="text-sm text-muted-foreground text-center py-8">Buscando...</p>
-              )}
-              {isActionMode && filteredCommands && filteredCommands.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between px-3 py-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">Comandos</span>
-                    <span className="text-[10px] text-muted-foreground/50">{filteredCommands.length} resultado{filteredCommands.length !== 1 ? 's' : ''}</span>
-                  </div>
-                  {filteredCommands.map((cmd, i) => {
-                    const Icon = cmd.icon
-                    const isSelected = i === selectedIndex
+              <CommandList className="max-h-[360px] p-2">
+                {totalResults === 0 && !searching && !isActionMode && (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    {query.trim().length >= 2 ? 'Sin resultados' : 'Escribí al menos 2 caracteres para buscar'}
+                  </p>
+                )}
+                {totalResults === 0 && !searching && isActionMode && (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    {displayQuery.trim() ? 'No hay comandos que coincidan' : 'Escribí un comando o seleccioná uno de la lista'}
+                  </p>
+                )}
+                {totalResults === 0 && searching && (
+                  <p className="text-sm text-muted-foreground text-center py-8">Buscando...</p>
+                )}
+                {isActionMode && filteredCommands && filteredCommands.length > 0 && (
+                  <CommandGroup heading="Comandos">
+                    {filteredCommands.map(cmd => {
+                      const Icon = cmd.icon
+                      return (
+                        <CommandItem
+                          key={`${cmd.type}-${cmd.id}`}
+                          value={`action-cmd-${cmd.id}`}
+                          onSelect={() => handleSelect(cmd)}
+                          className="gap-3 px-3 py-2.5 text-sm"
+                        >
+                          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="flex-1 truncate">{cmd.label}</span>
+                        </CommandItem>
+                      )
+                    })}
+                  </CommandGroup>
+                )}
+                {!isActionMode && filteredNav.length > 0 && (
+                  <CommandGroup heading="Navegación">
+                    {filteredNav.map(cmd => {
+                      const Icon = cmd.icon
+                      return (
+                        <CommandItem
+                          key={`${cmd.type}-${cmd.id}`}
+                          value={`nav-${cmd.id}`}
+                          onSelect={() => handleSelect(cmd)}
+                          className="gap-3 px-3 py-2.5 text-sm"
+                        >
+                          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="flex-1 truncate">{cmd.label}</span>
+                          {cmd.shortcut && (
+                            <kbd className="text-[10px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground font-mono shrink-0">
+                              {cmd.shortcut}
+                            </kbd>
+                          )}
+                        </CommandItem>
+                      )
+                    })}
+                  </CommandGroup>
+                )}
+                {!isActionMode && filteredActions.length > 0 && (
+                  <CommandGroup heading="Acciones">
+                    {filteredActions.map(cmd => {
+                      const Icon = cmd.icon
+                      return (
+                        <CommandItem
+                          key={`${cmd.type}-${cmd.id}`}
+                          value={`action-${cmd.id}`}
+                          onSelect={() => handleSelect(cmd)}
+                          className="gap-3 px-3 py-2.5 text-sm"
+                        >
+                          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="flex-1 truncate">{cmd.label}</span>
+                        </CommandItem>
+                      )
+                    })}
+                  </CommandGroup>
+                )}
+                {!isActionMode && groupedSearch && Object.keys(groupedSearch).length > 0 &&
+                  Object.entries(groupedSearch).map(([groupLabel, items]) => {
+                    const group = ENTITY_GROUPS.find(g => g.label === groupLabel)
+                    const GroupIcon = group?.icon || FileText
                     return (
-                      <button
-                        key={`${cmd.type}-${cmd.id}`}
-                        onClick={() => handleSelect(cmd)}
-                        onMouseEnter={() => setSelectedIndex(i)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-left transition-colors ${
-                          isSelected
-                            ? 'bg-accent text-accent-foreground'
-                            : 'text-foreground hover:bg-accent/50'
-                        }`}
-                      >
-                        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="flex-1 truncate">{cmd.label}</span>
-                      </button>
+                      <CommandGroup key={groupLabel} heading={groupLabel}>
+                        {items.map(cmd => (
+                          <CommandItem
+                            key={`${cmd.type}-${cmd.id}`}
+                            value={`search-${cmd.entityType}-${cmd.id}`}
+                            onSelect={() => handleSelect(cmd)}
+                            className="gap-3 px-3 py-2.5 text-sm"
+                          >
+                            <GroupIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="flex-1 truncate">{cmd.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/80 text-muted-foreground capitalize shrink-0">{groupLabel}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
                     )
                   })}
-                </div>
-              )}
-              {!isActionMode && (
-                <>
-                  {filteredNav.length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between px-3 py-1.5">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">Navegación</span>
-                      </div>
-                      {filteredNav.map((cmd, i) => {
-                        const Icon = cmd.icon
-                        const isSelected = i === selectedIndex && selectedIndex < filteredNav.length
-                        return (
-                          <button
-                            key={`${cmd.type}-${cmd.id}`}
-                            onClick={() => handleSelect(cmd)}
-                            onMouseEnter={() => setSelectedIndex(i)}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-left transition-colors ${
-                              isSelected
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-foreground hover:bg-accent/50'
-                            }`}
-                          >
-                            <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                            <span className="flex-1 truncate">{cmd.label}</span>
-                            {cmd.shortcut && (
-                              <kbd className="text-[10px] px-1.5 py-0.5 rounded border bg-muted text-muted-foreground font-mono shrink-0">
-                                {cmd.shortcut}
-                              </kbd>
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                  {filteredActions.length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between px-3 py-1.5">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">Acciones</span>
-                      </div>
-                      {filteredActions.map((cmd, i) => {
-                        const Icon = cmd.icon
-                        const globalIndex = filteredNav.length + i
-                        const isSelected = globalIndex === selectedIndex
-                        return (
-                          <button
-                            key={`${cmd.type}-${cmd.id}`}
-                            onClick={() => handleSelect(cmd)}
-                            onMouseEnter={() => setSelectedIndex(globalIndex)}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-left transition-colors ${
-                              isSelected
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-foreground hover:bg-accent/50'
-                            }`}
-                          >
-                            <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                            <span className="flex-1 truncate">{cmd.label}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                  {groupedSearch && Object.keys(groupedSearch).length > 0 && (
-                    <div>
-                      {Object.entries(groupedSearch).map(([groupLabel, items], gi) => {
-                        const group = ENTITY_GROUPS.find(g => g.label === groupLabel)
-                        const GroupIcon = group?.icon || FileText
-                        return (
-                          <div key={groupLabel}>
-                            <div className="flex items-center justify-between px-3 py-1.5">
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{groupLabel}</span>
-                              <span className="text-[10px] text-muted-foreground/50">{items.length} resultado{items.length !== 1 ? 's' : ''}</span>
-                            </div>
-                            {items.map((cmd, ii) => {
-                              const globalIndex = filteredNav.length + filteredActions.length + (() => {
-                                let offset = 0
-                                for (let g = 0; g < gi; g++) {
-                                  const gname = Object.keys(groupedSearch)[g]
-                                  offset += groupedSearch[gname].length
-                                }
-                                return offset
-                              })() + ii
-                              const isSelected = globalIndex === selectedIndex
-                              return (
-                                <button
-                                  key={`${cmd.type}-${cmd.id}`}
-                                  onClick={() => handleSelect(cmd)}
-                                  onMouseEnter={() => setSelectedIndex(globalIndex)}
-                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-left transition-colors ${
-                                    isSelected
-                                      ? 'bg-accent text-accent-foreground'
-                                      : 'text-foreground hover:bg-accent/50'
-                                  }`}
-                                >
-                                  <GroupIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                  <span className="flex-1 truncate">{cmd.name}</span>
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/80 text-muted-foreground capitalize shrink-0">{groupLabel}</span>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+              </CommandList>
+            </Command>
             <div className="flex items-center gap-4 px-4 py-2.5 border-t border-border text-xs text-muted-foreground">
               <span><kbd className="px-1 py-0.5 rounded border bg-muted text-[10px] font-mono">↑↓</kbd> Navegar</span>
               <span><kbd className="px-1 py-0.5 rounded border bg-muted text-[10px] font-mono">Enter</kbd> Seleccionar</span>

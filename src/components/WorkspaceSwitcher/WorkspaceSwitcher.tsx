@@ -4,6 +4,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 const COLORS = ['#6366f1', '#ef4444', '#22c55e', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#a855f7']
 
@@ -64,12 +65,14 @@ export default function WorkspaceSwitcher() {
           onClick={() => setOpen(!open)}
           className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
         >
-          <div
-            className="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-            style={{ backgroundColor: activeWorkspace?.color || '#6366f1' }}
-          >
-            {(activeWorkspace?.name || 'E')[0].toUpperCase()}
-          </div>
+          <Avatar className="h-6 w-6 rounded flex-shrink-0">
+            <AvatarFallback
+              className="rounded text-white text-xs font-bold"
+              style={{ backgroundColor: activeWorkspace?.color || '#6366f1' }}
+            >
+              {(activeWorkspace?.name || 'E')[0].toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
           <span className="flex-1 truncate text-left">{activeWorkspace?.name || 'Mi Espacio'}</span>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
         </button>
@@ -87,12 +90,14 @@ export default function WorkspaceSwitcher() {
                     activeWorkspace?.id === ws.id && 'bg-accent/50 font-medium'
                   )}
                 >
-                  <div
-                    className="w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
-                    style={{ backgroundColor: ws.color || '#6366f1' }}
-                  >
-                    {ws.name[0].toUpperCase()}
-                  </div>
+                  <Avatar className="h-5 w-5 rounded flex-shrink-0">
+                    <AvatarFallback
+                      className="rounded text-white text-[10px] font-bold"
+                      style={{ backgroundColor: ws.color || '#6366f1' }}
+                    >
+                      {ws.name[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                   <span className="flex-1 truncate text-left">{ws.name}</span>
                   {activeWorkspace?.id === ws.id && <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
                   <button onClick={(e) => handleEdit(e, ws)} className="text-muted-foreground hover:text-foreground p-0.5">

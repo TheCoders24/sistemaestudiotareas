@@ -1,14 +1,6 @@
-import { cn } from '@/lib/utils'
+import { Skeleton } from './skeleton'
 
-interface SkeletonProps {
-  className?: string
-}
-
-export function Skeleton({ className }: SkeletonProps) {
-  return (
-    <div className={cn('animate-pulse rounded-md bg-muted', className)} />
-  )
-}
+export { Skeleton }
 
 export function CardSkeleton() {
   return (

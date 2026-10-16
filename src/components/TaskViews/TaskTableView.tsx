@@ -11,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from '@/components/ui/use-toast'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ListSkeleton } from '@/components/ui/loading-skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface Task {
   id: number; title: string; description: string; completed: number
@@ -271,36 +272,35 @@ export default function TaskTableView() {
             </Select>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b bg-accent/30">
-                  <th className="w-10 p-2 text-left">
+          <Table className="text-xs">
+            <TableHeader>
+              <TableRow className="bg-accent/30 hover:bg-accent/30">
+                  <TableHead className="w-10">
                     <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} />
-                  </th>
-                  <th className="p-2 text-left font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('title')}>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('title')}>
                     <span className="flex items-center">Título <SortIcon field="title" /></span>
-                  </th>
-                  <th className="p-2 text-left font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors w-[100px]" onClick={() => handleSort('priority')}>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:text-foreground transition-colors w-[100px]" onClick={() => handleSort('priority')}>
                     <span className="flex items-center">Prioridad <SortIcon field="priority" /></span>
-                  </th>
-                  <th className="p-2 text-left font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors w-[90px]" onClick={() => handleSort('due_date')}>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:text-foreground transition-colors w-[90px]" onClick={() => handleSort('due_date')}>
                     <span className="flex items-center">Fecha <SortIcon field="due_date" /></span>
-                  </th>
-                  <th className="p-2 text-left font-medium text-muted-foreground w-[120px]">Etiquetas</th>
-                  <th className="p-2 text-left font-medium text-muted-foreground w-[100px]">Proyecto</th>
-                  <th className="p-2 text-left font-medium text-muted-foreground w-[60px]">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableHead>
+                  <TableHead className="w-[120px]">Etiquetas</TableHead>
+                  <TableHead className="w-[100px]">Proyecto</TableHead>
+                  <TableHead className="w-[60px]">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
                 {loading ? (
-                  <tr><td colSpan={7}><ListSkeleton rows={5} /></td></tr>
+                  <TableRow><TableCell colSpan={7}><ListSkeleton rows={5} /></TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={7}>
+                  <TableRow>
+                    <TableCell colSpan={7}>
                       <EmptyState icon={Table2} title="Sin resultados" description="No se encontraron tareas con estos filtros." />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   filtered.map((task, i) => (
                     <motion.tr
@@ -310,10 +310,10 @@ export default function TaskTableView() {
                       transition={{ delay: i * 0.02 }}
                       className={`border-b hover:bg-accent/40 transition-colors ${task.completed ? 'opacity-50' : ''}`}
                     >
-                      <td className="p-2">
+                      <TableCell>
                         <Checkbox checked={selectedIds.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
-                      </td>
-                      <td className="p-2">
+                      </TableCell>
+                      <TableCell>
                         {editingCell?.taskId === task.id && editingCell.field === 'title' ? (
                           <Input
                             value={editValue}
@@ -331,13 +331,13 @@ export default function TaskTableView() {
                             {task.title}
                           </span>
                         )}
-                      </td>
-                      <td className="p-2">
+                      </TableCell>
+                      <TableCell>
                         <Badge variant="outline" className={`text-[10px] ${PRIORITY_BADGE[task.priority] || ''}`}>
                           {task.priority}
                         </Badge>
-                      </td>
-                      <td className="p-2">
+                      </TableCell>
+                      <TableCell>
                         {editingCell?.taskId === task.id && editingCell.field === 'due_date' ? (
                           <Input
                             type="date"
@@ -356,21 +356,21 @@ export default function TaskTableView() {
                             {formatDueDate(task.due_date)}
                           </span>
                         )}
-                      </td>
-                      <td className="p-2">
+                      </TableCell>
+                      <TableCell>
                         <div className="flex gap-1 flex-wrap">
                           {task.tags && task.tags.split(',').map(s => s.trim()).filter(Boolean).map(tag => (
                             <Badge key={tag} variant="secondary" className="text-[9px]">{tag}</Badge>
                           ))}
                         </div>
-                      </td>
-                      <td className="p-2 text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <FolderKanban className="h-3 w-3" />
                           {getProjectName(task.project_id)}
                         </span>
-                      </td>
-                      <td className="p-2">
+                      </TableCell>
+                      <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -400,13 +400,12 @@ export default function TaskTableView() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </td>
+                      </TableCell>
                     </motion.tr>
                   ))
                 )}
-              </tbody>
-            </table>
-          </div>
+            </TableBody>
+          </Table>
 
           <div className="flex items-center justify-between p-3 border-t text-xs text-muted-foreground">
             <span>{filtered.length} tarea(s)</span>
