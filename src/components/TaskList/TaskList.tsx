@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/components/ui/use-toast'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -18,6 +18,8 @@ import { useUndoStore } from '@/stores/undoStore'
 import { InfoBox } from '@/components/ui/info-box'
 import { useTranslate } from '@/lib/translate'
 import { TaskAttachments } from './TaskAttachments'
+import { cn } from '@/lib/utils'
+import { PRIORITY_COLORS } from '@/lib/constants'
 
 interface Subtask {
   id: number; task_id: number; title: string; completed: number; position: number
@@ -67,6 +69,7 @@ export default function TaskList() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'position' | 'priority' | 'due_date' | 'title'>('position')
   const [attachmentsTaskId, setAttachmentsTaskId] = useState<number | null>(null)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
   useEffect(() => { loadTasks(); loadProjects() }, [])
   useEffect(() => {
@@ -238,6 +241,10 @@ export default function TaskList() {
     }
     return Array.from(set).sort()
   }, [tasks])
+
+  function handleView(task: Task) {
+    setSelectedTask(task)
+  }
 
   const filtered = useMemo(() => {
     let result = tasks
@@ -435,6 +442,7 @@ export default function TaskList() {
                 exit={{ opacity: 0, x: 10 }}
                 layout
                 draggable
+                onClick={() => handleView(task)}
                 onDragStart={() => handleDragStart(task.id)}
                 onDragOver={(e) => handleDragOver(e, task.id)}
                 onDrop={handleDrop}
@@ -564,6 +572,133 @@ export default function TaskList() {
             />
             <Button type="submit">Agregar</Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <CheckSquare className="h-5 w-5 text-indigo-500" /> {selectedTask?.title}
+            </DialogTitle>
+            <DialogDescription>Información completa de la tarea</DialogDescription>
+          </DialogHeader>
+
+          {selectedTask && (
+            <div className="space-y-4 mt-4">
+              {/* Título */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Título</label>
+                <p className="text-base">{selectedTask.title}</p>
+              </div>
+
+              {/* Descripción */}
+              {selectedTask.description && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Descripción</label>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedTask.description}</p>
+                </div>
+              )}
+
+              {/* Prioridad */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Prioridad</label>
+                <Badge variant="outline" className={`px-3 py-1 ${priorityColor[selectedTask.priority] || ''}`}>
+                  {selectedTask.priority}
+                </Badge>
+              </div>
+
+              {/* Proyecto */}
+              {selectedTask.project_id && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Proyecto</label>
+                  <p className="text-sm">{projects.find(p => p.id === selectedTask.project_id)?.name || 'N/A'}</p>
+                </div>
+              )}
+
+              {/* Fecha límite */}
+              {selectedTask.due_date && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Fecha Límite</label>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>{new Date(selectedTask.due_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Recordatorio */}
+              {selectedTask.reminder && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Recordatorio</label>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Bell className="h-4 w-4 text-muted-foreground" />
+                    <span>{new Date(selectedTask.reminder).toLocaleString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Repetición */}
+              {selectedTask.repeat && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Repetir</label>
+                  <Badge variant="secondary" className="px-3 py-1">{selectedTask.repeat}</Badge>
+                </div>
+              )}
+
+              {/* Tags */}
+              {selectedTask.tags && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Tags</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedTask.tags.split(',').map((tag: string) => tag.trim().filter(Boolean).map((tag: string) => (
+                      <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                    )))}
+                  </div>
+                </div>
+              )}
+
+              {/* Estado */}
+              <div className="space-y-1.5 pt-2 border-t">
+                <label className="text-sm font-medium text-muted-foreground">Estado</label>
+                <Badge variant={selectedTask.completed ? 'default' : 'secondary'} className="px-3 py-1">
+                  {selectedTask.completed ? 'Completada ✓' : 'Pendiente'}
+                </Badge>
+              </div>
+
+              {/* Subtareas */}
+              {(selectedTask.subtasks || []).length > 0 && (
+                <div className="space-y-2 pt-2 border-t">
+                  <label className="text-sm font-medium text-muted-foreground">Subtareas</label>
+                  <div className="space-y-1 max-h-[200px] overflow-y-auto p-2 bg-card rounded-md">
+                    {(selectedTask.subtasks || []).map(sub => (
+                      <div key={sub.id} className={`text-xs flex items-center gap-2 px-2 py-1 rounded ${sub.completed ? 'bg-green-500/10' : ''}`}>
+                        <span className={sub.completed ? 'line-through text-muted-foreground' : ''}>{sub.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ID */}
+              <div className="space-y-1.5 pt-2 border-t">
+                <label className="text-sm font-medium text-muted-foreground">ID</label>
+                <p className="text-xs text-muted-foreground">{selectedTask.id}</p>
+              </div>
+
+              {/* Fecha de creación */}
+              {selectedTask.created_at && (
+                <div className="space-y-1.5 pt-2 border-t">
+                  <label className="text-sm font-medium text-muted-foreground">Creado</label>
+                  <p className="text-xs text-muted-foreground">{new Date(selectedTask.created_at).toLocaleDateString('es-ES')}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 pt-2 border-t">
+            <Button onClick={() => setSelectedTask(null)}>Cerrar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

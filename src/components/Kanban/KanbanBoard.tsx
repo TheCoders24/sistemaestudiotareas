@@ -11,6 +11,10 @@ import { useTranslate } from '@/lib/translate'
 import { useUndoStore } from '@/stores/undoStore'
 import TemplateLibrary from '@/components/Templates/TemplateLibrary'
 import KanbanColumn from './KanbanColumn'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
+import { PRIORITY_COLORS } from '@/lib/constants'
 
 const COLUMNS = [
   { id: 'pendiente', label: 'Por Hacer', color: 'border-t-gray-500' },
@@ -30,6 +34,7 @@ export default function KanbanBoard() {
   const [formDueDate, setFormDueDate] = useState('')
   const [activeId, setActiveId] = useState<number | null>(null)
   const [templateOpen, setTemplateOpen] = useState(false)
+  const [selectedCard, setSelectedCard] = useState<any>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -123,6 +128,10 @@ export default function KanbanBoard() {
     loadCards()
   }
 
+  function handleView(card: any) {
+    setSelectedCard(card)
+  }
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex justify-between items-center mb-6 flex-shrink-0">
@@ -176,7 +185,7 @@ export default function KanbanBoard() {
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e) => setActiveId(e.active.id as number)} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4 flex-1 min-h-0">
           {COLUMNS.map(column => (
-            <KanbanColumn key={column.id} column={column} cards={cardsByColumn[column.id] || []} onDelete={handleDelete} onView={() => {}} />
+            <KanbanColumn key={column.id} column={column} cards={cardsByColumn[column.id] || []} onDelete={handleDelete} onView={handleView} />
           ))}
         </div>
         <DragOverlay>
@@ -203,6 +212,79 @@ export default function KanbanBoard() {
         onOpenChange={setTemplateOpen}
         onInstantiated={() => { loadCards() }}
       />
+
+      <Dialog open={!!selectedCard} onOpenChange={(open) => !open && setSelectedCard(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl">{selectedCard?.title}</DialogTitle>
+            <DialogDescription>Información completa de la tarjeta</DialogDescription>
+          </DialogHeader>
+
+          {selectedCard && (
+            <div className="space-y-4 mt-4">
+              {/* Título */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Título</label>
+                <p className="text-base">{selectedCard.title}</p>
+              </div>
+
+              {/* Descripción */}
+              {selectedCard.description && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Descripción</label>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedCard.description}</p>
+                </div>
+              )}
+
+              {/* Columna */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Columna</label>
+                <Badge variant="secondary" className={cn("px-3 py-1", PRIORITY_COLORS[selectedCard.column_type])}>
+                  {selectedCard.column_type === 'pendiente' ? 'Por Hacer' : selectedCard.column_type === 'progreso' ? 'En Progreso' : 'Hecho'}
+                </Badge>
+              </div>
+
+              {/* Prioridad */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Prioridad</label>
+                <Badge variant="outline" className={cn("px-3 py-1", PRIORITY_COLORS[selectedCard.priority])}>
+                  {selectedCard.priority}
+                </Badge>
+              </div>
+
+              {/* Fecha límite */}
+              {selectedCard.due_date && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Fecha Límite</label>
+                  <p className="text-sm">{new Date(selectedCard.due_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                </div>
+              )}
+
+              {/* Tags */}
+              {selectedCard.tags && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Tags</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedCard.tags.split(',').map((tag: string) => tag.trim().filter(Boolean).map((tag: string) => (
+                      <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                    )))}
+                  </div>
+                </div>
+              )}
+
+              {/* ID */}
+              <div className="space-y-1.5 pt-2 border-t">
+                <label className="text-sm font-medium text-muted-foreground">ID</label>
+                <p className="text-xs text-muted-foreground">{selectedCard.id}</p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 pt-2 border-t">
+            <Button onClick={() => setSelectedCard(null)}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
